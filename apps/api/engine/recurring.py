@@ -1,82 +1,86 @@
 """
-Recurring Payment Detection & Upcoming Payments Calendar Engine
-Analyzes transaction inter-arrival intervals to detect recurring subscriptions,
-bills, rent, EMIs, and salaries, and generates an account-specific upcoming payment schedule.
+Recurring Transaction & Cadence Detection Engine
+Detects recurring cash flows (Salary, Rent, Subscriptions, EMIs, SIPs)
+using cadence clustering, amount stability scoring, and interval variance.
 """
 
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Tuple, Optional
-import statistics
+import numpy as np
+from collections import defaultdict
 
-CADENCE_RANGES = {
-    "weekly": (6, 8, 4),        # (min_interval, max_interval, min_occurrences)
-    "fortnightly": (13, 16, 3),
-    "monthly": (26, 35, 3),
-    "quarterly": (85, 96, 2),
-    "annual": (350, 380, 2),
+SUPPORTED_CADENCES = {
+    "weekly": (5, 9),
+    "fortnightly": (12, 16),
+    "monthly": (26, 35),
+    "quarterly": (85, 95),
+    "annual": (355, 375)
 }
 
 def detect_recurring_items(
-    transactions: List[Dict[str, Any]]
+    transactions: List[Dict[str, Any]],
+    min_occurrences: int = 2
 ) -> List[Dict[str, Any]]:
     """
-    Groups debit and credit transactions by merchant to identify periodic obligations,
-    linking each to its primary originating bank account.
+    Groups transactions by merchant/description and analyzes intervals and amounts
+    to classify recurring subscriptions, rent, EMIs, and salaries.
     """
-    merchant_groups: Dict[str, List[Dict[str, Any]]] = {}
+    groups = defaultdict(list)
+    merchant_names = {}
+
     for t in transactions:
+        # Ignore internal transfers
         if t.get("is_transfer"):
-            continue  # Skip internal transfers
-        merchant = t.get("merchant") or t.get("normalized_description")
-        if merchant:
-            merchant_groups.setdefault(merchant, []).append(t)
+            continue
+        m = t.get("merchant") or t.get("normalized_description") or t.get("raw_description", "")
+        if m:
+            key = m.strip().upper()
+            if key not in merchant_names:
+                merchant_names[key] = m
+            groups[key].append(t)
 
     detected_items = []
 
-    for merchant, txns in merchant_groups.items():
-        if len(txns) < 2:
+    for merchant_key, txns in groups.items():
+        if len(txns) < min_occurrences:
             continue
 
+        # Sort by date
         sorted_txns = sorted(txns, key=lambda x: x["posted_date"])
-        dates = [datetime.strptime(t["posted_date"], "%Y-%m-%d") for t in sorted_txns]
-        amounts = [abs(t["amount_minor"]) for t in sorted_txns]
+        dates = [datetime.strptime(x["posted_date"], "%Y-%m-%d") for x in sorted_txns]
+        amounts = [abs(x["amount_minor"]) for x in sorted_txns]
 
-        intervals = [(dates[i + 1] - dates[i]).days for i in range(len(dates) - 1)]
+        intervals = [(dates[i] - dates[i-1]).days for i in range(1, len(dates))]
         if not intervals:
             continue
 
-        median_interval = statistics.median(intervals)
-        std_interval = statistics.stdev(intervals) if len(intervals) > 1 else 0.0
+        median_interval = float(np.median(intervals))
+        cv_interval = float(np.std(intervals) / median_interval) if median_interval > 0 else 1.0
+
+        median_amount = int(np.median(amounts))
+        cv_amount = float(np.std(amounts) / median_amount) if median_amount > 0 else 1.0
 
         matched_cadence = None
-        min_occ_needed = 3
-
-        for cadence_name, (min_d, max_d, min_occ) in CADENCE_RANGES.items():
-            if min_d <= median_interval <= max_d:
-                matched_cadence = cadence_name
-                min_occ_needed = min_occ
+        for cadence, (low, high) in SUPPORTED_CADENCES.items():
+            if low <= median_interval <= high:
+                matched_cadence = cadence
                 break
 
-        if not matched_cadence or len(sorted_txns) < min_occ_needed:
+        if not matched_cadence:
             continue
 
-        median_amount = int(statistics.median(amounts))
-        min_amount = min(amounts)
-        max_amount = max(amounts)
-        mean_amount = statistics.mean(amounts)
-        std_amount = statistics.stdev(amounts) if len(amounts) > 1 else 0.0
-        cv_amount = (std_amount / mean_amount) if mean_amount > 0 else 0.0
+        # Confidence calculation
+        cadence_fit = max(0.0, 1.0 - cv_interval)
+        amount_fit = max(0.0, 1.0 - cv_amount)
+        count_fit = min(1.0, len(sorted_txns) / 4.0)
+        confidence = round(0.4 * cadence_fit + 0.4 * amount_fit + 0.2 * count_fit, 2)
 
-        c_count = min(1.0, len(sorted_txns) / 6.0)
-        c_cadence = max(0.0, 1.0 - (std_interval / median_interval)) if median_interval > 0 else 0.5
-        c_amount = max(0.0, 1.0 - cv_amount)
-
-        confidence = round(0.4 * c_count + 0.3 * c_cadence + 0.3 * c_amount, 2)
         if confidence < 0.60:
             continue
 
+        # Classify obligation type
         last_txn = sorted_txns[-1]
-        category = last_txn.get("category_id", "")
+        category = last_txn.get("category_id", "").lower()
         if "salary" in category or last_txn.get("amount_minor", 0) > 0:
             rec_type = "salary"
         elif "rent" in category:
@@ -97,14 +101,18 @@ def detect_recurring_items(
 
         # Originating bank account ID
         originating_account_id = last_txn.get("account_id")
+        merchant_label = merchant_names.get(merchant_key, merchant_key)
 
         detected_items.append({
-            "merchant": merchant,
+            "merchant": merchant_label,
             "type": rec_type,
             "cadence": matched_cadence,
             "typical_amount_minor": median_amount,
-            "amount_min_minor": min_amount,
-            "amount_max_minor": max_amount,
+            "typical_amount_paise": median_amount,
+            "amount_min_minor": min(amounts),
+            "amount_max_minor": max(amounts),
+            "amount_min_paise": min(amounts),
+            "amount_max_paise": max(amounts),
             "last_paid_date": last_date.strftime("%Y-%m-%d"),
             "next_expected_date": next_date.strftime("%Y-%m-%d"),
             "day_of_month": last_date.day,
@@ -167,15 +175,21 @@ def generate_upcoming_schedule(
                 bank_name = acct_info.get("bank", "Bank Account")
                 masked_last4 = acct_info.get("masked_last4", "XXXX")
 
+                amount = item.get("typical_amount_minor", item.get("typical_amount_paise", 0))
+
                 upcoming_schedule.append({
                     "due_date": candidate_dt.strftime("%Y-%m-%d"),
                     "day_of_month": candidate_dt.day,
                     "merchant": item["merchant"],
                     "type": item["type"],
                     "is_income": item["type"] == "salary",
-                    "amount_paise": item["typical_amount_minor"],
+                    "amount_paise": amount,
+                    "typical_amount_paise": amount,
+                    "amount_minor": amount,
+                    "typical_amount_minor": amount,
                     "account_id": acct_id,
                     "bank_name": bank_name,
+                    "bank_attributed": f"{bank_name} •••• {masked_last4}",
                     "masked_last4": masked_last4,
                     "confidence": item.get("confidence", 0.9)
                 })

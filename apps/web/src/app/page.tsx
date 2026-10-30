@@ -54,9 +54,9 @@ function getBankBadge(bankName: string = '') {
 }
 
 export default function DashboardPage() {
-  const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [upcoming, setUpcoming] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   
   // Natural language query
   const [nlQuery, setNlQuery] = useState('');
@@ -262,50 +262,55 @@ export default function DashboardPage() {
             {nlEvaluating ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                Evaluating Math...
+                Evaluating...
               </>
             ) : (
               <>
-                Evaluate Math
+                Evaluate Affordability
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
         </form>
 
-        {/* Instant Decision Result Box */}
-        <AnimatePresence>
-          {nlResult && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mt-4 p-4 rounded-xl border border-slate-800 bg-slate-950/90 text-xs sm:text-sm"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-800/80">
-                <div className="flex items-center gap-2">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wider uppercase font-mono ${
-                    nlResult.verdict?.code === 'AFFORDABLE' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' :
-                    nlResult.verdict?.code === 'TIGHT' ? 'bg-amber-950 text-amber-300 border border-amber-800' :
-                    nlResult.verdict?.code === 'NOT_ADVISABLE' ? 'bg-orange-950 text-orange-300 border border-orange-800' :
-                    'bg-rose-950 text-rose-300 border border-rose-800'
-                  }`}>
-                    {nlResult.verdict?.code}
-                  </span>
-                  <span className="text-slate-400 text-xs font-mono">
-                    Score: {nlResult.verdict?.confidence_score ?? 100}%
-                  </span>
-                </div>
-                <div className="text-xs text-slate-400 font-mono">
-                  P50 Headroom: <span className="font-semibold text-emerald-400">{formatINR(nlResult.headroom?.p50_minor || 0)}</span>
-                </div>
+        {/* Natural Language Result Dropdown Banner */}
+        {nlResult && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mt-4 pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+          >
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded font-mono font-bold uppercase text-[11px] ${
+                  nlResult.verdict?.code === 'AFFORDABLE' ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' :
+                  nlResult.verdict?.code === 'TIGHT' ? 'bg-amber-950 text-amber-400 border border-amber-900' :
+                  'bg-rose-950 text-rose-400 border border-rose-900'
+                }`}>
+                  {nlResult.verdict?.code || 'VERDICT'}
+                </span>
+                <span className="text-slate-300 font-medium">
+                  {nlResult.verdict?.headline || 'Evaluation complete.'}
+                </span>
               </div>
-              <p className="text-slate-200 leading-relaxed font-normal">
-                {nlResult.narration}
+              <p className="text-slate-400 italic">
+                "{nlResult.narrative || nlResult.verdict?.explanation}"
               </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right font-mono">
+                <span className="text-slate-500 text-[11px] block">Confidence P50 Headroom</span>
+                <span className="font-semibold text-emerald-400">{formatINR(nlResult.headroom?.p50_minor || 0)}</span>
+              </div>
+              <a 
+                href="/lab" 
+                className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium transition"
+              >
+                Inspect Ledger <ChevronRight className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </motion.div>
+        )}
       </motion.div>
 
       {/* Above-The-Fold KPI Cards */}
@@ -412,26 +417,20 @@ export default function DashboardPage() {
             <div>
               <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-emerald-400" />
-                Monthly Cash Flow Dynamics (₹)
+                Monthly Cash Flow Dynamics
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Deterministic monthly income vs non-transfer spend
+                Income credits vs spend debits across all verified statements
               </p>
             </div>
-            <span className="text-xs font-mono text-slate-500">
-              {monthlyData.length} recorded months
-            </span>
+            <span className="text-xs font-mono text-slate-500">Unit: ₹ (Rupees)</span>
           </div>
 
           <div className="h-64 w-full">
-            {monthlyData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-slate-500 text-xs">
-                No monthly data points available. Ingest bank statement to populate.
-              </div>
-            ) : (
+            {monthlyData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                   <XAxis 
                     dataKey="month" 
                     stroke="#64748b" 
@@ -442,30 +441,36 @@ export default function DashboardPage() {
                     stroke="#64748b" 
                     fontSize={11} 
                     tickLine={false}
-                    tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`}
+                    tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
                   />
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#020617', 
-                      borderColor: '#334155', 
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      color: '#f8fafc'
+                      borderColor: '#1e293b', 
+                      borderRadius: '0.75rem', 
+                      fontSize: '12px' 
                     }}
-                    formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']}
+                    formatter={(val: number) => [`₹${val.toLocaleString('en-IN')}`, '']}
                   />
                   <Legend 
-                    wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} 
+                    verticalAlign="top" 
+                    height={36} 
+                    iconType="circle"
+                    formatter={(val) => <span className="text-xs text-slate-300 capitalize">{val}</span>}
                   />
-                  <Bar dataKey="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Spend" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Income" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey="Spend" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={32} />
                 </BarChart>
               </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-500 text-xs">
+                No monthly statement data available yet. Ingest a statement to visualize trends.
+              </div>
             )}
           </div>
         </div>
 
-        {/* Top Spend Categories Distribution */}
+        {/* Category Spend Distribution */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
           <div>
             <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
@@ -563,7 +568,7 @@ export default function DashboardPage() {
                       Current Cleared Balance
                     </span>
                     <p className="text-2xl font-bold font-mono text-slate-100 tracking-tight mt-0.5">
-                      {formatINR(acct.current_balance_paise)}
+                      {formatINR(acct.current_balance_paise ?? 0)}
                     </p>
                   </div>
                 </div>
@@ -571,11 +576,15 @@ export default function DashboardPage() {
                 <div className="mt-6 pt-4 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <span className="text-slate-500">Total Inflow</span>
-                    <p className="text-emerald-400 font-mono font-medium">{formatINR(acct.inflow_paise)}</p>
+                    <p className="text-emerald-400 font-mono font-medium">
+                      {formatINR(acct.inflow_paise ?? acct.total_inflow_paise ?? 0)}
+                    </p>
                   </div>
                   <div>
                     <span className="text-slate-500">Total Outflow</span>
-                    <p className="text-rose-400 font-mono font-medium">{formatINR(acct.outflow_paise)}</p>
+                    <p className="text-rose-400 font-mono font-medium">
+                      {formatINR(acct.outflow_paise ?? acct.total_outflow_paise ?? 0)}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -630,27 +639,27 @@ export default function DashboardPage() {
               >
                 <div className="flex items-center justify-between">
                   <span className={`text-xs font-bold font-mono uppercase tracking-wider ${
-                    adviceResult.verdict === 'FEASIBLE' ? 'text-emerald-400' : 'text-amber-400'
+                    (adviceResult.verdict === 'FEASIBLE' || adviceResult.feasible) ? 'text-emerald-400' : 'text-amber-400'
                   }`}>
-                    {adviceResult.verdict}
+                    {adviceResult.verdict || (adviceResult.feasible ? 'FEASIBLE' : 'TIGHT')}
                   </span>
                   <span className="text-xs text-slate-400 font-mono">
-                    Total Safe Surplus: <span className="text-slate-100 font-bold">{formatINR(adviceResult.total_safe_surplus_paise)}</span>
+                    Total Safe Surplus: <span className="text-slate-100 font-bold">{formatINR(adviceResult.total_safe_surplus_paise ?? adviceResult.combined_liquid_paise ?? 0)}</span>
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  {adviceResult.recommendation}
+                  {adviceResult.recommendation || adviceResult.advice_text}
                 </p>
 
-                {adviceResult.allocation && adviceResult.allocation.length > 0 && (
+                {(adviceResult.allocation || adviceResult.transfers_plan) && ((adviceResult.allocation && adviceResult.allocation.length > 0) || (adviceResult.transfers_plan && adviceResult.transfers_plan.length > 0)) && (
                   <div className="mt-2 space-y-1.5 pt-2 border-t border-slate-900">
                     <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
                       Recommended Debit Allocation
                     </span>
-                    {adviceResult.allocation.map((alloc: any, idx: number) => (
+                    {(adviceResult.allocation && adviceResult.allocation.length > 0 ? adviceResult.allocation : adviceResult.transfers_plan).map((alloc: any, idx: number) => (
                       <div key={idx} className="flex justify-between items-center text-xs py-1 px-2 rounded bg-slate-900/60 border border-slate-800/60">
-                        <span className="text-slate-300 font-medium">Debit from {alloc.bank}</span>
-                        <span className="font-mono font-bold text-indigo-300">{formatINR(alloc.amount_paise)}</span>
+                        <span className="text-slate-300 font-medium">Debit from {alloc.bank || alloc.from_bank}</span>
+                        <span className="font-mono font-bold text-indigo-300">{formatINR(alloc.amount_paise ?? alloc.transfer_amount_paise ?? 0)}</span>
                       </div>
                     ))}
                   </div>
@@ -695,13 +704,13 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-xs sm:text-sm font-semibold text-slate-100">{item.merchant}</p>
                       <p className="text-[11px] text-slate-400">
-                        {item.type.toUpperCase()} • Deducts from <span className="text-emerald-400 font-medium">{item.bank_attributed}</span>
+                        {item.type.toUpperCase()} • Deducts from <span className="text-emerald-400 font-medium">{item.bank_attributed || item.bank_name || 'Bank Account'}</span>
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-xs sm:text-sm font-bold font-mono text-rose-400">
-                      -{formatINR(item.typical_amount_paise)}
+                      -{formatINR(item.typical_amount_paise ?? item.amount_paise ?? item.typical_amount_minor ?? 0)}
                     </p>
                     <p className="text-[11px] font-mono text-slate-500">{item.due_date}</p>
                   </div>

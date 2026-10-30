@@ -1,13 +1,13 @@
 """
 Anomaly Detection & User Feedback Router
-Exposes flagged spending spikes, unexpected duplicate charges, and new merchants
-with mathematical explanations and user feedback resolution.
+Provides listing of algorithmic spending spikes and user dismiss/confirm feedback.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Dict, Any, List, Optional
+from datetime import datetime
 
 from db.database import get_db
 from db.models import Anomaly, Transaction, Account
@@ -15,12 +15,12 @@ from db.models import Anomaly, Transaction, Account
 router = APIRouter()
 
 class AnomalyFeedbackRequest(BaseModel):
-    feedback: str  # "expected" | "real_duplicate" | "disputed" | "none"
+    feedback: str  # "confirmed_fraud" | "legitimate_expense" | "false_positive"
 
 @router.get("")
 def list_anomalies(
-    type_filter: Optional[str] = None,
     severity_filter: Optional[str] = None,
+    type_filter: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -31,7 +31,7 @@ def list_anomalies(
         query = query.filter(Anomaly.type == type_filter)
     if severity_filter:
         query = query.filter(Anomaly.severity == severity_filter)
-
+    
     anomalies = query.order_by(Anomaly.created_at.desc()).all()
 
     anomaly_cards = []
@@ -47,6 +47,7 @@ def list_anomalies(
             "severity": a.severity,
             "reason_text": a.reason_text,
             "amount_paise": a.amount_minor,
+            "amount_minor": a.amount_minor,
             "user_feedback": a.user_feedback,
             "created_at": a.created_at.isoformat() if a.created_at else None,
             "transaction_details": {
@@ -73,9 +74,9 @@ def submit_anomaly_feedback(
 ):
     """
     Records user feedback for an anomaly:
-    - 'expected': User confirms this was an intentional unusual charge
-    - 'real_duplicate': User confirms merchant double-charged them (or genuine duplicate)
-    - 'disputed': User is disputing this charge with the bank
+    - Confirmed fraud
+    - Legitimate one-off expense
+    - False positive
     """
     anomaly = db.query(Anomaly).filter_by(id=anomaly_id).first()
     if not anomaly:

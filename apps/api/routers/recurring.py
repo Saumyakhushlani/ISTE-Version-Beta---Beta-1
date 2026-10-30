@@ -4,10 +4,11 @@ Provides listing of recurring obligations, upcoming payment calendars with bank 
 and user confirmation/editing.
 """
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional, List
 from pydantic import BaseModel
+from typing import Dict, Any, List, Optional
+from datetime import datetime
 
 from db.database import get_db
 from db.models import RecurringItem, Account, Transaction
@@ -16,7 +17,9 @@ from engine.recurring import generate_upcoming_schedule
 router = APIRouter()
 
 class EditRecurringRequest(BaseModel):
-    user_status: Optional[str] = None  # "confirmed" | "rejected" | "auto"
+    merchant: Optional[str] = None
+    type: Optional[str] = None
+    cadence: Optional[str] = None
     typical_amount_minor: Optional[int] = None
     next_expected_date: Optional[str] = None
 
@@ -42,8 +45,11 @@ def list_recurring_items(
                 "type": r.type,
                 "cadence": r.cadence,
                 "typical_amount_paise": r.typical_amount_minor,
+                "typical_amount_minor": r.typical_amount_minor,
                 "amount_min_paise": r.amount_min_minor,
+                "amount_min_minor": r.amount_min_minor,
                 "amount_max_paise": r.amount_max_minor,
+                "amount_max_minor": r.amount_max_minor,
                 "last_paid_date": r.last_paid_date,
                 "next_expected_date": r.next_expected_date,
                 "occurrences": r.occurrences,
@@ -90,6 +96,7 @@ def get_upcoming_schedule(
             "type": r.type,
             "cadence": r.cadence,
             "typical_amount_minor": r.typical_amount_minor,
+            "typical_amount_paise": r.typical_amount_minor,
             "last_paid_date": r.last_paid_date,
             "confidence": r.confidence,
             "account_id": acct_id
@@ -126,16 +133,27 @@ def edit_recurring_item(
     if not item:
         raise HTTPException(status_code=404, detail="Recurring item not found.")
 
-    if payload.user_status:
-        item.user_status = payload.user_status
-        if payload.user_status == "rejected":
-            item.status = "paused"
+    if payload.merchant:
+        item.merchant = payload.merchant
+    if payload.type:
+        item.type = payload.type
+    if payload.cadence:
+        item.cadence = payload.cadence
     if payload.typical_amount_minor is not None:
         item.typical_amount_minor = payload.typical_amount_minor
     if payload.next_expected_date:
         item.next_expected_date = payload.next_expected_date
 
+    item.user_status = "confirmed"
     db.commit()
     db.refresh(item)
 
-    return {"status": "success", "item_id": item.id, "user_status": item.user_status}
+    return {
+        "id": item.id,
+        "merchant": item.merchant,
+        "type": item.type,
+        "cadence": item.cadence,
+        "typical_amount_minor": item.typical_amount_minor,
+        "next_expected_date": item.next_expected_date,
+        "user_status": item.user_status
+    }

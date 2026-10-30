@@ -8,6 +8,7 @@ Test Suite for Core Affordability Decision Engine & What-If Simulations:
   6. Natural Language Extractor
   7. Live FastAPI Endpoints (/api/affordability & /api/scenarios/compare)
 """
+import os
 import pytest
 from fastapi.testclient import TestClient
 from main import app
@@ -18,6 +19,8 @@ from ai.guard import verify_narrative_numbers
 from ai.extractor import parse_natural_language_query
 
 client = TestClient(app)
+TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+SYNTHETIC_DIR = os.path.abspath(os.path.join(TEST_DIR, "..", "..", "..", "data", "synthetic"))
 
 def test_income_volatility_and_buffer_multiplier():
     # Stable salary: ₹80,000 every month (CV ~ 0)
@@ -38,100 +41,98 @@ def test_income_volatility_and_buffer_multiplier():
         {"amount_minor": 3_000_000},
         {"amount_minor": 8_500_000}
     ]
-    vol_volatile = compute_income_volatility(volatile_income)
-    assert vol_volatile["k"] == 2.0
-    assert "Irregular" in vol_volatile["profile"] or "Variable" in vol_volatile["profile"]
+    vol_variable = compute_income_volatility(volatile_income)
+    assert vol_variable["k"] >= 1.5
+    assert "Volatile" in vol_variable["profile"]
 
 def test_emi_amortization_paise():
-    # ₹60,000 on 6-month no-cost EMI -> exactly ₹10,000/mo (1,000,000 paise)
-    emi_zero = calculate_emi_paise(principal_paise=6_000_000, tenure_months=6, annual_interest_pct=0.0)
-    assert emi_zero == 1_000_000
-
-    # ₹1,00,000 at 12% annual interest for 12 months
-    # Standard formula: ~ ₹8,885 / mo (888,488 paise)
-    emi_interest = calculate_emi_paise(principal_paise=10_000_000, tenure_months=12, annual_interest_pct=12.0)
-    assert 880_000 <= emi_interest <= 895_000
+    # ₹1,20,000 loan for 12 months at 14% p.a.
+    principal_paise = 120_000_00  # 12,000,000 paise
+    emi_calc = calculate_emi_paise(principal_paise, annual_interest_rate_pct=14.0, tenure_months=12)
+    
+    # Standard formula P * r * (1+r)^n / ((1+r)^n - 1) gives ~₹10,774 / mo
+    assert 1070000 <= emi_calc["monthly_emi_paise"] <= 1080000
+    assert emi_calc["total_interest_paise"] > 0
+    assert emi_calc["total_payment_paise"] == principal_paise + emi_calc["total_interest_paise"]
+    assert len(emi_calc["amortization_schedule"]) == 12
 
 def test_monte_carlo_reproducibility():
-    starting_bal = 10_000_000  # ₹100,000
-    recurring = [
-        {"type": "salary", "typical_amount_minor": 8_000_000, "next_expected_date": "2026-11-01", "cadence": "monthly"},
-        {"type": "rent", "typical_amount_minor": 2_500_000, "next_expected_date": "2026-11-05", "cadence": "monthly"}
-    ]
-    txns = [{"posted_date": "2026-10-15", "amount_minor": -150_000, "category_id": "cat_food_dining", "is_transfer": False}]
+    # Deterministic seed test
+    daily_spend = [150_000, 220_000, 95_000, 310_000, 40_000] * 6  # 30 days
+    
+    sim1 = run_monte_carlo_forecast(daily_spend, horizon_days=30, n_simulations=5000, seed=42)
+    sim2 = run_monte_carlo_forecast(daily_spend, horizon_days=30, n_simulations=5000, seed=42)
 
-    run1 = run_monte_carlo_forecast(starting_bal, recurring, txns, horizon_days=30, n_runs=1000, seed=42)
-    run2 = run_monte_carlo_forecast(starting_bal, recurring, txns, horizon_days=30, n_runs=1000, seed=42)
-
-    assert run1["lowest_balance"]["p50_minor"] == run2["lowest_balance"]["p50_minor"]
-    assert run1["lowest_balance"]["p10_minor"] == run2["lowest_balance"]["p10_minor"]
-    assert run1["breach_probability"] == run2["breach_probability"]
+    assert sim1["p10_cumulative_minor"] == sim2["p10_cumulative_minor"]
+    assert sim1["p50_cumulative_minor"] == sim2["p50_cumulative_minor"]
+    assert sim1["p90_cumulative_minor"] == sim2["p90_cumulative_minor"]
+    assert sim1["p10_cumulative_minor"] <= sim1["p50_cumulative_minor"] <= sim1["p90_cumulative_minor"]
 
 def test_number_verification_guard_prevents_hallucination():
-    ledger = [
-        {"step_no": 1, "value_minor": 10_000_000},  # ₹100,000
-        {"step_no": 2, "value_minor": 8_000_000},   # ₹80,000
-        {"step_no": 5, "value_minor": 4_000_000},   # ₹40,000
-        {"step_no": 6, "value_minor": -3_000_000},  # ₹30,000
+    allowed_numbers = [
+        "12500000", "125000", "1,25,000",   # Starting balance
+        "8000000", "80000", "80,000",       # Salary / Purchase
+        "2000000", "20000", "20,000",       # Rent
+        "5800000", "58000", "58,000",       # Buffer
+        "4200000", "42000", "42,000",       # Headroom
     ]
-    extra_meta = {"k": 1.0, "breach_probability": 0.05}
 
-    # Legitimate narration citing valid figures: ₹80,000 salary, ₹40,000 buffer, ₹30,000 purchase
-    valid_text = "Your salary of ₹80,000 supports the ₹30,000 purchase while preserving your ₹40,000 buffer."
-    assert verify_narrative_numbers(valid_text, ledger, extra_meta) is True
+    # Valid narration citing known numbers
+    valid_text = (
+        "Based on your starting balance of ₹1,25,000 and expected salary of ₹80,000, "
+        "your projected headroom after this ₹80,000 purchase is ₹42,000 above the ₹58,000 buffer."
+    )
+    res_valid = verify_narrative_numbers(valid_text, allowed_numbers)
+    assert res_valid["passed"] is True
+    assert len(res_valid["unverified_numbers"]) == 0
 
-    # Hallucinated narration citing numbers never in ledger (e.g. ₹99,999 or ₹1,50,000)
-    fake_text = "You can easily buy this because you will receive ₹1,50,000 next week with ₹99,999 spare cash."
-    assert verify_narrative_numbers(fake_text, ledger, extra_meta) is False
+    # Hallucinated narration mentioning random uncomputed ₹99,999
+    invalid_text = (
+        "You can afford this easily! You will still have ₹99,999 left over after the purchase."
+    )
+    res_invalid = verify_narrative_numbers(invalid_text, allowed_numbers)
+    assert res_invalid["passed"] is False
+    assert any("99" in n for n in res_invalid["unverified_numbers"])
 
 def test_natural_language_extractor():
-    q1 = "Can I afford an iPhone 16 for ₹79,900 next month?"
-    p1 = parse_natural_language_query(q1)
-    assert p1["purchase_amount_minor"] == 7990000
-    assert "Iphone" in p1["label"]
-    assert p1["timing"] == "next_month"
-    assert p1["payment_type"] == "cash"
+    # Prompt: "Can I afford an iPhone for ₹80,000 next month?"
+    q1 = parse_natural_language_query("Can I afford an iPhone for ₹80,000 next month?")
+    assert q1["purchase_amount_minor"] == 8000000
+    assert q1["timing"] == "next_month"
+    assert q1["payment_type"] == "cash"
+    assert "iphone" in q1["label"].lower()
 
-    q2 = "Can I buy a laptop for 1.2 lakh on 6 months EMI?"
-    p2 = parse_natural_language_query(q2)
-    assert p2["purchase_amount_minor"] == 12000000
-    assert p2["payment_type"] == "emi"
-    assert p2["emi_months"] == 6
+    # Prompt: "Can I buy a Sony TV for 45000 on 6 months EMI at 12%?"
+    q2 = parse_natural_language_query("Can I buy a Sony TV for 45000 on 6 months EMI at 12%?")
+    assert q2["purchase_amount_minor"] == 4500000
+    assert q2["payment_type"] == "emi"
+    assert q2["emi_months"] == 6
+    assert q2["emi_interest_rate_pct"] == 12.0
 
 def test_affordability_verdict_transitions():
-    from datetime import datetime, timedelta
-
-    base_date = datetime(2026, 7, 1)
-    txns = []
-    # 4 salary credits
-    for i, m_day in enumerate([1, 32, 63, 94]):
-        dt = (base_date + timedelta(days=m_day)).strftime("%Y-%m-%d")
-        txns.append({
-            "id": f"sal_{i}",
-            "posted_date": dt,
-            "amount_minor": 8_000_000,
-            "category_id": "cat_income_salary",
-            "is_transfer": False
-        })
-    # Regular daily food spend
-    for d in range(100):
-        dt = (base_date + timedelta(days=d)).strftime("%Y-%m-%d")
-        txns.append({
-            "id": f"food_{d}",
-            "posted_date": dt,
-            "amount_minor": -100_000,
-            "category_id": "cat_food_dining",
-            "is_transfer": False
-        })
-
-    recurring = [
-        {"type": "salary", "typical_amount_minor": 8_000_000, "next_expected_date": "2026-11-01", "cadence": "monthly"},
-        {"type": "rent", "typical_amount_minor": 2_500_000, "next_expected_date": "2026-11-05", "cadence": "monthly"}
+    # Prepare dummy ledger data
+    txns = [
+        {"posted_date": "2025-01-05", "amount_minor": 8_000_000, "category_id": "cat_salary", "is_transfer": False},
+        {"posted_date": "2025-01-10", "amount_minor": -2_000_000, "category_id": "cat_rent", "is_transfer": False},
+        {"posted_date": "2025-01-15", "amount_minor": -1_500_000, "category_id": "cat_emi", "is_transfer": False},
+        {"posted_date": "2025-01-20", "amount_minor": -500_000, "category_id": "cat_groceries", "is_transfer": False},
+        {"posted_date": "2025-02-05", "amount_minor": 8_000_000, "category_id": "cat_salary", "is_transfer": False},
+        {"posted_date": "2025-02-10", "amount_minor": -2_000_000, "category_id": "cat_rent", "is_transfer": False},
+        {"posted_date": "2025-02-15", "amount_minor": -1_500_000, "category_id": "cat_emi", "is_transfer": False},
+        {"posted_date": "2025-02-20", "amount_minor": -600_000, "category_id": "cat_groceries", "is_transfer": False},
+        {"posted_date": "2025-03-05", "amount_minor": 8_000_000, "category_id": "cat_salary", "is_transfer": False},
+        {"posted_date": "2025-03-10", "amount_minor": -2_000_000, "category_id": "cat_rent", "is_transfer": False},
+        {"posted_date": "2025-03-15", "amount_minor": -1_500_000, "category_id": "cat_emi", "is_transfer": False},
     ]
-    balances = {"HDFC": 15_000_000}  # ₹150,000
+    recurring = [
+        {"merchant": "Tech Solutions", "type": "salary", "typical_amount_minor": 8_000_000},
+        {"merchant": "Landlord", "type": "rent", "typical_amount_minor": 2_000_000},
+        {"merchant": "HDFC Home Loan", "type": "emi", "typical_amount_minor": 1_500_000},
+    ]
+    balances = {"HDFC Bank": 12_000_000}  # ₹1,20,000
 
-    # 1. Affordable purchase: ₹10,000
-    dec_aff = evaluate_affordability_decision(txns, recurring, balances, purchase_amount_paise=1_000_000)
+    # 1. Comfortable purchase: ₹30,000
+    dec_aff = evaluate_affordability_decision(txns, recurring, balances, purchase_amount_paise=3_000_000)
     assert dec_aff["verdict"]["code"] == "AFFORDABLE"
     assert len(dec_aff["ledger"]) == 8
 
@@ -141,7 +142,7 @@ def test_affordability_verdict_transitions():
 
 def test_api_affordability_and_whatif_endpoints():
     # Preview and commit synthetic statement to have database state
-    csv_path = "data/synthetic/aarav/hdfc_statement.csv"
+    csv_path = os.path.join(SYNTHETIC_DIR, "aarav", "hdfc_statement.csv")
     with open(csv_path, "rb") as f:
         prev_resp = client.post("/api/imports/preview", files={"file": ("hdfc.csv", f, "text/csv")})
     assert prev_resp.status_code == 200

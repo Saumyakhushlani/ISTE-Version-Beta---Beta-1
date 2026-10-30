@@ -43,9 +43,11 @@ export default function AnomaliesPage() {
     setAcknowledged((prev) => ({ ...prev, [id]: true }));
   }
 
+  const getAnomalyAmount = (a: any) => a.amount_paise ?? a.amount_minor ?? 0;
+
   const highSeverityCount = anomalies.filter((a) => a.severity === 'high').length;
   const mediumSeverityCount = anomalies.filter((a) => a.severity === 'medium').length;
-  const totalOutlierAmountPaise = anomalies.reduce((sum, a) => sum + (a.amount_minor || 0), 0);
+  const totalOutlierAmountPaise = anomalies.reduce((sum, a) => sum + getAnomalyAmount(a), 0);
 
   const filtered = anomalies.filter((a) => {
     if (filterSeverity === 'all') return true;
@@ -82,7 +84,7 @@ export default function AnomaliesPage() {
         </button>
       </div>
 
-      {/* Summary KPI Strip */}
+      {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
@@ -96,7 +98,7 @@ export default function AnomaliesPage() {
             {anomalies.length}
           </p>
           <p className="text-xs text-slate-400 mt-1.5">
-            Outliers exceeding category baselines
+            Statistical outliers and duplicate debits
           </p>
         </motion.div>
 
@@ -143,11 +145,11 @@ export default function AnomaliesPage() {
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
             Detection Standard
           </span>
-          <p className="text-2xl sm:text-3xl font-bold font-mono text-emerald-400 mt-2 tracking-tight">
+          <p className="text-2xl sm:text-3xl font-bold font-mono text-indigo-400 mt-2 tracking-tight">
             M &gt; 3.5
           </p>
           <p className="text-xs text-slate-400 mt-1.5">
-            Median Absolute Deviation (MAD)
+            Median absolute deviation threshold
           </p>
         </motion.div>
       </div>
@@ -157,16 +159,16 @@ export default function AnomaliesPage() {
         {[
           { id: 'all', label: `All Alerts (${anomalies.length})` },
           { id: 'high', label: `High Severity (${highSeverityCount})` },
-          { id: 'medium', label: `Medium Severity (${mediumSeverityCount})` },
-          { id: 'spikes', label: 'Spending Spikes' },
-          { id: 'duplicates', label: 'Duplicate Charges' },
+          { id: 'medium', label: `Medium (${mediumSeverityCount})` },
+          { id: 'duplicates', label: 'Potential Duplicates' },
+          { id: 'spikes', label: 'Spike Anomalies' },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setFilterSeverity(tab.id)}
             className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition border cursor-pointer ${
               filterSeverity === tab.id
-                ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-950/40'
+                ? 'bg-amber-600 text-white border-amber-500 shadow-md shadow-amber-950/40'
                 : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
             }`}
           >
@@ -175,42 +177,54 @@ export default function AnomaliesPage() {
         ))}
       </div>
 
-      {/* Anomalies Feed */}
-      <div className="space-y-4">
+      {/* Anomalies List */}
+      <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-500 text-sm">
-            <ShieldCheck className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
-            <p className="text-slate-200 font-semibold text-base">No anomalies matching this filter</p>
-            <p className="text-xs text-slate-400 mt-1">All debit events align cleanly with your historical spending baselines.</p>
+          <div className="py-16 text-center text-slate-500 text-sm bg-slate-900/50 rounded-2xl border border-slate-800">
+            No anomalous transactions found matching the filter criteria.
           </div>
         ) : (
           filtered.map((a) => {
             const isAck = acknowledged[a.id];
+            const amt = getAnomalyAmount(a);
             return (
               <motion.div 
                 key={a.id} 
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`bg-slate-900 border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition shadow-lg ${
-                  isAck ? 'opacity-60 border-slate-800' : 
-                  a.severity === 'high' ? 'border-rose-900/60 bg-rose-950/10' :
-                  a.severity === 'medium' ? 'border-amber-900/60 bg-amber-950/10' :
-                  'border-slate-800'
+                  isAck 
+                    ? 'border-slate-800 opacity-60' 
+                    : a.severity === 'high' 
+                    ? 'border-rose-900/60 bg-rose-950/10' 
+                    : 'border-slate-800 hover:border-slate-700'
                 }`}
               >
                 <div className="space-y-1.5 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider ${
+                    <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold uppercase tracking-wider ${
                       a.severity === 'high' ? 'bg-rose-950 text-rose-300 border border-rose-800' :
                       a.severity === 'medium' ? 'bg-amber-950 text-amber-300 border border-amber-800' :
-                      'bg-slate-800 text-slate-300 border border-slate-700'
+                      'bg-slate-800 text-slate-300'
                     }`}>
-                      {a.severity} Severity
+                      {a.severity}
                     </span>
 
-                    <span className="text-xs px-2 py-0.5 rounded bg-slate-950 text-slate-400 font-mono border border-slate-800">
-                      Rule: {a.rule_id || a.type}
+                    <span className="text-xs font-mono text-slate-400">
+                      Rule: {a.rule_id}
                     </span>
+
+                    {a.transaction_details?.bank && (
+                      <span className="text-xs text-slate-400 font-mono">
+                        • {a.transaction_details.bank} (•••• {a.transaction_details.masked_last4})
+                      </span>
+                    )}
+
+                    {a.transaction_details?.posted_date && (
+                      <span className="text-xs text-slate-500 font-mono">
+                        • {a.transaction_details.posted_date}
+                      </span>
+                    )}
 
                     {isAck && (
                       <span className="text-xs text-emerald-400 font-mono flex items-center gap-1">
@@ -226,7 +240,7 @@ export default function AnomaliesPage() {
 
                 <div className="flex sm:flex-col items-center sm:items-end justify-between gap-3 shrink-0">
                   <p className="text-lg sm:text-xl font-bold font-mono text-rose-400">
-                    -{formatINR(a.amount_minor || 0)}
+                    -{formatINR(amt)}
                   </p>
                   
                   {!isAck && (

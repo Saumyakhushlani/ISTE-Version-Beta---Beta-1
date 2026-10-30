@@ -3,8 +3,13 @@ import { MinorAmount } from '../types';
 /**
  * Format integer paise into INR formatted string with Indian grouping (lakh/crore).
  * Example: 8000000 paise -> "₹80,000" or "₹80,000.50"
+ * Safely guards against null, undefined, or NaN inputs by returning "₹0".
  */
-export function formatINR(paise: MinorAmount, showPaise = false): string {
+export function formatINR(paise?: MinorAmount | null, showPaise = false): string {
+  if (paise == null || typeof paise !== 'number' || isNaN(paise)) {
+    return '₹0';
+  }
+
   const isNegative = paise < 0;
   const absPaise = Math.abs(paise);
   const rupees = Math.floor(absPaise / 100);
@@ -28,9 +33,15 @@ export function formatINR(paise: MinorAmount, showPaise = false): string {
 }
 
 export function rupeesToPaise(rupees: number): MinorAmount {
+  if (rupees == null || typeof rupees !== 'number' || isNaN(rupees)) {
+    return 0;
+  }
   return Math.round(rupees * 100);
 }
 
-export function paiseToRupees(paise: MinorAmount): number {
+export function paiseToRupees(paise?: MinorAmount | null): number {
+  if (paise == null || typeof paise !== 'number' || isNaN(paise)) {
+    return 0;
+  }
   return paise / 100;
 }

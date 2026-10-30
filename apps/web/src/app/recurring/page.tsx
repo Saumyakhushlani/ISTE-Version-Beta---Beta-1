@@ -52,13 +52,16 @@ export default function RecurringPage() {
     }
   }
 
+  const getItemAmount = (i: any) =>
+    i.typical_amount_paise ?? i.typical_amount_minor ?? i.amount_paise ?? i.amount_minor ?? 0;
+
   const committedMonthly = items
-    .filter((i) => i.type !== 'salary' && (i.amount_minor < 0 || i.typical_amount_minor > 0))
-    .reduce((sum, i) => sum + (i.typical_amount_minor || 0), 0);
+    .filter((i) => i.type !== 'salary')
+    .reduce((sum, i) => sum + getItemAmount(i), 0);
 
   const salaryExpected = items
     .filter((i) => i.type === 'salary')
-    .reduce((sum, i) => sum + (i.typical_amount_minor || 0), 0);
+    .reduce((sum, i) => sum + getItemAmount(i), 0);
 
   const netMonthlyRecurring = salaryExpected - committedMonthly;
 
@@ -76,7 +79,7 @@ export default function RecurringPage() {
       day = parseInt(item.next_expected_date.slice(8, 10), 10) || 1;
     }
     const idx = Math.min(30, Math.max(0, day - 1));
-    dayDistribution[idx].amountRs += Math.round((item.typical_amount_minor || 0) / 100);
+    dayDistribution[idx].amountRs += Math.round(getItemAmount(item) / 100);
     dayDistribution[idx].merchants.push(item.merchant);
   });
 
@@ -99,11 +102,11 @@ export default function RecurringPage() {
               Subscriptions & Recurring Commitments
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide bg-slate-900 border border-slate-700/80 text-indigo-400 font-mono">
-              CADENCE ENGINE
+              CADENCE CLUSTERING
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Automatically detected recurring obligations: EMIs, rent, utilities, insurance, SIPs, and subscriptions.
+            Auto-detected salary, rent, EMIs, and active subscriptions with interval regularity scores and due-date projection.
           </p>
         </div>
         <button
@@ -273,49 +276,52 @@ export default function RecurringPage() {
             No recurring commitments match the selected filter.
           </div>
         ) : (
-          filteredItems.map((item) => (
-            <motion.div 
-              key={item.id} 
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition shadow-lg"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider font-mono ${
-                    item.type === 'salary' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' :
-                    item.type === 'emi' ? 'bg-purple-950 text-purple-300 border border-purple-800' :
-                    item.type === 'rent' ? 'bg-amber-950 text-amber-300 border border-amber-800' :
-                    item.type === 'sip' ? 'bg-indigo-950 text-indigo-300 border border-indigo-800' :
-                    'bg-slate-800 text-slate-300 border border-slate-700'
-                  }`}>
-                    {item.type}
-                  </span>
+          filteredItems.map((item) => {
+            const amt = getItemAmount(item);
+            return (
+              <motion.div 
+                key={item.id} 
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition shadow-lg"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider font-mono ${
+                      item.type === 'salary' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' :
+                      item.type === 'emi' ? 'bg-purple-950 text-purple-300 border border-purple-800' :
+                      item.type === 'rent' ? 'bg-amber-950 text-amber-300 border border-amber-800' :
+                      item.type === 'sip' ? 'bg-indigo-950 text-indigo-300 border border-indigo-800' :
+                      'bg-slate-800 text-slate-300 border border-slate-700'
+                    }`}>
+                      {item.type}
+                    </span>
 
-                  <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-slate-500" />
-                    {item.cadence}
-                  </span>
+                    <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-500" />
+                      {item.cadence}
+                    </span>
+                  </div>
+
+                  <h3 className="text-base font-bold text-slate-100 mt-3">{item.merchant}</h3>
+                  <p className={`text-2xl font-extrabold font-mono tracking-tight mt-1 ${
+                    item.type === 'salary' ? 'text-emerald-400' : 'text-slate-100'
+                  }`}>
+                    {item.type === 'salary' ? '+' : '-'}{formatINR(amt)}
+                  </p>
                 </div>
 
-                <h3 className="text-base font-bold text-slate-100 mt-3">{item.merchant}</h3>
-                <p className={`text-2xl font-extrabold font-mono tracking-tight mt-1 ${
-                  item.type === 'salary' ? 'text-emerald-400' : 'text-slate-100'
-                }`}>
-                  {item.type === 'salary' ? '+' : '-'}{formatINR(item.typical_amount_minor)}
-                </p>
-              </div>
-
-              <div className="mt-5 pt-3.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-                <span className="text-[11px]">
-                  Next Due: <strong className="text-slate-200 font-mono">{item.next_expected_date || 'Projected'}</strong>
-                </span>
-                <span className="font-mono text-emerald-400 text-[11px] bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                  {Math.round((item.confidence || 0.95) * 100)}% score
-                </span>
-              </div>
-            </motion.div>
-          ))
+                <div className="mt-5 pt-3.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+                  <span className="text-[11px]">
+                    Next Due: <strong className="text-slate-200 font-mono">{item.next_expected_date || 'Projected'}</strong>
+                  </span>
+                  <span className="font-mono text-emerald-400 text-[11px] bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                    {Math.round((item.confidence || 0.95) * 100)}% score
+                  </span>
+                </div>
+              </motion.div>
+            );
+          })
         )}
       </div>
     </div>
