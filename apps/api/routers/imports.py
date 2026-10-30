@@ -2,7 +2,7 @@
 Statement Ingestion Router
 Handles uploading bank statement files (CSV & PDF), generating live extraction previews,
 and committing transactions with deduplication, transfer detection, categorization,
-and anomaly flagging.
+and anomaly flagging across cumulative historical uploads.
 """
 
 import hashlib
@@ -17,6 +17,7 @@ from db.database import get_db
 from db.models import Account, SourceFile, Transaction, RecurringItem, Anomaly
 from parsers.csv_parser import parse_csv_statement
 from parsers.pdf_parser import parse_pdf_statement
+from parsers.bank_detector import detect_bank_and_account
 from engine.dedupe import deduplicate_transactions, detect_internal_transfers
 from ml.categorizer import categorize_transaction
 from engine.recurring import detect_recurring_items
@@ -30,12 +31,12 @@ _STAGING_FILES = {}
 @router.post("/preview")
 async def preview_statement(
     file: UploadFile = File(...),
-    bank_hint: str = Form("auto"),
+    bank_hint: Optional[str] = Form("auto"),
     db: Session = Depends(get_db)
 ):
     """
     Parses CSV or PDF statement and provides an extraction preview without committing:
-    - Detected header rows and column mappings
+    - Detected bank and masked account number (via hint or auto-detection backup)
     - Total rows read
     - Sample rows with parsed amounts and dates
     - Balance reconciliation status
@@ -47,31 +48,30 @@ async def preview_statement(
     try:
         if filename.lower().endswith(".pdf"):
             parsed = parse_pdf_statement(contents)
+            raw_sample_text = str(contents[:4000])
         else:
             text_content = contents.decode("utf-8", errors="replace")
             parsed = parse_csv_statement(text_content)
+            raw_sample_text = text_content[:4000]
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse statement: {str(e)}")
+
+    # Auto-detect bank and account number
+    bank_detected, masked_last4 = detect_bank_and_account(
+        raw_text=raw_sample_text,
+        filename=filename,
+        user_bank_hint=bank_hint
+    )
 
     file_id = f"stg_{uuid.uuid4().hex[:12]}"
     _STAGING_FILES[file_id] = {
         "filename": filename,
         "kind": "pdf" if filename.lower().endswith(".pdf") else "csv",
         "sha256": sha256_hash,
+        "bank_detected": bank_detected,
+        "masked_last4": masked_last4,
         "parsed": parsed
     }
-
-    # Guess bank name from filename or descriptions
-    bank_detected = "Generic Bank"
-    fname_lower = filename.lower()
-    if "phonepe" in fname_lower:
-        bank_detected = "PhonePe Statement"
-    elif "hdfc" in fname_lower:
-        bank_detected = "HDFC Bank"
-    elif "sbi" in fname_lower:
-        bank_detected = "State Bank of India"
-    elif "icici" in fname_lower:
-        bank_detected = "ICICI Bank"
 
     sample_txns = parsed["transactions"][:5]
 
@@ -80,6 +80,7 @@ async def preview_statement(
         "filename": filename,
         "content_type": file.content_type,
         "bank_detected": bank_detected,
+        "masked_last4": masked_last4,
         "rows_detected": parsed["rows_detected"],
         "date_range": {
             "start": parsed["period_start"],
@@ -100,10 +101,10 @@ async def commit_statement(
 ):
     """
     Commits staged parsed statement to database:
-    - Runs deduplication (merges overlapping imports)
-    - Detects internal transfers
-    - Assigns categories & flags anomalies
-    - Returns import report
+    - Finds or creates matching Account record by bank and masked last4
+    - Runs deduplication (merges overlapping imports seamlessly)
+    - Detects internal transfers across user's accounts
+    - Assigns categories & updates recurring items and anomalies across cumulative history
     """
     staged = _STAGING_FILES.get(file_id)
     if not staged:
@@ -111,22 +112,29 @@ async def commit_statement(
 
     parsed = staged["parsed"]
     filename = staged["filename"]
+    bank_detected = staged["bank_detected"]
+    masked_last4 = staged["masked_last4"]
 
-    # Ensure account exists or create a default one
+    # Check if a matching Account already exists (e.g. earlier 6-month upload for this bank)
     if not account_id:
-        existing_acct = db.query(Account).first()
-        if not existing_acct:
-            existing_acct = Account(
-                nickname="Primary Account",
-                bank="Default Bank",
+        target_account = db.query(Account).filter_by(
+            bank=bank_detected,
+            masked_last4=masked_last4
+        ).first()
+
+        if not target_account:
+            # Create new account for this bank
+            target_account = Account(
+                nickname=f"{bank_detected} - {masked_last4}",
+                bank=bank_detected,
                 type="savings",
-                masked_last4="1234",
+                masked_last4=masked_last4,
                 opening_balance_minor=parsed["opening_balance_minor"] or 0
             )
-            db.add(existing_acct)
+            db.add(target_account)
             db.commit()
-            db.refresh(existing_acct)
-        account_id = existing_acct.id
+            db.refresh(target_account)
+        account_id = target_account.id
 
     # Create SourceFile record
     sf = SourceFile(
@@ -144,7 +152,7 @@ async def commit_statement(
     db.commit()
     db.refresh(sf)
 
-    # 1. Deduplication against existing DB transactions
+    # 1. Deduplication against all existing DB transactions for this account
     existing_db_txns = db.query(Transaction).filter_by(account_id=account_id).all()
     existing_dicts = [
         {
@@ -177,7 +185,6 @@ async def commit_statement(
         t["category_confidence"] = conf
 
     # Persist active transactions to SQLite
-    db_transactions = []
     for t in to_insert:
         txn_record = Transaction(
             account_id=account_id,
@@ -198,11 +205,10 @@ async def commit_statement(
             status="active"
         )
         db.add(txn_record)
-        db_transactions.append(txn_record)
 
     db.commit()
 
-    # 3. Detect Internal Transfers across all active accounts
+    # 3. Detect Internal Transfers across all active accounts in cumulative history
     all_active_txns = db.query(Transaction).filter_by(status="active").all()
     all_dict_txns = [
         {
@@ -216,10 +222,11 @@ async def commit_statement(
     ]
     _, transfers_detected = detect_internal_transfers(all_dict_txns)
 
-    # 4. Detect Recurring Commitments & Anomalies
+    # 4. Detect Recurring Commitments across cumulative history (including earlier months)
     raw_dicts = [
         {
             "id": t.id,
+            "account_id": t.account_id,
             "amount_minor": t.amount_minor,
             "posted_date": t.posted_date,
             "merchant": t.merchant_id or t.normalized_description,
@@ -232,7 +239,14 @@ async def commit_statement(
     recurring_found = detect_recurring_items(raw_dicts)
     for r in recurring_found:
         existing_r = db.query(RecurringItem).filter_by(merchant=r["merchant"]).first()
-        if not existing_r:
+        if existing_r:
+            # Update next expected date & typical amount using the extended cumulative history
+            existing_r.typical_amount_minor = r["typical_amount_minor"]
+            existing_r.next_expected_date = r["next_expected_date"]
+            existing_r.last_paid_date = r["last_paid_date"]
+            existing_r.occurrences = r["occurrences"]
+            existing_r.confidence = r["confidence"]
+        else:
             new_r = RecurringItem(
                 merchant=r["merchant"],
                 type=r["type"],
@@ -248,6 +262,7 @@ async def commit_statement(
             )
             db.add(new_r)
 
+    # 5. Detect Anomalies across cumulative history
     anomalies_found = detect_anomalies(raw_dicts)
     for a in anomalies_found:
         existing_a = db.query(Anomaly).filter_by(txn_id=a["txn_id"]).first()
@@ -269,10 +284,14 @@ async def commit_statement(
 
     return {
         "status": "success",
+        "account_id": account_id,
+        "bank_detected": bank_detected,
+        "masked_last4": masked_last4,
         "source_file_id": sf.id,
         "imported_rows": len(to_insert),
         "duplicates_merged": duplicates_merged_count,
         "transfers_detected": transfers_detected,
+        "cumulative_transactions": len(all_active_txns),
         "anomalies_flagged": len(anomalies_found),
         "recurring_items_found": len(recurring_found)
     }

@@ -1,7 +1,7 @@
 """
 Financial Decision Lab (FDL) - FastAPI Backend
-Provides deterministic finance calculations, statement parsing, ML categorization,
-and evidence-linked affordability decisioning.
+Provides deterministic finance calculations, multi-bank statement parsing, ML categorization,
+upcoming payment calendars, anomaly detection, and evidence-linked affordability decisioning.
 """
 
 from fastapi import FastAPI
@@ -9,7 +9,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from db.database import init_db
-from routers import affordability, imports, transactions, whatif, dashboard, sufficiency
+from routers import (
+    affordability,
+    imports,
+    transactions,
+    whatif,
+    dashboard,
+    sufficiency,
+    recurring,
+    anomalies
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,6 +49,8 @@ app.include_router(transactions.router, prefix="/api/transactions", tags=["Trans
 app.include_router(affordability.router, prefix="/api/affordability", tags=["Affordability & Ask"])
 app.include_router(whatif.router, prefix="/api/scenarios", tags=["What-If Lab"])
 app.include_router(sufficiency.router, prefix="/api/sufficiency", tags=["Data Sufficiency Gate"])
+app.include_router(recurring.router, prefix="/api/recurring", tags=["Recurring Commitments"])
+app.include_router(anomalies.router, prefix="/api/anomalies", tags=["Anomaly Detection"])
 
 @app.get("/health", tags=["Health"])
 def health_check():
