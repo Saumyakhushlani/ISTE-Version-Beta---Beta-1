@@ -1,0 +1,190 @@
+/**
+ * Financial Decision Lab (FDL) - Core Type Definitions
+ * All currency amounts are represented in integer paise (1 INR = 100 paise) to prevent floating-point inaccuracies.
+ */
+
+export type MinorAmount = number; // Integer paise, e.g. 8000000 = ₹80,000.00
+
+export type AccountType = 'savings' | 'current' | 'credit_card' | 'wallet' | 'loan';
+
+export interface Account {
+  id: string;
+  nickname: string;
+  bank: string;
+  type: AccountType;
+  masked_last4: string;
+  opening_balance_minor: MinorAmount;
+  currency: string;
+  created_at: string;
+}
+
+export type Channel = 'UPI' | 'NEFT' | 'IMPS' | 'ATM' | 'POS' | 'NACH' | 'ACH' | 'CHQ' | 'BILLDESK' | 'CRED' | 'OTHER';
+
+export type CategoryKind = 'income' | 'essential' | 'committed' | 'discretionary' | 'system';
+
+export interface Category {
+  id: string;
+  name: string;
+  parent_id?: string | null;
+  kind: CategoryKind;
+  color?: string;
+}
+
+export type CategorySource = 'rule' | 'ml' | 'llm' | 'user';
+
+export interface Transaction {
+  id: string;
+  account_id: string;
+  source_file_id: string;
+  source_row: number;
+  posted_date: string; // ISO date YYYY-MM-DD
+  value_date?: string;
+  amount_minor: MinorAmount; // signed: debit < 0, credit > 0
+  currency: string;
+  raw_description: string;
+  normalized_description: string;
+  channel: Channel;
+  merchant_id?: string;
+  category_id: string;
+  category_source: CategorySource;
+  category_confidence: number;
+  balance_after_minor?: MinorAmount;
+  fingerprint: string;
+  occurrence_index: number;
+  is_transfer: boolean;
+  transfer_pair_id?: string;
+  dup_group_id?: string;
+  status: 'active' | 'merged' | 'excluded';
+  created_at: string;
+}
+
+export type RecurringCadence = 'weekly' | 'fortnightly' | 'monthly' | 'quarterly' | 'half_yearly' | 'annual';
+export type RecurringType = 'subscription' | 'emi' | 'rent' | 'utility' | 'insurance' | 'sip' | 'salary' | 'other_recurring';
+export type RecurringStatus = 'active' | 'possibly_ended' | 'paused';
+export type RecurringUserStatus = 'auto' | 'confirmed' | 'rejected';
+
+export interface RecurringItem {
+  id: string;
+  merchant: string;
+  type: RecurringType;
+  cadence: RecurringCadence;
+  typical_amount_minor: MinorAmount;
+  amount_min_minor: MinorAmount;
+  amount_max_minor: MinorAmount;
+  last_paid_date: string;
+  next_expected_date: string;
+  occurrences: number;
+  confidence: number;
+  status: RecurringStatus;
+  user_status: RecurringUserStatus;
+  is_manual?: boolean;
+}
+
+export type AnomalyType = 
+  | 'large_amount' 
+  | 'duplicate_charge' 
+  | 'new_merchant' 
+  | 'recurring_change' 
+  | 'missed_recurring' 
+  | 'unusual_volume' 
+  | 'fee_penalty' 
+  | 'income_anomaly';
+
+export interface Anomaly {
+  id: string;
+  txn_id: string;
+  type: AnomalyType;
+  rule_id: string;
+  amount_minor: MinorAmount;
+  reason_text: string;
+  severity: 'low' | 'medium' | 'high';
+  user_feedback?: 'expected' | 'real_duplicate' | 'disputed' | 'none';
+  created_at: string;
+}
+
+export type GateStatus = 'OK' | 'LOW_CONFIDENCE' | 'INSUFFICIENT';
+
+export interface SufficiencyCheck {
+  id: string;
+  title: string;
+  passed: boolean;
+  detail: string;
+  severity: 'error' | 'warning' | 'info';
+}
+
+export interface SufficiencyReport {
+  status: GateStatus;
+  checks: SufficiencyCheck[];
+  missing_items: string[];
+  fix_actions: Array<{ action: string; label: string; detail?: string }>;
+  as_of_date: string;
+}
+
+export interface PercentileRange {
+  p10_minor: MinorAmount;
+  p25_minor?: MinorAmount;
+  p50_minor: MinorAmount;
+  p75_minor?: MinorAmount;
+  p90_minor: MinorAmount;
+}
+
+export interface LedgerStep {
+  step_no: number;
+  label: string;
+  value_minor?: MinorAmount;
+  range_minor?: PercentileRange;
+  formula_id?: string;
+  formula_text?: string;
+  inputs?: Array<{ name: string; value_minor: MinorAmount }>;
+  source_refs?: string[];
+  assumptions?: string[];
+  status: 'ok' | 'warning';
+}
+
+export type AffordabilityVerdictCode = 'AFFORDABLE' | 'TIGHT' | 'NOT_ADVISABLE' | 'NOT_AFFORDABLE' | 'INSUFFICIENT_DATA';
+
+export interface AffordabilityVerdict {
+  code: AffordabilityVerdictCode;
+  headline: string;
+  breach_probability: number;
+  prob_negative_balance: number;
+  confidence: {
+    score: number; // 0 - 100
+    label: 'High' | 'Medium' | 'Low';
+    factors: string[];
+  };
+}
+
+export interface SafetyBufferRationale {
+  value_minor: MinorAmount;
+  binding_term: 'floor' | 'k_x_essentials' | 'variability_reserve';
+  k: number;
+  essentials_monthly_minor: MinorAmount;
+  variability_reserve_minor: MinorAmount;
+  floor_minor: MinorAmount;
+  reason: string;
+}
+
+export interface AffordabilityResponse {
+  snapshot_id: string;
+  as_of_date: string;
+  gate: SufficiencyReport;
+  verdict?: AffordabilityVerdict;
+  ledger: LedgerStep[];
+  buffer?: SafetyBufferRationale;
+  headroom?: PercentileRange;
+  lowest_balance?: {
+    date: string;
+    p50_minor: MinorAmount;
+    p10_minor: MinorAmount;
+  };
+  helpers?: {
+    max_affordable_now_minor: MinorAmount;
+    min_delay_months: number;
+    recommended_savings_cut_minor?: MinorAmount;
+  };
+  narration?: {
+    text: string;
+    guard_status: 'passed' | 'fallback_template';
+  };
+}
