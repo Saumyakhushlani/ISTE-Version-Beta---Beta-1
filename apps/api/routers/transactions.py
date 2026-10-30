@@ -1,54 +1,67 @@
 """
 Transactions Router
-Provides listing, filtering, search, and user category corrections.
+Provides listing, filtering, search, and user category corrections with transactional undo rollback.
 """
 
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from db.database import get_db
 from db.models import Transaction, CorrectionLog
+from engine.correction import rollback_correction
 
 router = APIRouter()
 
 class CategoryCorrectionRequest(BaseModel):
     category_id: str
-    scope: str = "same_merchant"  # "this_txn" | "same_merchant" | "similar"
+    scope: str = "same_merchant"  # "this_txn" | "same_merchant"
     dry_run: bool = False
+
+class UndoCorrectionRequest(BaseModel):
+    log_id: Optional[str] = None
 
 @router.get("")
 def list_transactions(
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     account_id: Optional[str] = None,
     category_id: Optional[str] = None,
+    channel: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = 50,
-    offset: int = 0,
+    is_transfer: Optional[bool] = None,
     db: Session = Depends(get_db)
 ):
     """
-    Returns filtered active transactions with source provenance and category status.
+    Returns paginated transactions with optional multi-bank filters and search.
     """
-    query = db.query(Transaction).filter_by(status="active")
+    query = db.query(Transaction).filter(Transaction.status == "active")
 
     if account_id:
         query = query.filter(Transaction.account_id == account_id)
     if category_id:
         query = query.filter(Transaction.category_id == category_id)
+    if channel:
+        query = query.filter(Transaction.channel == channel)
+    if is_transfer is not None:
+        query = query.filter(Transaction.is_transfer == is_transfer)
     if search:
         search_filter = f"%{search}%"
-        query = query.filter(Transaction.raw_description.ilike(search_filter) | Transaction.normalized_description.ilike(search_filter))
+        query = query.filter(
+            (Transaction.raw_description.ilike(search_filter)) |
+            (Transaction.normalized_description.ilike(search_filter))
+        )
 
     total = query.count()
-    txns = query.order_by(Transaction.posted_date.desc()).offset(offset).limit(limit).all()
+    txns = query.order_by(Transaction.posted_date.desc(), Transaction.source_row.desc()).offset(offset).limit(limit).all()
 
     return {
         "total": total,
-        "offset": offset,
         "limit": limit,
+        "offset": offset,
         "transactions": [
             {
                 "id": t.id,
@@ -132,9 +145,47 @@ def correct_transaction_category(
 
     return {
         "status": "success",
+        "log_id": log.id,
         "affected_count": len(affected),
         "merchant": merchant,
         "old_category": old_category,
         "new_category": payload.category_id,
         "diff_summary": diff_summary
     }
+
+@router.get("/corrections")
+def list_corrections(db: Session = Depends(get_db)):
+    """
+    Returns audit log of all category corrections and overrides.
+    """
+    logs = db.query(CorrectionLog).order_by(CorrectionLog.ts.desc()).limit(100).all()
+    return {
+        "corrections": [
+            {
+                "id": l.id,
+                "timestamp": l.ts.isoformat() if l.ts else None,
+                "action": l.action,
+                "scope": l.scope,
+                "affected_count": len(json.loads(l.affected_txn_ids_json or "[]")),
+                "before": json.loads(l.before_json or "{}"),
+                "after": json.loads(l.after_json or "{}"),
+                "is_undone": l.undone_at is not None,
+                "undone_at": l.undone_at.isoformat() if l.undone_at else None
+            }
+            for l in logs
+        ]
+    }
+
+@router.post("/undo")
+def undo_last_correction(
+    payload: Optional[UndoCorrectionRequest] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Rolls back a category override cleanly using the CorrectionLog record.
+    """
+    log_id = payload.log_id if payload else None
+    res = rollback_correction(db=db, log_id=log_id)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=400, detail=res["message"])
+    return res

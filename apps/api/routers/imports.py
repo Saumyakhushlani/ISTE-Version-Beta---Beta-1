@@ -3,6 +3,7 @@ Statement Ingestion Router
 Handles uploading bank statement files (CSV & PDF), generating live extraction previews,
 and committing transactions with deduplication, transfer detection, categorization,
 and anomaly flagging across cumulative historical uploads.
+Includes password decryption and async ingestion queue support.
 """
 
 import hashlib
@@ -32,10 +33,12 @@ _STAGING_FILES = {}
 async def preview_statement(
     file: UploadFile = File(...),
     bank_hint: Optional[str] = Form("auto"),
+    password: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
     Parses CSV or PDF statement and provides an extraction preview without committing:
+    - Supports password-protected PDF statements
     - Detected bank and masked account number (via hint or auto-detection backup)
     - Total rows read
     - Sample rows with parsed amounts and dates
@@ -47,14 +50,19 @@ async def preview_statement(
 
     try:
         if filename.lower().endswith(".pdf"):
-            parsed = parse_pdf_statement(contents)
+            parsed = parse_pdf_statement(contents, password=password)
             raw_sample_text = str(contents[:4000])
         else:
             text_content = contents.decode("utf-8", errors="replace")
             parsed = parse_csv_statement(text_content)
             raw_sample_text = text_content[:4000]
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to parse statement: {str(e)}")
+        err_msg = str(e)
+        if "PASSWORD_REQUIRED" in err_msg:
+            raise HTTPException(status_code=400, detail={"error": "PASSWORD_REQUIRED", "message": "This statement is password-protected. Please enter your PDF password."})
+        elif "PASSWORD_INCORRECT" in err_msg:
+            raise HTTPException(status_code=400, detail={"error": "PASSWORD_INCORRECT", "message": "Incorrect PDF password. Please verify and try again."})
+        raise HTTPException(status_code=400, detail=f"Failed to parse statement: {err_msg}")
 
     # Auto-detect bank and account number
     bank_detected, masked_last4 = detect_bank_and_account(
@@ -92,6 +100,45 @@ async def preview_statement(
         "sample_rows": sample_txns,
         "warnings": parsed["warnings"]
     }
+
+@router.post("/preview/async")
+async def preview_statement_async(
+    file: UploadFile = File(...),
+    bank_hint: Optional[str] = Form("auto"),
+    password: Optional[str] = Form(None)
+):
+    """
+    Non-blocking async statement preview for large/multi-page files:
+    Submits extraction to background job queue and immediately returns a job_id.
+    """
+    contents = await file.read()
+    filename = file.filename or "statement.csv"
+
+    from engine.job_queue import submit_async_parse_job
+    job_id = submit_async_parse_job(
+        contents=contents,
+        filename=filename,
+        bank_hint=bank_hint,
+        password=password
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "QUEUED",
+        "filename": filename,
+        "message": "Statement submitted for background parsing."
+    }
+
+@router.get("/jobs/{job_id}")
+def get_parsing_job_status(job_id: str):
+    """
+    Polling endpoint returning the background statement parsing progress and result.
+    """
+    from engine.job_queue import get_job_status
+    job = get_job_status(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or expired.")
+    return job
 
 @router.post("/commit")
 async def commit_statement(
@@ -146,108 +193,117 @@ async def commit_statement(
         period_end=parsed["period_end"],
         opening_balance_minor=parsed["opening_balance_minor"],
         closing_balance_minor=parsed["closing_balance_minor"],
-        reconciliation_status=parsed["reconciliation_status"]
+        reconciliation_status=parsed["reconciliation_status"],
+        parse_report_json=json.dumps({"warnings": parsed["warnings"]})
     )
     db.add(sf)
     db.commit()
     db.refresh(sf)
 
-    # 1. Deduplication against all existing DB transactions for this account
-    existing_db_txns = db.query(Transaction).filter_by(account_id=account_id).all()
+    # 1. Fetch existing transactions for this account for deduplication
+    existing_txns = db.query(Transaction).filter_by(account_id=account_id).all()
     existing_dicts = [
         {
             "id": t.id,
-            "account_id": t.account_id,
             "posted_date": t.posted_date,
             "amount_minor": t.amount_minor,
+            "raw_description": t.raw_description,
+            "occurrence_index": t.occurrence_index,
+            "fingerprint": t.fingerprint,
             "normalized_description": t.normalized_description,
+            "account_id": t.account_id,
             "status": t.status
         }
-        for t in existing_db_txns
+        for t in existing_txns
     ]
 
-    to_insert, duplicates_merged_count = deduplicate_transactions(
-        incoming_txns=parsed["transactions"],
-        existing_txns=existing_dicts,
-        account_id=account_id
-    )
+    # 2. Run Deduplication
+    fresh_txns = parsed["transactions"]
+    to_insert, duplicates_count = deduplicate_transactions(fresh_txns, existing_dicts, account_id)
 
-    # 2. Categorization
-    for t in to_insert:
-        cat_id, source, conf = categorize_transaction(
-            raw_desc=t["raw_description"],
-            normalized_desc=t["normalized_description"],
-            merchant=t["merchant"],
-            amount_minor=t["amount_minor"]
+    # 3. Insert non-duplicate transactions
+    inserted_records = []
+    for raw_t in to_insert:
+        # ML / Rule Categorization
+        cat_id, cat_source, cat_conf = categorize_transaction(
+            raw_desc=raw_t.get("raw_description", ""),
+            normalized_desc=raw_t.get("normalized_description", ""),
+            merchant=raw_t.get("merchant", ""),
+            amount_minor=raw_t["amount_minor"]
         )
-        t["category_id"] = cat_id
-        t["category_source"] = source
-        t["category_confidence"] = conf
 
-    # Persist active transactions to SQLite
-    for t in to_insert:
-        txn_record = Transaction(
+        txn = Transaction(
             account_id=account_id,
             source_file_id=sf.id,
-            source_row=t.get("source_row", 0),
-            posted_date=t["posted_date"],
-            amount_minor=t["amount_minor"],
-            raw_description=t["raw_description"],
-            normalized_description=t["normalized_description"],
-            channel=t.get("channel", "OTHER"),
-            merchant_id=t.get("merchant"),
-            category_id=t["category_id"],
-            category_source=t["category_source"],
-            category_confidence=t["category_confidence"],
-            balance_after_minor=t.get("balance_after_minor"),
-            fingerprint=t["fingerprint"],
-            occurrence_index=t.get("occurrence_index", 1),
-            status="active"
+            source_row=raw_t.get("source_row", 0),
+            posted_date=raw_t["posted_date"],
+            amount_minor=raw_t["amount_minor"],
+            raw_description=raw_t["raw_description"],
+            normalized_description=raw_t["normalized_description"],
+            channel=raw_t.get("channel", "OTHER"),
+            merchant_id=raw_t.get("merchant"),
+            category_id=cat_id,
+            category_source=cat_source,
+            category_confidence=cat_conf,
+            balance_after_minor=raw_t.get("balance_after_minor"),
+            fingerprint=raw_t["fingerprint"],
+            occurrence_index=raw_t["occurrence_index"]
         )
-        db.add(txn_record)
+        db.add(txn)
+        inserted_records.append(txn)
 
     db.commit()
 
-    # 3. Detect Internal Transfers across all active accounts in cumulative history
-    all_active_txns = db.query(Transaction).filter_by(status="active").all()
-    all_dict_txns = [
+    # 4. Check Internal Transfers across all user accounts
+    all_db_txns = db.query(Transaction).filter_by(status="active").all()
+    all_dicts = [
         {
             "id": t.id,
             "account_id": t.account_id,
             "posted_date": t.posted_date,
             "amount_minor": t.amount_minor,
-            "is_transfer": t.is_transfer
+            "raw_description": t.raw_description,
+            "is_transfer": t.is_transfer,
+            "transfer_pair_id": t.transfer_pair_id
         }
-        for t in all_active_txns
+        for t in all_db_txns
     ]
-    _, transfers_detected = detect_internal_transfers(all_dict_txns)
 
-    # 4. Detect Recurring Commitments across cumulative history (including earlier months)
-    raw_dicts = [
+    all_updated, paired_count = detect_internal_transfers(all_dicts)
+    for t_dict in all_updated:
+        if t_dict.get("is_transfer") and t_dict.get("transfer_pair_id"):
+            db_t = db.query(Transaction).filter_by(id=t_dict["id"]).first()
+            if db_t and not db_t.is_transfer:
+                db_t.is_transfer = True
+                db_t.transfer_pair_id = t_dict["transfer_pair_id"]
+                db_t.category_id = "cat_transfer"
+
+    db.commit()
+
+    # 5. Refresh Recurring Items
+    active_txns = [
         {
             "id": t.id,
-            "account_id": t.account_id,
-            "amount_minor": t.amount_minor,
             "posted_date": t.posted_date,
-            "merchant": t.merchant_id or t.normalized_description,
+            "amount_minor": t.amount_minor,
+            "normalized_description": t.normalized_description,
+            "merchant": t.merchant_id,
             "category_id": t.category_id,
             "is_transfer": t.is_transfer
         }
-        for t in all_active_txns
+        for t in all_db_txns
     ]
-
-    recurring_found = detect_recurring_items(raw_dicts)
-    for r in recurring_found:
-        existing_r = db.query(RecurringItem).filter_by(merchant=r["merchant"]).first()
-        if existing_r:
-            # Update next expected date & typical amount using the extended cumulative history
-            existing_r.typical_amount_minor = r["typical_amount_minor"]
-            existing_r.next_expected_date = r["next_expected_date"]
-            existing_r.last_paid_date = r["last_paid_date"]
-            existing_r.occurrences = r["occurrences"]
-            existing_r.confidence = r["confidence"]
+    detected_recurring = detect_recurring_items(active_txns)
+    for r in detected_recurring:
+        existing_rec = db.query(RecurringItem).filter_by(merchant=r["merchant"], cadence=r["cadence"]).first()
+        if existing_rec:
+            existing_rec.typical_amount_minor = r["typical_amount_minor"]
+            existing_rec.last_paid_date = r["last_paid_date"]
+            existing_rec.next_expected_date = r["next_expected_date"]
+            existing_rec.occurrences = r["occurrences"]
+            existing_rec.confidence = r["confidence"]
         else:
-            new_r = RecurringItem(
+            new_rec = RecurringItem(
                 merchant=r["merchant"],
                 type=r["type"],
                 cadence=r["cadence"],
@@ -257,17 +313,16 @@ async def commit_statement(
                 last_paid_date=r["last_paid_date"],
                 next_expected_date=r["next_expected_date"],
                 occurrences=r["occurrences"],
-                confidence=r["confidence"],
-                status="active"
+                confidence=r["confidence"]
             )
-            db.add(new_r)
+            db.add(new_rec)
 
-    # 5. Detect Anomalies across cumulative history
-    anomalies_found = detect_anomalies(raw_dicts)
-    for a in anomalies_found:
-        existing_a = db.query(Anomaly).filter_by(txn_id=a["txn_id"]).first()
-        if not existing_a:
-            new_a = Anomaly(
+    # 6. Flag Anomalies across transactions
+    anomalies = detect_anomalies(active_txns)
+    for a in anomalies:
+        existing_anom = db.query(Anomaly).filter_by(txn_id=a["txn_id"], rule_id=a["rule_id"]).first()
+        if not existing_anom:
+            db_anom = Anomaly(
                 txn_id=a["txn_id"],
                 type=a["type"],
                 rule_id=a["rule_id"],
@@ -275,23 +330,27 @@ async def commit_statement(
                 reason_text=a["reason_text"],
                 severity=a["severity"]
             )
-            db.add(new_a)
+            db.add(db_anom)
 
     db.commit()
 
-    # Clean up staging file
-    del _STAGING_FILES[file_id]
+    # Clean up staged cache
+    _STAGING_FILES.pop(file_id, None)
 
     return {
         "status": "success",
         "account_id": account_id,
-        "bank_detected": bank_detected,
-        "masked_last4": masked_last4,
         "source_file_id": sf.id,
-        "imported_rows": len(to_insert),
-        "duplicates_merged": duplicates_merged_count,
-        "transfers_detected": transfers_detected,
-        "cumulative_transactions": len(all_active_txns),
-        "anomalies_flagged": len(anomalies_found),
-        "recurring_items_found": len(recurring_found)
+        "bank": bank_detected,
+        "masked_last4": masked_last4,
+        "total_rows": len(fresh_txns),
+        "inserted": len(inserted_records),
+        "imported_rows": len(inserted_records),
+        "duplicates_skipped": duplicates_count,
+        "duplicates_merged": duplicates_count,
+        "internal_transfers_detected": paired_count,
+        "anomalies_detected": len(anomalies),
+        "anomalies_flagged": len(anomalies),
+        "recurring_items_updated": len(detected_recurring),
+        "recurring_items_found": len(detected_recurring)
     }

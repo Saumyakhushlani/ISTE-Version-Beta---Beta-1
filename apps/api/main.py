@@ -17,7 +17,8 @@ from routers import (
     dashboard,
     sufficiency,
     recurring,
-    anomalies
+    anomalies,
+    privacy
 )
 
 @asynccontextmanager
@@ -51,6 +52,7 @@ app.include_router(whatif.router, prefix="/api/scenarios", tags=["What-If Lab"])
 app.include_router(sufficiency.router, prefix="/api/sufficiency", tags=["Data Sufficiency Gate"])
 app.include_router(recurring.router, prefix="/api/recurring", tags=["Recurring Commitments"])
 app.include_router(anomalies.router, prefix="/api/anomalies", tags=["Anomaly Detection"])
+app.include_router(privacy.router, prefix="/api/privacy", tags=["Privacy & Egress"])
 
 @app.get("/health", tags=["Health"])
 def health_check():
@@ -58,9 +60,6 @@ def health_check():
         "status": "healthy",
         "service": "Financial Decision Lab API",
         "version": "1.0.0",
-        "currency": "INR (paise minor units)"
+        "storage": "sqlite",
+        "privacy_mode": "local"
     }
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

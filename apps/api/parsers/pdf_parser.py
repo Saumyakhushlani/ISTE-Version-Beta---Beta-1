@@ -1,7 +1,8 @@
 """
-Bank Statement PDF Parser using pdfplumber
+Bank Statement PDF Parser using pdfplumber & pypdf
 Extracts tables from bordered bank statements (HDFC, SBI, ICICI)
 and uses pattern-based layout extraction for borderless app statements (PhonePe, GPay).
+Includes automated password decryption handling.
 """
 
 import io
@@ -48,15 +49,13 @@ def parse_phonepe_pdf_text(full_text: str) -> List[Dict[str, Any]]:
             j = i + 1
             while j < len(lines) and j < i + 6:
                 next_line = lines[j].strip()
-                if "Transaction ID" in next_line or "UTR No" in next_line:
+                if re.match(r"^(" + MONTH_REGEX + r")", next_line, re.IGNORECASE) or next_line.startswith("Transaction ID"):
                     break
-                # Strip out time like "06:44 pm"
-                clean_next = re.sub(r"^\d{1,2}:\d{2}\s+(?:am|pm)\s*", "", next_line, flags=re.IGNORECASE)
-                if clean_next:
-                    desc_lines.append(clean_next)
+                if next_line and not next_line.startswith("UTR") and not next_line.startswith("Date"):
+                    desc_lines.append(next_line)
                 j += 1
 
-            raw_desc = " ".join(desc_lines).strip()
+            raw_desc = " ".join(desc_lines) if desc_lines else "PhonePe Transaction"
             norm_desc, channel, merchant = normalize_transaction_description(raw_desc)
 
             transactions.append({
@@ -83,24 +82,39 @@ def parse_pdf_statement(
     """
     Extracts tabular statements from digital bank PDFs using pdfplumber.
     Supports bordered bank tables and borderless app statements.
+    Handles encrypted PDFs with password unlocking.
     """
     raw_table_lines = []
     full_text_pages = []
 
-    with pdfplumber.open(io.BytesIO(pdf_bytes), password=password) as pdf:
-        for page in pdf.pages:
-            # 1. Try table extraction first
-            tables = page.extract_tables()
-            for table in tables:
-                for row in table:
-                    clean_row = [str(cell).strip() if cell is not None else "" for cell in row]
-                    if any(clean_row):
-                        raw_table_lines.append(clean_row)
-            
-            # 2. Also keep text for pattern extraction
-            txt = page.extract_text()
-            if txt:
-                full_text_pages.append(txt)
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes), password=password) as pdf:
+            for page in pdf.pages:
+                # 1. Try table extraction first
+                tables = page.extract_tables()
+                for table in tables:
+                    for row in table:
+                        clean_row = [str(cell).strip() if cell is not None else "" for cell in row]
+                        if any(clean_row):
+                            raw_table_lines.append(clean_row)
+                
+                # 2. Also keep text for pattern extraction
+                txt = page.extract_text()
+                if txt:
+                    full_text_pages.append(txt)
+    except Exception as exc:
+        exc_type = type(exc).__name__.lower()
+        ctx_type = type(exc.__context__).__name__.lower() if getattr(exc, "__context__", None) else ""
+        cause_type = type(exc.__cause__).__name__.lower() if getattr(exc, "__cause__", None) else ""
+        all_types = f"{exc_type} {ctx_type} {cause_type}"
+        err_msg = str(exc).lower()
+
+        if "password" in all_types or "filenotdecrypted" in all_types or "password" in err_msg or "encrypted" in err_msg:
+            if not password:
+                raise ValueError("PASSWORD_REQUIRED: This bank statement is password protected. Please enter the password.")
+            else:
+                raise ValueError("PASSWORD_INCORRECT: The password provided for this PDF statement is incorrect.")
+        raise ValueError(f"Failed to read PDF document: {str(exc) or exc_type}")
 
     # If bordered tables were found, parse via table mapping
     if raw_table_lines:
@@ -116,37 +130,32 @@ def parse_pdf_statement(
                 if not any(row):
                     continue
 
-                date_str = row[col_map["date"]] if col_map["date"] < len(row) else ""
-                posted_date = parse_date_to_iso(date_str)
+                posted_date = None
+                if "date" in col_map and col_map["date"] < len(row):
+                    posted_date = parse_date_to_iso(row[col_map["date"]])
                 if not posted_date:
                     continue
 
-                raw_desc = row[col_map["description"]] if col_map["description"] < len(row) else ""
+                raw_desc = row[col_map["description"]] if "description" in col_map and col_map["description"] < len(row) else ""
                 norm_desc, channel, merchant = normalize_transaction_description(raw_desc)
 
-                amount_minor = None
-                has_amount = "amount" in col_map and col_map["amount"] < len(row)
-                has_txn_type = "txn_type" in col_map and col_map["txn_type"] < len(row)
-                has_withdrawal = "withdrawal" in col_map and col_map["withdrawal"] < len(row)
-                has_deposit = "deposit" in col_map and col_map["deposit"] < len(row)
-
-                if has_amount and has_txn_type:
-                    raw_amt_paise = parse_indian_amount_to_paise(row[col_map["amount"]])
-                    txn_type = row[col_map["txn_type"]].strip().upper()
-                    if raw_amt_paise is not None:
-                        amount_minor = -abs(raw_amt_paise) if ("DEBIT" in txn_type or "DR" in txn_type) else abs(raw_amt_paise)
-                elif has_withdrawal and has_deposit:
-                    w_paise = parse_indian_amount_to_paise(row[col_map["withdrawal"]])
-                    d_paise = parse_indian_amount_to_paise(row[col_map["deposit"]])
-                    if w_paise is not None and w_paise > 0:
-                        amount_minor = -abs(w_paise)
-                    elif d_paise is not None and d_paise > 0:
-                        amount_minor = abs(d_paise)
-                elif has_amount:
-                    amount_minor = parse_indian_amount_to_paise(row[col_map["amount"]])
-
-                if amount_minor is None or amount_minor == 0:
-                    continue
+                # Amounts
+                amount_minor = 0
+                has_debit_credit_cols = "debit" in col_map and "credit" in col_map
+                if has_debit_credit_cols:
+                    debit_val = parse_indian_amount_to_paise(row[col_map["debit"]]) if col_map["debit"] < len(row) else 0
+                    credit_val = parse_indian_amount_to_paise(row[col_map["credit"]]) if col_map["credit"] < len(row) else 0
+                    if debit_val:
+                        amount_minor = -abs(debit_val)
+                    elif credit_val:
+                        amount_minor = abs(credit_val)
+                elif "amount" in col_map:
+                    raw_amt = parse_indian_amount_to_paise(row[col_map["amount"]]) if col_map["amount"] < len(row) else 0
+                    if "type" in col_map:
+                        typ = row[col_map["type"]].upper()
+                        amount_minor = -abs(raw_amt) if "DR" in typ or "DEBIT" in typ else abs(raw_amt)
+                    else:
+                        amount_minor = raw_amt or 0
 
                 balance_after = None
                 if "balance" in col_map and col_map["balance"] < len(row):
