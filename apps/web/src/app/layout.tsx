@@ -1,47 +1,171 @@
-import type { Metadata } from "next";
-import Link from "next/link";
-import "./globals.css";
+'use client';
 
-export const metadata: Metadata = {
-  title: "Financial Decision Lab | Can I afford this next month?",
-  description: "A personal finance assistant that shows its work and proves every calculation.",
-};
+import React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { 
+  LayoutDashboard, 
+  CreditCard, 
+  Clock, 
+  Scale, 
+  FileText, 
+  Settings, 
+  Bell, 
+  ChevronDown, 
+  ArrowRight,
+  ShieldCheck
+} from 'lucide-react';
+import './globals.css';
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
+  const navLinks = [
+    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Transactions', href: '/transactions', icon: CreditCard },
+    { name: 'Recurring Payments', href: '/recurring', icon: Clock },
+    { name: 'Decision Lab', href: '/lab', icon: Scale },
+    { name: 'Reports', href: '/anomalies', icon: FileText },
+    { name: 'Account & Settings', href: '/privacy', icon: Settings },
+  ];
+
   return (
     <html lang="en">
-      <body className="bg-slate-950 text-slate-100 flex flex-col min-h-screen">
-        <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-3 flex items-center justify-between sticky top-0 z-50">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="font-bold text-lg text-emerald-400 tracking-tight flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Financial Decision Lab
-            </Link>
-            <nav className="flex items-center gap-1 text-sm font-medium text-slate-300">
-              <Link href="/" className="px-3 py-1.5 rounded hover:bg-slate-800 hover:text-white transition">Dashboard</Link>
-              <Link href="/lab" className="px-3 py-1.5 rounded hover:bg-slate-800 hover:text-white transition">Decision Lab</Link>
-              <Link href="/transactions" className="px-3 py-1.5 rounded hover:bg-slate-800 hover:text-white transition">Transactions</Link>
-              <Link href="/recurring" className="px-3 py-1.5 rounded hover:bg-slate-800 hover:text-white transition">Recurring</Link>
-              <Link href="/anomalies" className="px-3 py-1.5 rounded hover:bg-slate-800 hover:text-white transition">Anomalies</Link>
-              <Link href="/privacy" className="px-3 py-1.5 rounded hover:bg-slate-800 hover:text-white transition">Privacy & Egress</Link>
+      <head>
+        <title>Financial Decision Lab | Personal Finance Assistant</title>
+        <meta name="description" content="A personal finance assistant that shows its work and proves every calculation." />
+      </head>
+      <body className="bg-slate-50 text-slate-900 flex h-screen overflow-hidden antialiased">
+        {/* Left Sidebar */}
+        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 select-none z-20">
+          <div>
+            {/* Logo */}
+            <div className="h-16 px-6 border-b border-slate-100 flex items-center gap-3">
+              <div className="flex items-end gap-1 h-5">
+                <span className="w-1.5 h-3 bg-blue-600 rounded-sm"></span>
+                <span className="w-1.5 h-5 bg-blue-600 rounded-sm"></span>
+                <span className="w-1.5 h-4 bg-blue-600 rounded-sm"></span>
+              </div>
+              <span className="font-bold text-slate-900 text-base tracking-tight">
+                Financial Decision Lab
+              </span>
+            </div>
+
+            {/* Navigation links */}
+            <nav className="p-3 space-y-1 mt-2">
+              {navLinks.map((item) => {
+                const isActive = pathname === item.href;
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-600 font-semibold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
+                    {item.name}
+                  </Link>
+                );
+              })}
             </nav>
           </div>
-          <div className="flex items-center gap-3 text-xs">
-            <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-1 rounded-full font-mono">
-              ● Data Health: OK (6 mo)
-            </span>
-            <span className="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full font-mono">
-              Privacy: Local-Only
-            </span>
+
+          {/* Sidebar Bottom: Data Health Mini-Card */}
+          <div className="p-4 border-t border-slate-100">
+            <Link 
+              href="/privacy"
+              className="block bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 rounded-xl p-3.5 transition group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-800">Data Health</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-700">96%</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </div>
+              <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden my-2">
+                <div className="h-full bg-emerald-500 rounded-full w-[96%]"></div>
+              </div>
+              <p className="text-[11px] text-slate-500">Transactions categorized</p>
+            </Link>
           </div>
-        </header>
-        <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
-          {children}
-        </main>
+        </aside>
+
+        {/* Right Application Area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Top Header */}
+          <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 select-none z-10">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-500">Overview</span>
+              <span className="text-slate-300">/</span>
+              <span className="text-sm font-bold text-slate-800">Dashboard</span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* Account Filter */}
+              <div className="relative">
+                <select className="appearance-none bg-white border border-slate-200 text-xs font-medium text-slate-700 pl-3 pr-8 py-1.5 rounded-lg focus:outline-none focus:border-blue-500 cursor-pointer shadow-sm">
+                  <option value="all">All Accounts</option>
+                  <option value="hdfc">HDFC Bank (•••• 4821)</option>
+                  <option value="sbi">SBI Savings (•••• 4421)</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+              </div>
+
+              {/* Time Range Filter */}
+              <div className="relative">
+                <select className="appearance-none bg-white border border-slate-200 text-xs font-medium text-slate-700 pl-3 pr-8 py-1.5 rounded-lg focus:outline-none focus:border-blue-500 cursor-pointer shadow-sm">
+                  <option value="6m">Last 6 Months</option>
+                  <option value="3m">Last 3 Months</option>
+                  <option value="1y">Past 1 Year</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+              </div>
+
+              {/* Data Ready Badge */}
+              <div className="hidden sm:flex items-center gap-2 border-l border-slate-200 pl-4">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <div>
+                  <p className="text-xs font-semibold text-slate-800 leading-none">Data Ready</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-none">Last updated: 30 Oct 2024, 10:45 AM</p>
+                </div>
+              </div>
+
+              {/* Bell Icon */}
+              <button 
+                title="Notifications"
+                className="p-2 text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition relative"
+              >
+                <Bell className="w-4 h-4" />
+                <span className="w-2 h-2 bg-rose-500 rounded-full absolute top-1.5 right-1.5"></span>
+              </button>
+
+              {/* User Avatar */}
+              <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
+                <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs flex items-center justify-center">
+                  AK
+                </div>
+                <div className="hidden md:block text-left">
+                  <p className="text-xs font-bold text-slate-800 leading-tight">Aarav Kumar</p>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </div>
+            </div>
+          </header>
+
+          {/* Main Scrollable Viewport */}
+          <main className="flex-1 overflow-y-auto bg-slate-50">
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );
