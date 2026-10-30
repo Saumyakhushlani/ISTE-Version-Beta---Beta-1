@@ -35,12 +35,18 @@ export async function fetchFromApi<T = any>(endpoint: string, options?: RequestI
 export const api = {
   // Dashboard & Liquidity
   getDashboardSummary: () => fetchFromApi("/api/dashboard"),
-  getLiquidityAdvice: (target_paise: number) =>
-    fetchFromApi("/api/dashboard/liquidity/advice", {
+  getLiquidityAdvice: (target_paise: number, label = "Investment / FD") =>
+    fetchFromApi("/api/dashboard/investment-advice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target_investment_minor: target_paise }),
+      body: JSON.stringify({ 
+        target_amount_paise: target_paise,
+        investment_label: label 
+      }),
     }),
+
+  // Data Sufficiency Gate
+  getSufficiencyReport: () => fetchFromApi("/api/sufficiency"),
 
   // Statement Ingestion
   previewStatement: (formData: FormData) =>
@@ -57,10 +63,33 @@ export const api = {
       body: form,
     });
   },
+  previewStatementAsync: (formData: FormData) =>
+    fetchFromApi("/api/imports/preview/async", {
+      method: "POST",
+      body: formData,
+    }),
+  getImportJobStatus: (jobId: string) => fetchFromApi(`/api/imports/jobs/${jobId}`),
 
   // Transactions
   getTransactions: (limit = 100, offset = 0) =>
     fetchFromApi(`/api/transactions?limit=${limit}&offset=${offset}`),
+  updateTransactionCategory: (txnId: string, categoryId: string, applyToMerchant = false) =>
+    fetchFromApi(`/api/transactions/${txnId}/category`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        new_category: categoryId,
+        apply_to_merchant: applyToMerchant,
+      }),
+    }),
+  undoTransactionCorrection: (correctionId: string) =>
+    fetchFromApi("/api/transactions/undo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ correction_id: correctionId }),
+    }),
+  getTransactionCorrections: (limit = 20) =>
+    fetchFromApi(`/api/transactions/corrections?limit=${limit}`),
 
   // Recurring & Upcoming
   getRecurringItems: () => fetchFromApi("/api/recurring"),
@@ -69,7 +98,7 @@ export const api = {
   // Anomalies
   getAnomalies: () => fetchFromApi("/api/anomalies"),
 
-  // Affordability & Decision
+  // Affordability & Decision Lab
   evaluateAffordability: (query: {
     purchase_amount_minor: number;
     label?: string;
@@ -100,5 +129,15 @@ export const api = {
         purchase_amount_minor: purchaseAmountMinor,
         scenarios,
       }),
+    }),
+
+  // Privacy & Egress
+  getPrivacyStatus: () => fetchFromApi("/api/privacy/status"),
+  getEgressLogs: (limit = 50) => fetchFromApi(`/api/privacy/egress-log?limit=${limit}`),
+  togglePrivacyMode: (mode: "local" | "cloud_sanitized") =>
+    fetchFromApi("/api/privacy/toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
     }),
 };

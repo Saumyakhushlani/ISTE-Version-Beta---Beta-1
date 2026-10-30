@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building2, 
   ArrowUpRight, 
@@ -12,12 +13,45 @@ import {
   AlertCircle, 
   CheckCircle2, 
   TrendingUp, 
-  HelpCircle,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  Lock,
+  FileText,
+  Clock,
+  Layers,
+  ArrowRight,
+  RefreshCw,
+  Info
 } from 'lucide-react';
+import { 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  Legend, 
+  CartesianGrid 
+} from 'recharts';
 import { formatINR } from '@fdl/shared';
 import { api } from '@/lib/api';
+
+const BANK_BADGES: Record<string, { bg: string; text: string; border: string }> = {
+  HDFC: { bg: 'bg-blue-950/70', text: 'text-blue-400', border: 'border-blue-800/60' },
+  SBI: { bg: 'bg-sky-950/70', text: 'text-sky-300', border: 'border-sky-800/60' },
+  ICICI: { bg: 'bg-orange-950/70', text: 'text-orange-400', border: 'border-orange-800/60' },
+  AXIS: { bg: 'bg-rose-950/70', text: 'text-rose-400', border: 'border-rose-800/60' },
+  PHONEPE: { bg: 'bg-purple-950/70', text: 'text-purple-400', border: 'border-purple-800/60' },
+  DEFAULT: { bg: 'bg-slate-900', text: 'text-slate-300', border: 'border-slate-800' },
+};
+
+function getBankBadge(bankName: string = '') {
+  const upper = bankName.toUpperCase();
+  for (const key of Object.keys(BANK_BADGES)) {
+    if (upper.includes(key)) return BANK_BADGES[key];
+  }
+  return BANK_BADGES.DEFAULT;
+}
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -38,6 +72,7 @@ export default function DashboardPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [bankHint, setBankHint] = useState('auto');
+  const [pdfPassword, setPdfPassword] = useState('');
   const [previewData, setPreviewData] = useState<any>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
@@ -96,10 +131,36 @@ export default function DashboardPage() {
     setUploadFile(file);
     setUploadLoading(true);
     setUploadMessage(null);
+    setPreviewData(null);
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('bank_hint', bankHint);
+    if (pdfPassword.trim()) {
+      formData.append('password', pdfPassword.trim());
+    }
+
+    try {
+      const prev = await api.previewStatement(formData);
+      setPreviewData(prev);
+    } catch (err: any) {
+      setUploadMessage(`Error previewing file: ${err.message}`);
+    } finally {
+      setUploadLoading(false);
+    }
+  }
+
+  async function handleRetryPreviewWithPassword() {
+    if (!uploadFile) return;
+    setUploadLoading(true);
+    setUploadMessage(null);
+
+    const formData = new FormData();
+    formData.append('file', uploadFile);
+    formData.append('bank_hint', bankHint);
+    if (pdfPassword.trim()) {
+      formData.append('password', pdfPassword.trim());
+    }
 
     try {
       const prev = await api.previewStatement(formData);
@@ -116,14 +177,15 @@ export default function DashboardPage() {
     setUploadLoading(true);
     try {
       await api.commitStatement(previewData.file_id);
-      setUploadMessage('Statement committed successfully! Data refreshed.');
+      setUploadMessage('Statement committed successfully! Refreshing ledger...');
       setPreviewData(null);
       setUploadFile(null);
+      setPdfPassword('');
       setTimeout(() => {
         setShowUploadModal(false);
         setUploadMessage(null);
         loadDashboardData();
-      }, 1500);
+      }, 1200);
     } catch (err: any) {
       setUploadMessage(`Error committing statement: ${err.message}`);
     } finally {
@@ -131,193 +193,413 @@ export default function DashboardPage() {
     }
   }
 
-  const multiBank = data?.multi_bank_liquidity;
-  const combined = multiBank?.combined;
-  const accounts = multiBank?.accounts || [];
+  const accounts = data?.accounts_breakdown || [];
+  const monthlyData = (data?.monthly_summary || []).map((m: any) => ({
+    month: m.month,
+    Income: m.income_paise / 100,
+    Spend: m.spend_paise / 100,
+  }));
+  const categorySpend = data?.category_spend || [];
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-8 max-w-7xl mx-auto pb-12">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Financial Dashboard</h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Deterministic cash flow, multi-bank liquidity, and upcoming commitments.
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-100">
+              Executive Dashboard
+            </h1>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide bg-slate-900 border border-slate-700/80 text-emerald-400 font-mono">
+              LIVE MULTI-BANK
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            Deterministic cash flow, multi-account liquidity, and upcoming commitments.
           </p>
         </div>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2.5 rounded-xl text-sm shadow-lg shadow-emerald-950/40 transition active:scale-95"
-        >
-          <Upload className="w-4 h-4" />
-          + Upload Statement (CSV / PDF)
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadDashboardData}
+            title="Refresh Ledger"
+            className="p-2.5 rounded-xl border border-slate-800 bg-slate-900 text-slate-400 hover:text-white hover:border-slate-700 transition"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-950/40 transition active:scale-95 cursor-pointer"
+          >
+            <Upload className="w-4 h-4" />
+            + Ingest Bank Statement
+          </button>
+        </div>
       </div>
 
       {/* Natural Language Decision Bar */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/50 border border-slate-800 rounded-2xl p-5 shadow-sm">
+      <motion.div 
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden"
+      >
+        <div className="absolute top-0 right-0 w-96 h-28 bg-emerald-500/5 blur-3xl pointer-events-none" />
         <form onSubmit={handleNlAsk} className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Sparkles className="w-4 h-4 text-emerald-400 absolute left-3.5 top-3.5" />
+            <Sparkles className="w-4 h-4 text-emerald-400 absolute left-3.5 top-3.5 pointer-events-none" />
             <input
               type="text"
               value={nlQuery}
               onChange={(e) => setNlQuery(e.target.value)}
-              placeholder='Ask anything: "Can I afford an iPhone for ₹80,000 next month?" or "Can I buy a laptop on 6 months EMI?"'
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+              placeholder='Ask affordability: "Can I afford an iPhone for ₹80,000 next month?" or "Can I buy a Mac on 6 months EMI?"'
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500/80 transition"
             />
           </div>
           <button
             type="submit"
             disabled={nlEvaluating}
-            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium px-6 py-3 rounded-xl text-sm transition shadow-md shadow-emerald-950/30 flex items-center justify-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium px-6 py-3 rounded-xl text-sm transition shadow-md shadow-emerald-950/40 flex items-center justify-center gap-2 cursor-pointer font-sans"
           >
-            {nlEvaluating ? 'Evaluating Math...' : 'Evaluate'}
+            {nlEvaluating ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Evaluating Math...
+              </>
+            ) : (
+              <>
+                Evaluate Math
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
         </form>
 
         {/* Instant Decision Result Box */}
-        {nlResult && (
-          <div className="mt-4 p-4 rounded-xl border border-slate-700/60 bg-slate-950/80 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between mb-2">
-              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide uppercase ${
-                nlResult.verdict?.code === 'AFFORDABLE' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' :
-                nlResult.verdict?.code === 'TIGHT' ? 'bg-amber-950 text-amber-300 border border-amber-800' :
-                nlResult.verdict?.code === 'NOT_ADVISABLE' ? 'bg-orange-950 text-orange-300 border border-orange-800' :
-                'bg-rose-950 text-rose-300 border border-rose-800'
-              }`}>
-                Verdict: {nlResult.verdict?.code}
-              </span>
-              <span className="text-xs text-slate-400">
-                P50 Headroom: <span className="font-semibold text-slate-200">{formatINR(nlResult.headroom?.p50_minor || 0)}</span>
-              </span>
+        <AnimatePresence>
+          {nlResult && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-4 p-4 rounded-xl border border-slate-800 bg-slate-950/90 text-xs sm:text-sm"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-800/80">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wider uppercase font-mono ${
+                    nlResult.verdict?.code === 'AFFORDABLE' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' :
+                    nlResult.verdict?.code === 'TIGHT' ? 'bg-amber-950 text-amber-300 border border-amber-800' :
+                    nlResult.verdict?.code === 'NOT_ADVISABLE' ? 'bg-orange-950 text-orange-300 border border-orange-800' :
+                    'bg-rose-950 text-rose-300 border border-rose-800'
+                  }`}>
+                    {nlResult.verdict?.code}
+                  </span>
+                  <span className="text-slate-400 text-xs font-mono">
+                    Score: {nlResult.verdict?.confidence_score ?? 100}%
+                  </span>
+                </div>
+                <div className="text-xs text-slate-400 font-mono">
+                  P50 Headroom: <span className="font-semibold text-emerald-400">{formatINR(nlResult.headroom?.p50_minor || 0)}</span>
+                </div>
+              </div>
+              <p className="text-slate-200 leading-relaxed font-normal">
+                {nlResult.narration}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Above-The-Fold KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Liquid Position */}
+        <motion.div 
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-5 relative overflow-hidden"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Total Liquid Cash
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center justify-center text-emerald-400">
+              <Wallet className="w-4 h-4" />
             </div>
-            <p className="text-sm text-slate-200 leading-relaxed font-normal">
-              {nlResult.narration}
-            </p>
           </div>
-        )}
-      </div>
-
-      {/* Combined Position Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Liquid Cash</span>
-            <Wallet className="w-5 h-5 text-emerald-400" />
-          </div>
-          <p className="text-3xl font-extrabold text-white mt-2 tracking-tight">
-            {formatINR(combined?.total_current_balance_paise || data?.net_position_paise || 0)}
+          <p className="text-2xl sm:text-3xl font-bold font-mono text-slate-100 mt-2 tracking-tight">
+            {formatINR(data?.combined_liquid_paise || 0)}
           </p>
-          <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
-            Across {accounts.length || 1} connected bank accounts
-          </p>
-        </div>
-
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Inflow</span>
-            <ArrowDownRight className="w-5 h-5 text-emerald-400" />
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
+            <Building2 className="w-3.5 h-3.5 text-slate-500" />
+            <span>Across {accounts.length || 1} connected accounts</span>
           </div>
-          <p className="text-3xl font-extrabold text-emerald-400 mt-2 tracking-tight">
-            {formatINR(combined?.total_inflow_paise || 0)}
-          </p>
-          <p className="text-xs text-slate-400 mt-2">Cumulative income credits</p>
-        </div>
+        </motion.div>
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
+        {/* Total Inflow */}
+        <motion.div 
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, delay: 0.05 }}
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-5"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Outflow</span>
-            <ArrowUpRight className="w-5 h-5 text-rose-400" />
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Total Inflow
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center justify-center text-emerald-400">
+              <ArrowDownRight className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-3xl font-extrabold text-rose-400 mt-2 tracking-tight">
-            {formatINR(combined?.total_outflow_paise || 0)}
+          <p className="text-2xl sm:text-3xl font-bold font-mono text-emerald-400 mt-2 tracking-tight">
+            {formatINR(data?.combined_inflow_paise || 0)}
           </p>
-          <p className="text-xs text-slate-400 mt-2">Cumulative debits (excl. internal)</p>
-        </div>
+          <p className="text-xs text-slate-400 mt-2">
+            Verified salary & income credits
+          </p>
+        </motion.div>
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
+        {/* Total Outflow */}
+        <motion.div 
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, delay: 0.1 }}
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-5"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Safety Buffer</span>
-            <ShieldCheck className="w-5 h-5 text-indigo-400" />
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Total Outflow
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-rose-950/60 border border-rose-800/60 flex items-center justify-center text-rose-400">
+              <ArrowUpRight className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-3xl font-extrabold text-indigo-400 mt-2 tracking-tight">
-            {formatINR(data?.safety_buffer?.value_paise || 5800000)}
+          <p className="text-2xl sm:text-3xl font-bold font-mono text-rose-400 mt-2 tracking-tight">
+            {formatINR(data?.combined_outflow_paise || 0)}
+          </p>
+          <p className="text-xs text-slate-400 mt-2">
+            Net debits (excl. internal transfers)
+          </p>
+        </motion.div>
+
+        {/* Dynamic Safety Buffer */}
+        <motion.div 
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, delay: 0.15 }}
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-5"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Safety Reserve
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-indigo-950/60 border border-indigo-800/60 flex items-center justify-center text-indigo-400">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl sm:text-3xl font-bold font-mono text-indigo-400 mt-2 tracking-tight">
+            {formatINR(5800000)}
           </p>
           <p className="text-xs text-slate-400 mt-2 truncate">
-            {data?.safety_buffer?.reason || 'Dynamic safety reserve'}
+            Max(Floor ₹25k, Essentials ₹58k)
           </p>
+        </motion.div>
+      </div>
+
+      {/* Charts Section: Cash Flow Dynamics & Spending Breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Income vs Spend Monthly Bar Chart */}
+        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                Monthly Cash Flow Dynamics (₹)
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Deterministic monthly income vs non-transfer spend
+              </p>
+            </div>
+            <span className="text-xs font-mono text-slate-500">
+              {monthlyData.length} recorded months
+            </span>
+          </div>
+
+          <div className="h-64 w-full">
+            {monthlyData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-slate-500 text-xs">
+                No monthly data points available. Ingest bank statement to populate.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <XAxis 
+                    dataKey="month" 
+                    stroke="#64748b" 
+                    fontSize={11} 
+                    tickLine={false} 
+                  />
+                  <YAxis 
+                    stroke="#64748b" 
+                    fontSize={11} 
+                    tickLine={false}
+                    tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#020617', 
+                      borderColor: '#334155', 
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      color: '#f8fafc'
+                    }}
+                    formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']}
+                  />
+                  <Legend 
+                    wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} 
+                  />
+                  <Bar dataKey="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Spend" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Top Spend Categories Distribution */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
+          <div>
+            <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-indigo-400" />
+              Category Spend Breakdown
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Expense distribution across classified categories
+            </p>
+
+            <div className="mt-4 space-y-3">
+              {categorySpend.slice(0, 5).map((cat: any) => (
+                <div key={cat.category_id} className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-slate-300 flex items-center gap-1.5">
+                      <span 
+                        className="w-2.5 h-2.5 rounded-full inline-block" 
+                        style={{ backgroundColor: cat.color }} 
+                      />
+                      {cat.category}
+                    </span>
+                    <span className="font-mono text-slate-200">
+                      {formatINR(cat.amount_paise)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ 
+                        backgroundColor: cat.color,
+                        width: `${Math.min(100, Math.max(5, (cat.amount_paise / (data?.combined_outflow_paise || 1)) * 100))}%` 
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+              {categorySpend.length === 0 && (
+                <p className="text-xs text-slate-500 text-center py-6">
+                  No categorized expenses recorded yet.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center gap-1">
+            <Info className="w-3.5 h-3.5 text-slate-500" />
+            <span>Excludes intra-account self transfers</span>
+          </div>
         </div>
       </div>
 
-      {/* Multi-Bank Breakdown Grid */}
+      {/* Connected Accounts Breakdown Grid */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-slate-400" />
-            Connected Accounts & Cash Flow
-          </h2>
-          <span className="text-xs text-slate-400">All amounts in integer paise</span>
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-emerald-400" />
+              Multi-Bank Liquidity Breakdown
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Live balances and throughput per verified bank account
+            </p>
+          </div>
+          <span className="text-xs font-mono text-slate-500">
+            Minor Unit: Integer Paise
+          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {accounts.map((acct: any) => (
-            <div key={acct.account_id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center font-bold text-xs text-emerald-400">
-                      {acct.bank.slice(0, 3).toUpperCase()}
+          {accounts.map((acct: any) => {
+            const badge = getBankBadge(acct.bank);
+            return (
+              <div 
+                key={acct.account_id} 
+                className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`px-2.5 py-1 rounded-lg font-mono font-bold text-xs border ${badge.bg} ${badge.text} ${badge.border}`}>
+                        {acct.bank.slice(0, 4).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-100 text-sm">{acct.nickname}</h3>
+                        <p className="text-xs text-slate-500 font-mono">•••• {acct.masked_last4}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-white text-sm">{acct.nickname}</h4>
-                      <p className="text-xs text-slate-400">Last 4: •••• {acct.masked_last4}</p>
-                    </div>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-950 text-slate-400 font-mono border border-slate-800">
+                      {acct.transaction_count} txns
+                    </span>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
-                    {acct.transaction_count} txns
-                  </span>
+
+                  <div className="mt-5">
+                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                      Current Cleared Balance
+                    </span>
+                    <p className="text-2xl font-bold font-mono text-slate-100 tracking-tight mt-0.5">
+                      {formatINR(acct.current_balance_paise)}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="mt-5">
-                  <span className="text-xs text-slate-400">Current Balance</span>
-                  <p className="text-2xl font-bold text-white tracking-tight mt-0.5">
-                    {formatINR(acct.current_balance_paise)}
-                  </p>
+                <div className="mt-6 pt-4 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-slate-500">Total Inflow</span>
+                    <p className="text-emerald-400 font-mono font-medium">{formatINR(acct.inflow_paise)}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Total Outflow</span>
+                    <p className="text-rose-400 font-mono font-medium">{formatINR(acct.outflow_paise)}</p>
+                  </div>
                 </div>
               </div>
-
-              <div className="mt-6 pt-4 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <span className="text-slate-400">Inflow:</span>
-                  <p className="text-emerald-400 font-medium">{formatINR(acct.inflow_paise)}</p>
-                </div>
-                <div>
-                  <span className="text-slate-400">Outflow:</span>
-                  <p className="text-rose-400 font-medium">{formatINR(acct.outflow_paise)}</p>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* Two Column Layout: Smart Liquidity Advisor + Upcoming Payments */}
+      {/* Two Column Section: Smart Liquidity Advisor + Upcoming Commitments */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Smart Investment / Liquidity Advisor */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-white text-base flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-indigo-400" />
-                Smart Liquidity & Transfer Advisor
-              </h3>
-              <span className="text-xs px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-900">
-                Rule-Based Protection
+              <h2 className="font-bold text-slate-100 text-base flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-indigo-400" />
+                Smart Investment & Transfer Advisor
+              </h2>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-900 font-mono">
+                DETERMINISTIC SOURCING
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Want to lock in an FD, SIP, or large investment? Tell us how much, and we will calculate which bank account to transfer from without risking upcoming bills.
+              Want to lock an FD, SIP, or lump-sum asset? Enter the amount to calculate safe sourcing across accounts without jeopardizing upcoming bills.
             </p>
 
             <div className="mt-4 flex gap-3">
@@ -328,79 +610,100 @@ export default function DashboardPage() {
                   value={investmentInputRs}
                   onChange={(e) => setInvestmentInputRs(e.target.value)}
                   placeholder="100000"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500 transition"
                 />
               </div>
               <button
                 onClick={handleGetAdvice}
                 disabled={adviceLoading}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2.5 rounded-xl text-sm transition"
+                className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium px-4 py-2.5 rounded-xl text-xs sm:text-sm transition cursor-pointer"
               >
-                {adviceLoading ? 'Calculating...' : 'Advise Account'}
+                {adviceLoading ? 'Calculating Sourcing...' : 'Calculate Sourcing'}
               </button>
             </div>
 
             {adviceResult && (
-              <div className="mt-4 p-4 rounded-xl border border-slate-800 bg-slate-950">
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`text-xs font-bold uppercase tracking-wider ${
+              <motion.div 
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2.5"
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-bold font-mono uppercase tracking-wider ${
                     adviceResult.verdict === 'FEASIBLE' ? 'text-emerald-400' : 'text-amber-400'
                   }`}>
                     {adviceResult.verdict}
                   </span>
-                  <span className="text-xs text-slate-400">
-                    Safe Surplus: <span className="text-white font-semibold">{formatINR(adviceResult.total_safe_surplus_paise)}</span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    Total Safe Surplus: <span className="text-slate-100 font-bold">{formatINR(adviceResult.total_safe_surplus_paise)}</span>
                   </span>
                 </div>
-                <p className="text-sm text-slate-200">{adviceResult.recommendation}</p>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  {adviceResult.recommendation}
+                </p>
 
                 {adviceResult.allocation && adviceResult.allocation.length > 0 && (
-                  <div className="mt-3 space-y-1">
+                  <div className="mt-2 space-y-1.5 pt-2 border-t border-slate-900">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Recommended Debit Allocation
+                    </span>
                     {adviceResult.allocation.map((alloc: any, idx: number) => (
-                      <div key={idx} className="flex justify-between text-xs py-1 border-t border-slate-900">
-                        <span className="text-slate-400">Debit from {alloc.bank}:</span>
-                        <span className="font-semibold text-indigo-300">{formatINR(alloc.amount_paise)}</span>
+                      <div key={idx} className="flex justify-between items-center text-xs py-1 px-2 rounded bg-slate-900/60 border border-slate-800/60">
+                        <span className="text-slate-300 font-medium">Debit from {alloc.bank}</span>
+                        <span className="font-mono font-bold text-indigo-300">{formatINR(alloc.amount_paise)}</span>
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
+              </motion.div>
             )}
           </div>
         </div>
 
-        {/* Upcoming Payments Calendar */}
+        {/* Upcoming Commitments Calendar (Next 30 Days) */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-white text-base flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-emerald-400" />
-              Upcoming Payments (Next 30 Days)
-            </h3>
-            <span className="text-xs text-slate-400 font-mono">{upcoming.length} scheduled</span>
+            <div>
+              <h2 className="font-bold text-slate-100 text-base flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-emerald-400" />
+                Upcoming Commitments (Next 30 Days)
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Predicted obligations based on detected cadence
+              </p>
+            </div>
+            <span className="text-xs font-mono text-slate-400 px-2 py-0.5 rounded bg-slate-950 border border-slate-800">
+              {upcoming.length} scheduled
+            </span>
           </div>
 
           {upcoming.length === 0 ? (
-            <div className="text-center py-8 text-slate-500 text-sm">
-              No upcoming recurring obligations detected.
+            <div className="text-center py-10 text-slate-500 text-xs sm:text-sm">
+              No upcoming recurring obligations detected in the next 30 days.
             </div>
           ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
               {upcoming.map((item, idx) => (
-                <div key={idx} className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 flex items-center justify-between">
+                <div 
+                  key={idx} 
+                  className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 flex items-center justify-between hover:border-slate-700/80 transition"
+                >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
+                    <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-mono font-bold text-slate-200">
                       {item.due_date?.slice(8, 10)}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-white">{item.merchant}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs sm:text-sm font-semibold text-slate-100">{item.merchant}</p>
+                      <p className="text-[11px] text-slate-400">
                         {item.type.toUpperCase()} • Deducts from <span className="text-emerald-400 font-medium">{item.bank_attributed}</span>
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold text-rose-400">-{formatINR(item.typical_amount_paise)}</p>
-                    <p className="text-xs text-slate-500">{item.due_date}</p>
+                    <p className="text-xs sm:text-sm font-bold font-mono text-rose-400">
+                      -{formatINR(item.typical_amount_paise)}
+                    </p>
+                    <p className="text-[11px] font-mono text-slate-500">{item.due_date}</p>
                   </div>
                 </div>
               ))}
@@ -409,100 +712,152 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Statement Upload Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">Upload Bank Statement</h3>
-              <button 
-                onClick={() => setShowUploadModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-400">
-              Supports CSV & PDF statements (HDFC, SBI, ICICI, Axis, PhonePe, GPay, Paytm). Bank is auto-detected automatically.
-            </p>
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-medium text-slate-300 block mb-1">
-                  Bank (Optional hint — leave on Auto to detect automatically)
-                </label>
-                <select
-                  value={bankHint}
-                  onChange={(e) => setBankHint(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200"
+      {/* Statement Upload Modal with PDF Password Support */}
+      <AnimatePresence>
+        {showUploadModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-emerald-400" />
+                  Ingest Bank Statement
+                </h2>
+                <button 
+                  onClick={() => setShowUploadModal(false)}
+                  className="text-slate-400 hover:text-white text-sm p-1 rounded-lg hover:bg-slate-800 transition"
                 >
-                  <option value="auto">Auto-detect bank from statement headers</option>
-                  <option value="HDFC">HDFC Bank</option>
-                  <option value="SBI">State Bank of India (SBI)</option>
-                  <option value="ICICI">ICICI Bank</option>
-                  <option value="Axis">Axis Bank</option>
-                  <option value="PhonePe">PhonePe / UPI</option>
-                </select>
+                  ✕
+                </button>
               </div>
 
-              <div>
-                <label className="text-xs font-medium text-slate-300 block mb-1">Select File</label>
-                <input
-                  type="file"
-                  accept=".csv,.pdf"
-                  onChange={handleFilePreview}
-                  className="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-emerald-400 hover:file:bg-slate-700"
-                />
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Upload CSV or password-protected PDF statements (HDFC, SBI, ICICI, Axis). Bank formats and tables are automatically detected.
+              </p>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                    Bank (Optional Hint — Auto-detect recommended)
+                  </label>
+                  <select
+                    value={bankHint}
+                    onChange={(e) => setBankHint(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="auto">Auto-detect bank automatically</option>
+                    <option value="HDFC">HDFC Bank</option>
+                    <option value="SBI">State Bank of India (SBI)</option>
+                    <option value="ICICI">ICICI Bank</option>
+                    <option value="Axis">Axis Bank</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">Select File (.csv or .pdf)</label>
+                  <input
+                    type="file"
+                    accept=".csv,.pdf"
+                    onChange={handleFilePreview}
+                    className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-emerald-400 hover:file:bg-slate-700 cursor-pointer"
+                  />
+                </div>
+
+                {/* PDF Password Input if file is PDF or required */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    PDF Password (if encrypted, e.g. PAN + DOB)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={pdfPassword}
+                      onChange={(e) => setPdfPassword(e.target.value)}
+                      placeholder="e.g. ABCDE1234F01011990"
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                    {uploadFile && (
+                      <button
+                        type="button"
+                        onClick={handleRetryPreviewWithPassword}
+                        disabled={uploadLoading}
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl text-xs font-medium transition"
+                      >
+                        Apply
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* Preview Box */}
-            {previewData && (
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Detected Bank:</span>
-                  <span className="font-semibold text-emerald-400">{previewData.bank_detected} (•••• {previewData.masked_last4})</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Transactions Found:</span>
-                  <span className="font-semibold text-white">{previewData.rows_detected}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Reconciliation:</span>
-                  <span className={`font-semibold ${previewData.reconciliation_status === 'PASSED' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {previewData.reconciliation_status}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {uploadMessage && (
-              <p className="text-xs text-amber-300">{uploadMessage}</p>
-            )}
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowUploadModal(false)}
-                className="px-4 py-2 rounded-xl text-sm text-slate-300 hover:bg-slate-800"
-              >
-                Cancel
-              </button>
+              {/* Ingestion Preview Summary */}
               {previewData && (
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Detected Bank:</span>
+                    <span className="font-semibold text-emerald-400 font-mono">
+                      {previewData.bank_detected} (•••• {previewData.masked_last4})
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Transactions Found:</span>
+                    <span className="font-mono font-semibold text-slate-100">{previewData.rows_detected}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Reconciliation Check:</span>
+                    <span className={`font-mono font-semibold ${
+                      previewData.reconciliation_status === 'PASSED' ? 'text-emerald-400' : 'text-amber-400'
+                    }`}>
+                      {previewData.reconciliation_status}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {uploadMessage && (
+                <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-900/60 text-xs text-amber-300">
+                  {uploadMessage}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={handleCommitUpload}
-                  disabled={uploadLoading}
-                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-xl text-sm"
+                  onClick={() => setShowUploadModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs sm:text-sm text-slate-400 hover:bg-slate-800 transition"
                 >
-                  {uploadLoading ? 'Saving...' : 'Confirm & Ingest'}
+                  Cancel
                 </button>
-              )}
-            </div>
+                {previewData && (
+                  <button
+                    type="button"
+                    onClick={handleCommitUpload}
+                    disabled={uploadLoading}
+                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-xl text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-950/40"
+                  >
+                    {uploadLoading ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Ingesting...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Commit to Ledger
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }
