@@ -4,13 +4,13 @@ Calculates per-account inflow, outflow, and remaining balance,
 and provides smart transfer recommendations for large investments (FD/SIP/Purchases).
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from db.models import Account, Transaction, RecurringItem
 
 DEFAULT_ACCOUNT_FLOOR_BUFFER_PAISE = 500000  # ₹5,000.00 minimum reserve per account
 
-def compute_multi_account_summary(db: Session) -> Dict[str, Any]:
+def compute_multi_account_summary(db: Session, account_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Computes financial breakdown for each individual bank account and the combined total:
     - Money in (Credits)
@@ -18,7 +18,10 @@ def compute_multi_account_summary(db: Session) -> Dict[str, Any]:
     - Net flow
     - Current remaining balance
     """
-    accounts = db.query(Account).all()
+    query = db.query(Account)
+    if account_id:
+        query = query.filter(Account.id == account_id)
+    accounts = query.all()
     account_summaries = []
 
     combined_liquid_paise = 0
@@ -32,17 +35,21 @@ def compute_multi_account_summary(db: Session) -> Dict[str, Any]:
         # Calculate opening balance
         opening_bal = acct.opening_balance_minor or 0
         
-        # Inflows & Outflows (excluding internal transfers)
-        inflow = sum(t.amount_minor for t in txns if t.amount_minor > 0 and not t.is_transfer)
-        outflow = sum(abs(t.amount_minor) for t in txns if t.amount_minor < 0 and not t.is_transfer)
+        # Account-level inflows & outflows (all credits and debits on this account)
+        inflow = sum(t.amount_minor for t in txns if t.amount_minor > 0)
+        outflow = sum(abs(t.amount_minor) for t in txns if t.amount_minor < 0)
         
+        # External flows (excluding internal transfers between user's own accounts) for portfolio aggregate
+        ext_inflow = sum(t.amount_minor for t in txns if t.amount_minor > 0 and not t.is_transfer)
+        ext_outflow = sum(abs(t.amount_minor) for t in txns if t.amount_minor < 0 and not t.is_transfer)
+
         # Balance includes all movements (including transfers between accounts)
         all_movements = sum(t.amount_minor for t in txns)
         current_balance = opening_bal + all_movements
 
         combined_liquid_paise += current_balance
-        combined_inflow_paise += inflow
-        combined_outflow_paise += outflow
+        combined_inflow_paise += ext_inflow
+        combined_outflow_paise += ext_outflow
         combined_txns_count += len(txns)
 
         account_summaries.append({
@@ -52,9 +59,13 @@ def compute_multi_account_summary(db: Session) -> Dict[str, Any]:
             "masked_last4": acct.masked_last4,
             "type": acct.type,
             "opening_balance_paise": opening_bal,
+            "opening_balance_minor": opening_bal,
             "current_balance_paise": current_balance,
+            "current_balance_minor": current_balance,
             "total_inflow_paise": inflow,
+            "inflow_paise": inflow,
             "total_outflow_paise": outflow,
+            "outflow_paise": outflow,
             "net_flow_paise": inflow - outflow,
             "transaction_count": len(txns)
         })
@@ -88,7 +99,6 @@ def recommend_investment_sourcing(
     recurring_items = db.query(RecurringItem).filter_by(status="active").all()
     
     # Calculate committed obligations per account
-    # If account_id is not set, allocate by bank name or description matching
     account_surpluses = []
 
     for acct in accounts:
@@ -123,8 +133,8 @@ def recommend_investment_sourcing(
     sorted_by_surplus = sorted(account_surpluses, key=lambda x: x["available_surplus_paise"], reverse=True)
 
     can_afford_total = combined_liquid >= target_amount_paise
-    recommendations = []
     transfers_plan = []
+    allocation = []
 
     if not can_afford_total:
         shortfall = target_amount_paise - combined_liquid
@@ -146,16 +156,28 @@ def recommend_investment_sourcing(
                 f"after reserving ₹{best_acct['upcoming_commitments_paise'] / 100:,.0f} for upcoming bills "
                 f"and ₹{best_acct['safety_buffer_paise'] / 100:,.0f} safety buffer."
             )
+            allocation.append({
+                "bank": best_acct["bank"],
+                "masked_last4": best_acct["masked_last4"],
+                "amount_paise": target_amount_paise
+            })
         else:
             # Need to combine or transfer between accounts
-            remaining_to_fund = target_amount_paise - best_acct["available_surplus_paise"]
+            remaining_to_fund = target_amount_paise - max(0, best_acct["available_surplus_paise"])
+            if best_acct["available_surplus_paise"] > 0:
+                allocation.append({
+                    "bank": best_acct["bank"],
+                    "masked_last4": best_acct["masked_last4"],
+                    "amount_paise": best_acct["available_surplus_paise"]
+                })
+
             secondary_accts = sorted_by_surplus[1:]
             
             transfers_needed = []
             for sec in secondary_accts:
                 if remaining_to_fund <= 0:
                     break
-                transfer_amt = min(sec["available_surplus_paise"], remaining_to_fund)
+                transfer_amt = min(max(0, sec["available_surplus_paise"]), remaining_to_fund)
                 if transfer_amt > 0:
                     transfers_needed.append({
                         "from_bank": sec["bank"],
@@ -163,6 +185,11 @@ def recommend_investment_sourcing(
                         "to_bank": best_acct["bank"],
                         "to_masked": best_acct["masked_last4"],
                         "transfer_amount_paise": transfer_amt
+                    })
+                    allocation.append({
+                        "bank": sec["bank"],
+                        "masked_last4": sec["masked_last4"],
+                        "amount_paise": transfer_amt
                     })
                     remaining_to_fund -= transfer_amt
 
@@ -177,11 +204,17 @@ def recommend_investment_sourcing(
                 )
             transfers_plan = transfers_needed
 
+    total_safe_surplus = sum(max(0, a["available_surplus_paise"]) for a in account_surpluses)
+
     return {
+        "verdict": "FEASIBLE" if feasible else "TIGHT",
         "feasible": feasible,
+        "recommendation": advice,
+        "advice_text": advice,
         "target_amount_paise": target_amount_paise,
         "combined_liquid_paise": combined_liquid,
+        "total_safe_surplus_paise": total_safe_surplus,
+        "allocation": allocation,
         "accounts_surplus_breakdown": account_surpluses,
-        "transfers_plan": transfers_plan,
-        "advice_text": advice
+        "transfers_plan": transfers_plan
     }

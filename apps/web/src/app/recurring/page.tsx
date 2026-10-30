@@ -39,10 +39,10 @@ export default function RecurringPage() {
     try {
       const [recRes, upRes] = await Promise.all([
         api.getRecurringItems().catch(() => ({ recurring_items: [] })),
-        api.getUpcomingSchedule(45).catch(() => ({ schedule: [] })),
+        api.getUpcomingSchedule(45).catch(() => ({ upcoming_payments: [] })),
       ]);
       setItems(recRes?.recurring_items || []);
-      setUpcoming(upRes?.schedule || []);
+      setUpcoming(upRes?.upcoming_payments || upRes?.schedule || []);
     } catch (e) {
       console.error('Failed to load recurring data:', e);
     } finally {
@@ -50,13 +50,17 @@ export default function RecurringPage() {
     }
   }
 
+  const getItemAmount = (item: any): number => {
+    return item?.typical_amount_minor ?? item?.typical_amount_paise ?? item?.amount_minor ?? item?.amount_paise ?? 0;
+  };
+
   const committedMonthly = items
     .filter((i) => i.type !== 'salary')
-    .reduce((sum, i) => sum + (i.typical_amount_minor || 0), 0);
+    .reduce((sum, i) => sum + getItemAmount(i), 0);
 
   const salaryExpected = items
     .filter((i) => i.type === 'salary')
-    .reduce((sum, i) => sum + (i.typical_amount_minor || 0), 0);
+    .reduce((sum, i) => sum + getItemAmount(i), 0);
 
   return (
     <motion.div 
@@ -140,14 +144,14 @@ export default function RecurringPage() {
 
               <h3 className="text-base font-bold text-slate-900 mt-3">{item.merchant}</h3>
               <p className="text-2xl font-extrabold text-slate-900 mt-1 font-mono tracking-tight">
-                {formatINR(item.typical_amount_minor)}
+                {formatINR(getItemAmount(item))}
               </p>
             </div>
 
             <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>Next Expected: <strong className="text-slate-800">{item.next_expected_date}</strong></span>
               <span className="font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-200 text-slate-700 font-semibold">
-                {(item.confidence * 100).toFixed(0)}% score
+                {((item.confidence || 0.9) * 100).toFixed(0)}% score
               </span>
             </div>
           </motion.div>

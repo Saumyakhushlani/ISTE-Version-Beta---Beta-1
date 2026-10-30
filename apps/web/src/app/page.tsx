@@ -21,12 +21,10 @@ import {
   CreditCard, 
   Tv, 
   Wifi, 
-  ShieldCheck, 
-  ShoppingBag, 
-  Utensils, 
-  Car, 
+  ShieldCheck,
   RefreshCw,
-  HelpCircle
+  Building2,
+  Filter
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -45,12 +43,22 @@ import {
 import { formatINR } from '@fdl/shared';
 import { api } from '@/lib/api';
 
+function getBankBadge(bankName: string = "") {
+  const b = bankName.toLowerCase();
+  if (b.includes("hdfc")) return { label: "HDFC", bg: "bg-blue-50 text-blue-700 border-blue-200" };
+  if (b.includes("sbi") || b.includes("state bank")) return { label: "SBI", bg: "bg-sky-50 text-sky-700 border-sky-200" };
+  if (b.includes("phonepe") || b.includes("phon")) return { label: "PHON", bg: "bg-purple-50 text-purple-700 border-purple-200" };
+  if (b.includes("icici")) return { label: "ICIC", bg: "bg-amber-50 text-amber-700 border-amber-200" };
+  if (b.includes("axis")) return { label: "AXIS", bg: "bg-rose-50 text-rose-700 border-rose-200" };
+  return { label: (bankName || "GENE").slice(0, 4).toUpperCase(), bg: "bg-slate-100 text-slate-700 border-slate-200" };
+}
+
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [activeAccount, setActiveAccount] = useState('all');
-  const [activeTimeRange, setActiveTimeRange] = useState('6m');
+  const [activeTimeRange, setActiveTimeRange] = useState('all');
 
   // Natural Language query state
   const [nlQuery, setNlQuery] = useState('');
@@ -59,13 +67,19 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setMounted(true);
-    fetchDashboard();
-  }, []);
+    fetchDashboard(activeAccount, activeTimeRange);
+  }, [activeAccount, activeTimeRange]);
 
-  async function fetchDashboard() {
+  async function fetchDashboard(accId = activeAccount, range = activeTimeRange) {
     setLoading(true);
     try {
-      const summary = await api.getDashboardSummary();
+      const params: any = {};
+      if (accId && accId !== 'all') params.account_id = accId;
+      if (range === '3m') params.months = 3;
+      else if (range === '6m') params.months = 6;
+      else if (range === '12m') params.months = 12;
+
+      const summary = await api.getDashboardSummary(params);
       setData(summary);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -98,7 +112,7 @@ export default function DashboardPage() {
   // Fallback defaults mapping to real API metrics
   const kpi = data?.kpi_metrics || {
     total_balance_paise: data?.combined_liquid_paise || 18500000,
-    total_accounts_count: data?.total_accounts_count || 3,
+    total_accounts_count: data?.total_accounts_count || 1,
     monthly_income_paise: 7500000,
     monthly_expenses_paise: 4200000,
     net_cash_flow_paise: 3300000,
@@ -107,6 +121,9 @@ export default function DashboardPage() {
     expenses_trend_pct: 12.0,
     net_cash_flow_trend_pct: 5.0
   };
+
+  // Accounts list
+  const accounts = data?.accounts_breakdown || [];
 
   // 1. Spending By Category
   const categories = (data?.category_spend && data.category_spend.length > 0)
@@ -120,7 +137,7 @@ export default function DashboardPage() {
         { category_id: "cat_uncategorized", category: "Other", amount_paise: 600000, percentage: 14, trend_pct: 9, color: "#94A3B8" }
       ];
 
-  const totalSpendingPaise = data?.total_spending_paise || categories.reduce((sum: number, c: any) => sum + c.amount_paise, 0);
+  const totalSpendingPaise = data?.total_spending_paise || categories.reduce((sum: number, c: any) => sum + (c.amount_paise || 0), 0);
 
   // 2. Monthly Income vs Expenses Chart & Table
   const rawMonthly = data?.monthly_summary && data.monthly_summary.length > 0
@@ -136,9 +153,9 @@ export default function DashboardPage() {
 
   const chartMonthlyData = rawMonthly.map((m: any) => ({
     name: m.month_label || m.month,
-    income: Math.round(m.income_paise / 100),
-    expenses: Math.round(m.spend_paise / 100),
-    net: Math.round(m.net_cash_flow_paise / 100)
+    income: Math.round((m.income_paise || 0) / 100),
+    expenses: Math.round((m.spend_paise || 0) / 100),
+    net: Math.round((m.net_cash_flow_paise || 0) / 100)
   }));
 
   // 3. Future Cash-Flow Forecast
@@ -146,9 +163,9 @@ export default function DashboardPage() {
   const forecastTimeline = (forecast?.timeline && forecast.timeline.length > 0)
     ? forecast.timeline.map((pt: any) => ({
         date: pt.date,
-        p10: Math.round(pt.p10_paise / 100),
-        p50: Math.round(pt.p50_paise / 100),
-        p90: Math.round(pt.p90_paise / 100),
+        p10: Math.round((pt.p10_paise || 0) / 100),
+        p50: Math.round((pt.p50_paise || 0) / 100),
+        p90: Math.round((pt.p90_paise || 0) / 100),
         buffer: Math.round((pt.safety_buffer_paise || forecast.safety_buffer_paise || 5800000) / 100)
       }))
     : [
@@ -160,8 +177,8 @@ export default function DashboardPage() {
         { date: "15 Jan", p10: 125000, p50: 165000, p90: 190000, buffer: 58000 }
       ];
 
-  const endingBalPaise = forecast?.projected_ending_balance_paise || 14500000;
-  const lowestBalPaise = forecast?.lowest_projected_balance_paise || 6800000;
+  const endingBalPaise = forecast?.projected_ending_balance_paise ?? 14500000;
+  const lowestBalPaise = forecast?.lowest_projected_balance_paise ?? 6800000;
   const breachProbPct = forecast?.probability_of_breaching_buffer_pct ?? 12;
   const negProbPct = forecast?.probability_of_negative_balance_pct ?? 2;
 
@@ -180,7 +197,7 @@ export default function DashboardPage() {
         } else if (m.includes("netflix") || m.includes("subscription")) {
           icon = Tv;
           iconBg = "bg-red-50 text-red-600";
-        } else if (m.includes("airtel") || m.includes("wifi") || m.includes("internet")) {
+        } else if (m.includes("airtel") || m.includes("wifi") || m.includes("internet") || m.includes("blinkit")) {
           icon = Wifi;
           iconBg = "bg-blue-50 text-blue-500";
         } else if (m.includes("insurance") || u.type === "insurance") {
@@ -188,11 +205,13 @@ export default function DashboardPage() {
           iconBg = "bg-indigo-50 text-indigo-500";
         }
 
+        const amt = u.amount_paise ?? u.typical_amount_paise ?? u.amount_minor ?? u.typical_amount_minor ?? 0;
+
         return {
           id: idx,
           name: u.merchant?.replace("UPI-", "").replace("ACH D-", "").split("-")[0] || u.merchant || "Scheduled Bill",
           date: u.due_date ? `${u.due_date.slice(8, 10)} Nov 2024` : "1 Nov 2024",
-          amount_paise: u.amount_paise || 1200000,
+          amount_paise: amt,
           user_status: idx < 3 ? "Auto" : "User",
           icon,
           iconBg
@@ -211,7 +230,7 @@ export default function DashboardPage() {
     ? data.top_anomalies.map((a: any, idx: number) => ({
         id: a.id || idx,
         type: a.type === "large_amount" ? "Unusually large transaction" : a.type === "duplicate_charge" ? "Possible duplicate payment" : "New merchant",
-        amount_paise: a.amount_paise || 1840000,
+        amount_paise: a.amount_paise ?? a.amount_minor ?? a.amount ?? 0,
         merchant: a.merchant || "XYZ Store",
         desc: a.reason_text?.length > 70 ? a.reason_text.slice(0, 67) + "..." : a.reason_text || "Unusual transaction flagged.",
         time: a.time_ago || "2 days ago",
@@ -261,6 +280,74 @@ export default function DashboardPage() {
       className="p-6 space-y-6 max-w-[1600px] mx-auto"
     >
       {/* ========================================================
+          HEADER: TITLE & QUERY CONTROLS (ACCOUNT & TIME FILTERS)
+      ======================================================== */}
+      <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Executive Dashboard</h1>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Live Verified Ledger
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Deterministic cash flow, multi-account liquidity, and predictive headroom.
+          </p>
+        </div>
+
+        {/* Filter Controls */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Account Filter */}
+          <div className="relative">
+            <select
+              value={activeAccount}
+              onChange={(e) => setActiveAccount(e.target.value)}
+              className="appearance-none bg-white border border-slate-200 text-xs font-semibold text-slate-700 pl-3 pr-8 py-2 rounded-xl focus:outline-none focus:border-blue-500 shadow-sm cursor-pointer"
+            >
+              <option value="all">All Accounts ({accounts.length})</option>
+              {accounts.map((a: any) => (
+                <option key={a.account_id} value={a.account_id}>
+                  {a.nickname || `${a.bank} •••• ${a.masked_last4}`}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
+          </div>
+
+          {/* Time Range Filter */}
+          <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs font-semibold">
+            {[
+              { id: '3m', label: '3M' },
+              { id: '6m', label: '6M' },
+              { id: '12m', label: '12M' },
+              { id: 'all', label: 'All' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTimeRange(t.id)}
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  activeTimeRange === t.id
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Refresh Button */}
+          <button
+            onClick={() => fetchDashboard(activeAccount, activeTimeRange)}
+            title="Refresh Ledger"
+            className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 shadow-sm transition"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+          </button>
+        </div>
+      </motion.div>
+
+      {/* ========================================================
           ROW 1: TOP 4 METRIC CARDS
       ======================================================== */}
       <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -275,17 +362,17 @@ export default function DashboardPage() {
             <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
               <Wallet className="w-5 h-5" />
             </div>
-            <p className="text-xs font-medium text-slate-500">Total Balance</p>
+            <p className="text-xs font-medium text-slate-500">Total Liquid Balance</p>
             <p className="text-2xl font-bold text-slate-900 tracking-tight mt-1">
               {formatINR(kpi.total_balance_paise)}
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              Across {kpi.total_accounts_count || 3} accounts
+              Across {kpi.total_accounts_count || accounts.length || 1} accounts
             </p>
           </div>
           <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
             <TrendingUp className="w-3 h-3" />
-            8% vs last month
+            {kpi.balance_trend_pct || 8}% vs last month
           </span>
         </motion.div>
 
@@ -308,7 +395,7 @@ export default function DashboardPage() {
           </div>
           <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
             <TrendingUp className="w-3 h-3" />
-            3% vs last month
+            {kpi.income_trend_pct || 3}% vs last month
           </span>
         </motion.div>
 
@@ -331,7 +418,7 @@ export default function DashboardPage() {
           </div>
           <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">
             <TrendingUp className="w-3 h-3" />
-            12% vs last month
+            {kpi.expenses_trend_pct || 12}% vs last month
           </span>
         </motion.div>
 
@@ -354,13 +441,94 @@ export default function DashboardPage() {
           </div>
           <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
             <TrendingUp className="w-3 h-3" />
-            5% vs last month
+            {kpi.net_cash_flow_trend_pct || 5}% vs last month
           </span>
         </motion.div>
       </motion.div>
 
       {/* ========================================================
-          ROW 2: SPENDING BY CATEGORY & MONTHLY INCOME VS EXPENSES
+          ROW 2: MULTI-BANK LIQUIDITY BREAKDOWN
+      ======================================================== */}
+      {accounts.length > 0 && (
+        <motion.div variants={itemVariants} className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-emerald-600" />
+                Multi-Bank Liquidity Breakdown
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Live balances and throughput per verified bank account
+              </p>
+            </div>
+            <span className="text-xs font-mono text-slate-400">
+              Integer Paise Precision
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {accounts.map((acct: any) => {
+              const badge = getBankBadge(acct.bank);
+              const curBal = acct.current_balance_paise ?? acct.current_balance_minor ?? 0;
+              const inAmt = acct.inflow_paise ?? acct.total_inflow_paise ?? 0;
+              const outAmt = acct.outflow_paise ?? acct.total_outflow_paise ?? 0;
+
+              return (
+                <motion.div 
+                  key={acct.account_id}
+                  whileHover={{ y: -3, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08)' }}
+                  transition={{ duration: 0.2 }}
+                  className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`w-8 h-8 rounded-lg ${badge.bg} border flex items-center justify-center font-bold text-xs`}>
+                          {badge.label}
+                        </span>
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">{acct.nickname || acct.bank}</p>
+                          <p className="text-[11px] text-slate-400 font-mono">•••• {acct.masked_last4}</p>
+                        </div>
+                      </div>
+                      <span className="text-xs text-slate-500 font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                        {acct.transaction_count} txns
+                      </span>
+                    </div>
+
+                    <div className="mt-4">
+                      <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                        Current Cleared Balance
+                      </span>
+                      <p className="text-2xl font-bold font-mono text-slate-900 tracking-tight mt-0.5">
+                        {formatINR(curBal)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 pt-3.5 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-500 text-[11px]">Total Inflow</span>
+                      <p className="text-emerald-600 font-mono font-bold text-xs mt-0.5">
+                        {formatINR(inAmt)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-[11px]">Total Outflow</span>
+                      <p className="text-rose-600 font-mono font-bold text-xs mt-0.5">
+                        {formatINR(outAmt)}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ========================================================
+          ROW 3: SPENDING BY CATEGORY & MONTHLY INCOME VS EXPENSES
       ======================================================== */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Spending by Category (Donut Chart + Breakdown) */}
@@ -368,13 +536,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-slate-900">Spending by Category</h3>
-              <div className="relative">
-                <select className="appearance-none bg-white border border-slate-200 text-xs font-medium text-slate-700 pl-2.5 pr-6 py-1 rounded-md focus:outline-none focus:border-blue-500 cursor-pointer">
-                  <option>This month</option>
-                  <option>Last month</option>
-                </select>
-                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-2 pointer-events-none" />
-              </div>
+              <div className="text-xs text-slate-400 font-medium">Categorized spend</div>
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-6 my-2">
@@ -411,29 +573,34 @@ export default function DashboardPage() {
 
               {/* Category Breakdown Rows */}
               <div className="flex-1 w-full space-y-2">
-                {categories.slice(0, 6).map((c: any) => (
-                  <motion.div 
-                    whileHover={{ x: 3 }} 
-                    transition={{ duration: 0.15 }}
-                    key={c.category_id} 
-                    className="flex items-center justify-between text-xs py-0.5 rounded px-1 -mx-1 hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }}></span>
-                      <span className="text-slate-700 font-medium truncate">{c.category}</span>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="font-semibold text-slate-900">{formatINR(c.amount_paise)}</span>
-                      <span className="text-slate-500 w-7 text-right">{c.percentage}%</span>
-                      <span className={`w-10 text-right font-medium text-[11px] flex items-center justify-end ${
-                        c.trend_pct > 0 ? (c.category === "Rent" || c.category === "Shopping" ? "text-rose-600" : "text-emerald-600") :
-                        c.trend_pct < 0 ? "text-emerald-600" : "text-slate-400"
-                      }`}>
-                        {c.trend_pct > 0 ? `↑ ${c.trend_pct}%` : c.trend_pct < 0 ? `↓ ${Math.abs(c.trend_pct)}%` : '0%'}
-                      </span>
-                    </div>
-                  </motion.div>
-                ))}
+                {categories.slice(0, 6).map((c: any) => {
+                  const pct = totalSpendingPaise > 0 
+                    ? Math.round(((c.amount_paise || 0) / totalSpendingPaise) * 100) 
+                    : 0;
+                  return (
+                    <motion.div 
+                      whileHover={{ x: 3 }} 
+                      transition={{ duration: 0.15 }}
+                      key={c.category_id} 
+                      className="flex items-center justify-between text-xs py-0.5 rounded px-1 -mx-1 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }}></span>
+                        <span className="text-slate-700 font-medium truncate">{c.category}</span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-semibold text-slate-900">{formatINR(c.amount_paise)}</span>
+                        <span className="text-slate-500 w-7 text-right">{pct}%</span>
+                        <span className={`w-10 text-right font-medium text-[11px] flex items-center justify-end ${
+                          c.trend_pct > 0 ? (c.category === "Rent" || c.category === "Shopping" ? "text-rose-600" : "text-emerald-600") :
+                          c.trend_pct < 0 ? "text-emerald-600" : "text-slate-400"
+                        }`}>
+                          {c.trend_pct > 0 ? `↑ ${c.trend_pct}%` : c.trend_pct < 0 ? `↓ ${Math.abs(c.trend_pct)}%` : '0%'}
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -463,13 +630,6 @@ export default function DashboardPage() {
                   <span className="flex items-center gap-1.5 text-slate-600">
                     <span className="w-3 h-0.5 bg-blue-500"></span> Net Cash Flow
                   </span>
-                </div>
-                <div className="relative">
-                  <select className="appearance-none bg-white border border-slate-200 text-xs font-medium text-slate-700 pl-2.5 pr-6 py-1 rounded-md focus:outline-none focus:border-blue-500 cursor-pointer">
-                    <option>Last 6 Months</option>
-                    <option>Last 3 Months</option>
-                  </select>
-                  <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-2 pointer-events-none" />
                 </div>
               </div>
             </div>
@@ -508,17 +668,17 @@ export default function DashboardPage() {
 
               <span className="font-medium text-slate-400">Income</span>
               {rawMonthly.map((m: any, i: number) => (
-                <span key={i} className="text-center font-medium text-slate-800">₹{Math.round(m.income_paise / 100000)}K</span>
+                <span key={i} className="text-center font-medium text-slate-800">₹{Math.round((m.income_paise || 0) / 100000)}K</span>
               ))}
 
               <span className="font-medium text-slate-400">Expenses</span>
               {rawMonthly.map((m: any, i: number) => (
-                <span key={i} className="text-center font-medium text-slate-800">₹{Math.round(m.spend_paise / 100000)}K</span>
+                <span key={i} className="text-center font-medium text-slate-800">₹{Math.round((m.spend_paise || 0) / 100000)}K</span>
               ))}
 
               <span className="font-medium text-slate-400">Net Cash Flow</span>
               {rawMonthly.map((m: any, i: number) => (
-                <span key={i} className="text-center font-bold text-emerald-600">+₹{Math.round(m.net_cash_flow_paise / 100000)}K</span>
+                <span key={i} className="text-center font-bold text-emerald-600">+₹{Math.round((m.net_cash_flow_paise || 0) / 100000)}K</span>
               ))}
             </div>
           </div>
@@ -526,7 +686,7 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* ========================================================
-          ROW 3: FUTURE CASH-FLOW FORECAST & UPCOMING PAYMENTS
+          ROW 4: FUTURE CASH-FLOW FORECAST & UPCOMING PAYMENTS
       ======================================================== */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Future Cash-Flow Forecast (Col Span 8) */}
@@ -538,14 +698,7 @@ export default function DashboardPage() {
                 <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
               </span>
             </div>
-            <div className="relative">
-              <select className="appearance-none bg-white border border-slate-200 text-xs font-medium text-slate-700 pl-2.5 pr-6 py-1 rounded-md focus:outline-none focus:border-blue-500 cursor-pointer">
-                <option>Next 90 Days</option>
-                <option>Next 60 Days</option>
-                <option>Next 30 Days</option>
-              </select>
-              <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-2 pointer-events-none" />
-            </div>
+            <span className="text-xs text-slate-400 font-medium">90-Day Horizon</span>
           </div>
 
           {/* Forecast Legend */}
@@ -588,7 +741,6 @@ export default function DashboardPage() {
                     formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, '']}
                     contentStyle={{ backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px' }}
                   />
-                  {/* P90 to P10 Area */}
                   <Area type="monotone" dataKey="p90" stroke="none" fill="#E0F2FE" fillOpacity={0.6} />
                   <Line type="monotone" dataKey="p90" stroke="#38BDF8" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="P90 (Higher)" />
                   <Line type="monotone" dataKey="p50" stroke="#2563EB" strokeWidth={2.5} dot={false} name="P50 (Median)" />
@@ -681,7 +833,7 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* ========================================================
-          ROW 4: BOTTOM 3 CARDS
+          ROW 5: ASK FDL, UNUSUAL TRANSACTIONS, DATA HEALTH
       ======================================================== */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 1. Ask Financial Decision Lab */}

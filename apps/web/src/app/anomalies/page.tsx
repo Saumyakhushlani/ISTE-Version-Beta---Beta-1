@@ -45,6 +45,10 @@ export default function AnomaliesPage() {
     }
   }
 
+  const getAnomalyAmount = (a: any): number => {
+    return a?.amount_minor ?? a?.amount_paise ?? a?.amount ?? 0;
+  };
+
   return (
     <motion.div 
       variants={containerVariants}
@@ -59,33 +63,47 @@ export default function AnomaliesPage() {
         </p>
       </motion.div>
 
-      <motion.div variants={itemVariants} className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5 text-amber-500" />
-            Detected Outliers ({anomalies.length})
-          </h2>
-          <span className="text-xs text-slate-500 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200">
-            Zero false assumptions — mathematical proof provided
-          </span>
+      {/* Summary Stat */}
+      <motion.div 
+        variants={itemVariants}
+        className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm flex items-center justify-between"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900">Active Anomaly Flags</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Automated detection flags requiring user review</p>
+          </div>
         </div>
+        <div className="text-right">
+          <span className="text-3xl font-extrabold text-slate-900 font-mono">{anomalies.length}</span>
+          <span className="text-xs text-slate-400 block">Total flagged</span>
+        </div>
+      </motion.div>
 
+      {/* Anomalies List */}
+      <motion.div variants={containerVariants} className="space-y-4">
         {anomalies.length === 0 ? (
-          <div className="text-center py-12 text-slate-400 text-sm">
-            No spending anomalies detected. All charges align with historical baselines.
+          <div className="p-12 text-center text-slate-500 bg-white border border-slate-200/90 rounded-2xl">
+            <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-2 opacity-80" />
+            <p className="text-sm font-semibold text-slate-800">No anomalies detected</p>
+            <p className="text-xs text-slate-400 mt-1">Your spending matches historical distributions within normal parameters.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3">
             {anomalies.map((a) => (
-              <motion.div 
-                key={a.id} 
-                whileHover={{ y: -2 }}
+              <motion.div
+                key={a.id}
+                variants={itemVariants}
+                whileHover={{ y: -2, boxShadow: '0 8px 20px -4px rgba(0, 0, 0, 0.06)' }}
                 transition={{ duration: 0.15 }}
-                className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm"
+                className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-sm flex items-center justify-between gap-4"
               >
-                <div className="space-y-1">
+                <div>
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                       a.severity === 'high' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
                       a.severity === 'medium' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
                       'bg-slate-200 text-slate-700'
@@ -99,9 +117,9 @@ export default function AnomaliesPage() {
 
                 <div className="text-right whitespace-nowrap">
                   <p className="text-lg font-bold text-rose-600 font-mono">
-                    {formatINR(a.amount_minor)}
+                    {formatINR(getAnomalyAmount(a))}
                   </p>
-                  <p className="text-xs text-slate-400 mt-0.5">{a.detected_at?.slice(0, 10)}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{(a.detected_at || a.created_at || '')?.slice(0, 10)}</p>
                 </div>
               </motion.div>
             ))}

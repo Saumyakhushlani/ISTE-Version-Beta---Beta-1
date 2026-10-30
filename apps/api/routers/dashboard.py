@@ -1,42 +1,37 @@
 """
-Dashboard Router
-Aggregates multi-account financial metrics for the above-the-fold dashboard:
-- Individual Bank Account breakdown (Inflow, Outflow, Net, Current Balance)
-- Combined liquid net position across all accounts
-- Spending by category breakdown with percentages and trend
-- Monthly trend (Income vs Spend vs Net Cash Flow)
-- Future 90-day Cash-Flow Forecast (P10, P50, P90, Safety Buffer, Probabilities)
-- Upcoming payments schedule preview
-- Flagged anomaly cards
-- Financial Data Health metrics
-- Smart Investment & Inter-Account Transfer Advisor
+Executive Dashboard Router
+Provides aggregated liquidity, cash-flow metrics, category breakdowns,
+and 90-day predictive forecasts for the executive dashboard.
+Supports filtering by account_id and months / date range.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Dict, Any, List, Optional
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta
 from collections import defaultdict
+from pydantic import BaseModel
 
 from db.database import get_db
-from db.models import Transaction, Account, Category, RecurringItem, Anomaly
-from engine.sufficiency import evaluate_data_sufficiency
+from db.models import Account, Transaction, RecurringItem, Anomaly
 from engine.liquidity import compute_multi_account_summary, recommend_investment_sourcing
+from engine.sufficiency import evaluate_data_sufficiency
 from engine.recurring import generate_upcoming_schedule
 from engine.buffer import compute_safety_buffer
 from engine.forecast import run_monte_carlo_forecast
 
 router = APIRouter()
 
+# Fixed palette for top categories
 CATEGORY_COLORS = {
-    "cat_rent": "#3b82f6",          # Blue
-    "cat_shopping": "#ec4899",      # Pink
-    "cat_food_dining": "#10b981",   # Emerald Green
-    "cat_groceries": "#10b981",     # Green
-    "cat_transport": "#f59e0b",     # Amber / Yellow
-    "cat_subscriptions": "#8b5cf6", # Purple
-    "cat_utilities": "#06b6d4",     # Cyan
-    "cat_emi": "#ef4444",           # Red
+    "cat_rent": "#6366f1",          # Indigo
+    "cat_groceries": "#0ea5e9",     # Sky Blue
+    "cat_food_dining": "#f97316",   # Orange
+    "cat_shopping": "#eab308",      # Amber / Yellow
+    "cat_transport": "#84cc16",     # Lime Green
+    "cat_subscriptions": "#ec4899", # Rose / Pink
+    "cat_utilities": "#3b82f6",     # Blue
+    "cat_emi": "#a855f7",           # Purple
     "cat_insurance": "#ec4899",     # Pink
     "cat_sip": "#8b5cf6",           # Purple
     "cat_health": "#14b8a6",        # Teal
@@ -64,7 +59,13 @@ class InvestmentAdviceRequest(BaseModel):
     investment_label: Optional[str] = "Fixed Deposit (FD)"
 
 @router.get("")
-def get_dashboard_summary(db: Session = Depends(get_db)):
+def get_dashboard_summary(
+    account_id: Optional[str] = Query(None, description="Filter metrics by specific account ID"),
+    months: Optional[int] = Query(None, ge=1, le=60, description="Slice transactions to the last N months"),
+    start_date: Optional[str] = Query(None, description="Filter transactions starting YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="Filter transactions ending YYYY-MM-DD"),
+    db: Session = Depends(get_db)
+):
     """
     Returns complete multi-bank dashboard metrics mapping 1:1 to the UI design:
     - 4 Top KPI metrics (Total Balance, Monthly Income, Monthly Expenses, Net Cash Flow)
@@ -74,19 +75,43 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     - Upcoming payments (with Auto/User tags)
     - Unusual transactions (anomalies)
     - Financial data health checklist
-    - Multi-account balances
+    - Multi-account balances and throughput
     """
-    liquidity_summary = compute_multi_account_summary(db)
+    liquidity_summary = compute_multi_account_summary(db, account_id=account_id)
     accounts = liquidity_summary["accounts"]
 
-    txns = db.query(Transaction).filter_by(status="active").all()
+    query = db.query(Transaction).filter_by(status="active")
+    if account_id:
+        query = query.filter(Transaction.account_id == account_id)
+    if start_date:
+        query = query.filter(Transaction.posted_date >= start_date)
+    if end_date:
+        query = query.filter(Transaction.posted_date <= end_date)
+
+    txns = query.order_by(Transaction.posted_date.asc()).all()
+
+    # Apply months filter if provided and start_date was not explicitly specified
+    if months and txns and not start_date:
+        latest_date_str = max(t.posted_date for t in txns)
+        try:
+            latest_dt = datetime.strptime(latest_date_str, "%Y-%m-%d")
+            cutoff_dt = latest_dt - timedelta(days=months * 30)
+            cutoff_str = cutoff_dt.strftime("%Y-%m-%d")
+            txns = [t for t in txns if t.posted_date >= cutoff_str]
+        except Exception:
+            pass
+
     if not txns:
         return {
-            "combined_liquid_paise": 0,
+            "combined_liquid_paise": liquidity_summary["combined_liquid_paise"],
+            "combined_inflow_paise": 0,
+            "combined_outflow_paise": 0,
+            "total_accounts_count": liquidity_summary["total_accounts_count"],
             "health_status": "INSUFFICIENT",
+            "coverage_days": 0,
             "kpi_metrics": {
-                "total_balance_paise": 0,
-                "total_accounts_count": 0,
+                "total_balance_paise": liquidity_summary["combined_liquid_paise"],
+                "total_accounts_count": liquidity_summary["total_accounts_count"],
                 "monthly_income_paise": 0,
                 "monthly_expenses_paise": 0,
                 "net_cash_flow_paise": 0,
@@ -95,9 +120,10 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
                 "expenses_trend_pct": 0,
                 "net_cash_flow_trend_pct": 0
             },
-            "accounts_breakdown": [],
+            "accounts_breakdown": accounts,
             "monthly_summary": [],
             "category_spend": [],
+            "total_spending_paise": 0,
             "cash_flow_forecast": None,
             "upcoming_payments": [],
             "top_anomalies": [],
@@ -109,7 +135,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
                 "last_successful_import": "N/A",
                 "forecast_readiness": "Not Ready",
                 "status_label": "No Data"
-            }
+            },
+            "filter_account_id": account_id,
+            "filter_months": months
         }
 
     # Group spending by category & month
@@ -143,7 +171,6 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     # Total spend for percentage calculation
     total_spend = sum(cat_spend.values()) or 1
 
-    # Sorted category breakdown
     category_trends = {
         "cat_rent": 5,
         "cat_shopping": 18,
@@ -160,14 +187,14 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             "category_id": cat_id,
             "category": CATEGORY_NAMES.get(cat_id, cat_id.replace("cat_", "").replace("_", " ").title()),
             "amount_paise": amt,
-            "percentage": max(1, round((amt / total_spend) * 100)),
-            "trend_pct": category_trends.get(cat_id, 5),
-            "color": CATEGORY_COLORS.get(cat_id, "#64748b")
+            "amount_minor": amt,
+            "percentage": round((amt / total_spend) * 100, 1),
+            "color": CATEGORY_COLORS.get(cat_id, "#64748b"),
+            "trend_pct": category_trends.get(cat_id, 0)
         }
         for cat_id, amt in sorted_cats
     ]
 
-    # Monthly Summary with month_label and net_cash_flow
     all_months = sorted(set(list(monthly_income.keys()) + list(monthly_spend.keys())))
     month_names = {
         "01": "Jan", "02": "Feb", "03": "Mar", "04": "Apr",
@@ -256,9 +283,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     for idx, a in enumerate(recent_anomalies):
         clean_merchant = "XYZ Store"
         if "RELIANCE DIGITAL" in a.reason_text:
-            clean_merchant = "XYZ Store"
+            clean_merchant = "Reliance Digital"
         elif "GADGET" in a.reason_text:
-            clean_merchant = "ABC Services"
+            clean_merchant = "Gadget Accessories"
         elif "XYZ" in a.reason_text:
             clean_merchant = "XYZ Electronics"
 
@@ -268,6 +295,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             "severity": a.severity,
             "reason_text": a.reason_text,
             "amount_paise": abs(a.amount_minor),
+            "amount_minor": abs(a.amount_minor),
             "merchant": clean_merchant,
             "time_ago": time_labels[min(idx, len(time_labels) - 1)]
         })
@@ -294,10 +322,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     timeline_data = []
     for pt in forecast_eval.get("timeline", []):
         d_str = pt["date"]
-        # Format date for X-axis (e.g. "1 Nov", "15 Nov")
         try:
-            from datetime import datetime as dt_cls
-            parsed_d = dt_cls.strptime(d_str, "%Y-%m-%d")
+            parsed_d = datetime.strptime(d_str, "%Y-%m-%d")
             formatted_date = parsed_d.strftime("%d %b")
         except Exception:
             formatted_date = d_str
@@ -359,21 +385,23 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         "cash_flow_forecast": cash_flow_forecast,
         "upcoming_payments": upcoming_schedule,
         "top_anomalies": anomaly_previews,
-        "financial_data_health": financial_data_health
+        "financial_data_health": financial_data_health,
+        "filter_account_id": account_id,
+        "filter_months": months
     }
 
 @router.post("/investment-advice")
 def get_investment_advice(
-    payload: InvestmentAdviceRequest,
+    req: InvestmentAdviceRequest,
     db: Session = Depends(get_db)
 ):
     """
-    Advises how to fund a large investment or purchase (e.g. ₹1,00,000 for FD):
-    - Calculates available surplus per bank account after upcoming bills and buffer
-    - Formulates optimal inter-account transfer plan
+    Evaluates multi-bank liquidity and recommends optimal sourcing and transfer plans
+    for large one-off capital deployments (FDs, mutual fund lumpsums, big purchases).
     """
-    return recommend_investment_sourcing(
-        target_amount_paise=payload.target_amount_paise,
+    plan = recommend_investment_sourcing(
+        target_amount_paise=req.target_amount_paise,
         db=db,
-        investment_label=payload.investment_label
+        investment_label=req.investment_label or "Investment"
     )
+    return plan

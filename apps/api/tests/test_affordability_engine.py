@@ -8,6 +8,7 @@ Test Suite for Core Affordability Decision Engine & What-If Simulations:
   6. Natural Language Extractor
   7. Live FastAPI Endpoints (/api/affordability & /api/scenarios/compare)
 """
+import os
 import pytest
 from fastapi.testclient import TestClient
 from main import app
@@ -142,6 +143,11 @@ def test_affordability_verdict_transitions():
 def test_api_affordability_and_whatif_endpoints():
     # Preview and commit synthetic statement to have database state
     csv_path = "data/synthetic/aarav/hdfc_statement.csv"
+    if not os.path.exists(csv_path):
+        csv_path = os.path.join(os.path.dirname(__file__), "../../../data/synthetic/aarav/hdfc_statement.csv")
+        if not os.path.exists(csv_path):
+            csv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/synthetic/aarav/hdfc_statement.csv"))
+
     with open(csv_path, "rb") as f:
         prev_resp = client.post("/api/imports/preview", files={"file": ("hdfc.csv", f, "text/csv")})
     assert prev_resp.status_code == 200

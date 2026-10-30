@@ -32,7 +32,10 @@ def rollback_correction(db: Session, log_id: Optional[str] = None) -> Dict[str, 
     try:
         affected_ids = json.loads(log_entry.affected_txn_ids_json)
         before_state = json.loads(log_entry.before_json)
-        target_category = before_state.get("category_id", "cat_uncategorized")
+        if isinstance(before_state, dict):
+            target_category = before_state.get("category_id") or (list(before_state.values())[0] if before_state else "cat_uncategorized")
+        else:
+            target_category = "cat_uncategorized"
     except Exception as e:
         return {
             "status": "error",
@@ -44,7 +47,8 @@ def rollback_correction(db: Session, log_id: Optional[str] = None) -> Dict[str, 
     for txn_id in affected_ids:
         txn = db.query(Transaction).filter_by(id=txn_id).first()
         if txn:
-            txn.category_id = target_category
+            cat_to_restore = before_state.get(txn_id) if isinstance(before_state, dict) and txn_id in before_state else target_category
+            txn.category_id = cat_to_restore
             txn.category_source = "rule"
             txn.category_confidence = 0.85
             reverted_count += 1
@@ -58,5 +62,6 @@ def rollback_correction(db: Session, log_id: Optional[str] = None) -> Dict[str, 
         "action_undone": log_entry.action,
         "reverted_transactions_count": reverted_count,
         "restored_category_id": target_category,
-        "undone_at": log_entry.undone_at.isoformat()
+        "success": True,
+        "undone_log_id": log_entry.id
     }

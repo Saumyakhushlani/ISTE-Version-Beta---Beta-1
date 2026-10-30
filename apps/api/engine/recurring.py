@@ -103,8 +103,11 @@ def detect_recurring_items(
             "type": rec_type,
             "cadence": matched_cadence,
             "typical_amount_minor": median_amount,
+            "typical_amount_paise": median_amount,
             "amount_min_minor": min_amount,
+            "amount_min_paise": min_amount,
             "amount_max_minor": max_amount,
+            "amount_max_paise": max_amount,
             "last_paid_date": last_date.strftime("%Y-%m-%d"),
             "next_expected_date": next_date.strftime("%Y-%m-%d"),
             "day_of_month": last_date.day,
@@ -166,6 +169,7 @@ def generate_upcoming_schedule(
                 acct_info = accounts_map.get(acct_id, {})
                 bank_name = acct_info.get("bank", "Bank Account")
                 masked_last4 = acct_info.get("masked_last4", "XXXX")
+                amt = item.get("typical_amount_minor", 0)
 
                 upcoming_schedule.append({
                     "due_date": candidate_dt.strftime("%Y-%m-%d"),
@@ -173,9 +177,13 @@ def generate_upcoming_schedule(
                     "merchant": item["merchant"],
                     "type": item["type"],
                     "is_income": item["type"] == "salary",
-                    "amount_paise": item["typical_amount_minor"],
+                    "amount_paise": amt,
+                    "typical_amount_paise": amt,
+                    "amount_minor": amt,
+                    "typical_amount_minor": amt,
                     "account_id": acct_id,
                     "bank_name": bank_name,
+                    "bank_attributed": f"{bank_name} •••• {masked_last4}",
                     "masked_last4": masked_last4,
                     "confidence": item.get("confidence", 0.9)
                 })

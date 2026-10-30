@@ -5,7 +5,7 @@ Provides listing, filtering, search, and user category corrections with transact
 
 from typing import Optional, List
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -33,10 +33,16 @@ def list_transactions(
     channel: Optional[str] = None,
     search: Optional[str] = None,
     is_transfer: Optional[bool] = None,
+    type: Optional[str] = Query(None, description="'credit' or 'debit'"),
+    months: Optional[int] = Query(None, ge=1, le=60, description="Transactions within last N months"),
+    start_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+    min_amount_paise: Optional[int] = Query(None, description="Minimum absolute amount in paise"),
+    max_amount_paise: Optional[int] = Query(None, description="Maximum absolute amount in paise"),
     db: Session = Depends(get_db)
 ):
     """
-    Returns paginated transactions with optional multi-bank filters and search.
+    Returns paginated transactions with multi-bank filters, date range, amount, and search.
     """
     query = db.query(Transaction).filter(Transaction.status == "active")
 
@@ -48,6 +54,40 @@ def list_transactions(
         query = query.filter(Transaction.channel == channel)
     if is_transfer is not None:
         query = query.filter(Transaction.is_transfer == is_transfer)
+
+    # Type filter (credit > 0, debit < 0)
+    if type:
+        t_lower = type.lower()
+        if t_lower == "credit":
+            query = query.filter(Transaction.amount_minor > 0)
+        elif t_lower == "debit":
+            query = query.filter(Transaction.amount_minor < 0)
+
+    # Explicit date filters
+    if start_date:
+        query = query.filter(Transaction.posted_date >= start_date)
+    if end_date:
+        query = query.filter(Transaction.posted_date <= end_date)
+
+    # Relative months filter
+    if months and not start_date:
+        all_txns = db.query(Transaction.posted_date).filter(Transaction.status == "active").all()
+        if all_txns:
+            latest_date_str = max(t[0] for t in all_txns)
+            try:
+                latest_dt = datetime.strptime(latest_date_str, "%Y-%m-%d")
+                cutoff_dt = latest_dt - timedelta(days=months * 30)
+                cutoff_str = cutoff_dt.strftime("%Y-%m-%d")
+                query = query.filter(Transaction.posted_date >= cutoff_str)
+            except Exception:
+                pass
+
+    # Amount range filters (evaluated on absolute amount)
+    if min_amount_paise is not None:
+        query = query.filter((Transaction.amount_minor >= min_amount_paise) | (Transaction.amount_minor <= -min_amount_paise))
+    if max_amount_paise is not None:
+        query = query.filter((Transaction.amount_minor <= max_amount_paise) & (Transaction.amount_minor >= -max_amount_paise))
+
     if search:
         search_filter = f"%{search}%"
         query = query.filter(
@@ -68,98 +108,40 @@ def list_transactions(
                 "account_id": t.account_id,
                 "posted_date": t.posted_date,
                 "amount_minor": t.amount_minor,
+                "amount_paise": t.amount_minor,
+                "currency": t.currency,
                 "raw_description": t.raw_description,
                 "normalized_description": t.normalized_description,
                 "channel": t.channel,
-                "merchant": t.merchant_id,
                 "category_id": t.category_id,
                 "category_source": t.category_source,
                 "category_confidence": t.category_confidence,
                 "balance_after_minor": t.balance_after_minor,
+                "balance_after_paise": t.balance_after_minor,
                 "is_transfer": t.is_transfer,
-                "transfer_pair_id": t.transfer_pair_id,
-                "created_at": t.created_at.isoformat() if t.created_at else None
+                "status": t.status
             }
             for t in txns
         ]
     }
 
-@router.patch("/{txn_id}/category")
-def correct_transaction_category(
-    txn_id: str,
-    payload: CategoryCorrectionRequest,
+@router.get("/corrections")
+def list_corrections(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
     """
-    Applies user category correction and propagates across similar transactions.
-    If dry_run is True, returns an impact preview before committing.
+    Returns audit trail of category correction logs for undo actions.
     """
-    target = db.query(Transaction).filter_by(id=txn_id).first()
-    if not target:
-        raise HTTPException(status_code=404, detail="Transaction not found.")
-
-    merchant = target.merchant_id or target.normalized_description
-
-    # Find affected transactions according to scope
-    if payload.scope == "this_txn":
-        affected = [target]
-    else:  # "same_merchant"
-        affected = db.query(Transaction).filter(
-            (Transaction.merchant_id == merchant) | (Transaction.normalized_description == merchant)
-        ).all()
-
-    old_category = target.category_id
-    total_amount_minor = sum(abs(t.amount_minor) for t in affected)
-
-    diff_summary = f"{len(affected)} transaction(s) updated: {old_category} → {payload.category_id} (Total: ₹{total_amount_minor / 100:,.2f})"
-
-    if payload.dry_run:
-        return {
-            "dry_run": True,
-            "affected_count": len(affected),
-            "merchant": merchant,
-            "old_category": old_category,
-            "new_category": payload.category_id,
-            "total_amount_minor": total_amount_minor,
-            "diff_summary": diff_summary
-        }
-
-    # Apply changes
-    affected_ids = []
-    for t in affected:
-        t.category_id = payload.category_id
-        t.category_source = "user"
-        t.category_confidence = 1.0
-        affected_ids.append(t.id)
-
-    # Record to CorrectionLog
-    log = CorrectionLog(
-        action="category_override",
-        scope=payload.scope,
-        affected_txn_ids_json=json.dumps(affected_ids),
-        before_json=json.dumps({"category_id": old_category}),
-        after_json=json.dumps({"category_id": payload.category_id})
-    )
-    db.add(log)
-    db.commit()
+    query = db.query(CorrectionLog).order_by(CorrectionLog.ts.desc())
+    total = query.count()
+    logs = query.offset(offset).limit(limit).all()
 
     return {
-        "status": "success",
-        "log_id": log.id,
-        "affected_count": len(affected),
-        "merchant": merchant,
-        "old_category": old_category,
-        "new_category": payload.category_id,
-        "diff_summary": diff_summary
-    }
-
-@router.get("/corrections")
-def list_corrections(db: Session = Depends(get_db)):
-    """
-    Returns audit log of all category corrections and overrides.
-    """
-    logs = db.query(CorrectionLog).order_by(CorrectionLog.ts.desc()).limit(100).all()
-    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
         "corrections": [
             {
                 "id": l.id,
@@ -169,23 +151,90 @@ def list_corrections(db: Session = Depends(get_db)):
                 "affected_count": len(json.loads(l.affected_txn_ids_json or "[]")),
                 "before": json.loads(l.before_json or "{}"),
                 "after": json.loads(l.after_json or "{}"),
-                "is_undone": l.undone_at is not None,
-                "undone_at": l.undone_at.isoformat() if l.undone_at else None
+                "undone_at": l.undone_at.isoformat() if l.undone_at else None,
+                "is_undone": l.undone_at is not None
             }
             for l in logs
         ]
     }
 
+def _apply_category_override(txn_id: str, req: CategoryCorrectionRequest, db: Session):
+    target = db.query(Transaction).filter_by(id=txn_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Transaction not found.")
+
+    if req.scope == "same_merchant" and target.normalized_description:
+        matching_txns = db.query(Transaction).filter_by(
+            normalized_description=target.normalized_description,
+            status="active"
+        ).all()
+    else:
+        matching_txns = [target]
+
+    if req.dry_run:
+        return {
+            "status": "success",
+            "dry_run": True,
+            "affected_count": len(matching_txns),
+            "sample_txn_ids": [t.id for t in matching_txns[:5]],
+            "new_category": req.category_id,
+            "new_category_id": req.category_id
+        }
+
+    before_map = {t.id: t.category_id for t in matching_txns}
+    after_map = {t.id: req.category_id for t in matching_txns}
+
+    for t in matching_txns:
+        t.category_id = req.category_id
+        t.category_source = "user"
+        t.category_confidence = 1.0
+
+    # Log for undo capability
+    log = CorrectionLog(
+        action="category_override",
+        scope=req.scope,
+        affected_txn_ids_json=json.dumps(list(before_map.keys())),
+        before_json=json.dumps(before_map),
+        after_json=json.dumps(after_map)
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "status": "success",
+        "success": True,
+        "log_id": log.id,
+        "correction_log_id": log.id,
+        "affected_count": len(matching_txns),
+        "new_category": req.category_id,
+        "new_category_id": req.category_id
+    }
+
+@router.patch("/{txn_id}/category")
+def update_transaction_category_patch(
+    txn_id: str,
+    req: CategoryCorrectionRequest,
+    db: Session = Depends(get_db)
+):
+    return _apply_category_override(txn_id, req, db)
+
+@router.post("/{txn_id}/category")
+def update_transaction_category_post(
+    txn_id: str,
+    req: CategoryCorrectionRequest,
+    db: Session = Depends(get_db)
+):
+    return _apply_category_override(txn_id, req, db)
+
 @router.post("/undo")
 def undo_last_correction(
-    payload: Optional[UndoCorrectionRequest] = None,
+    req: UndoCorrectionRequest,
     db: Session = Depends(get_db)
 ):
     """
-    Rolls back a category override cleanly using the CorrectionLog record.
+    Rolls back the most recent or specified user category correction.
     """
-    log_id = payload.log_id if payload else None
-    res = rollback_correction(db=db, log_id=log_id)
-    if res.get("status") == "error":
-        raise HTTPException(status_code=400, detail=res["message"])
-    return res
+    result = rollback_correction(db=db, log_id=req.log_id)
+    if result.get("status") == "error":
+        raise HTTPException(status_code=404, detail=result.get("message", "No active correction found to undo."))
+    return result

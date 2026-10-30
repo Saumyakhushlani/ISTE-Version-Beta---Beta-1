@@ -5,6 +5,19 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+function toQueryString(params?: Record<string, any>): string {
+  if (!params) return "";
+  const filtered = Object.entries(params).filter(
+    ([_, v]) => v !== undefined && v !== null && v !== ""
+  );
+  if (filtered.length === 0) return "";
+  const query = new URLSearchParams();
+  for (const [k, v] of filtered) {
+    query.append(k, String(v));
+  }
+  return `?${query.toString()}`;
+}
+
 export async function fetchFromApi<T = any>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
   try {
@@ -34,12 +47,14 @@ export async function fetchFromApi<T = any>(endpoint: string, options?: RequestI
 // API Endpoints
 export const api = {
   // Dashboard & Liquidity
-  getDashboardSummary: () => fetchFromApi("/api/dashboard"),
+  getDashboardSummary: (params?: { account_id?: string; months?: number; start_date?: string; end_date?: string }) =>
+    fetchFromApi(`/api/dashboard${toQueryString(params)}`),
+
   getLiquidityAdvice: (target_paise: number) =>
-    fetchFromApi("/api/dashboard/liquidity/advice", {
+    fetchFromApi("/api/dashboard/investment-advice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target_investment_minor: target_paise }),
+      body: JSON.stringify({ target_amount_paise: target_paise }),
     }),
 
   // Statement Ingestion
@@ -59,15 +74,82 @@ export const api = {
   },
 
   // Transactions
-  getTransactions: (limit = 100, offset = 0) =>
-    fetchFromApi(`/api/transactions?limit=${limit}&offset=${offset}`),
+  getTransactions: (
+    limitOrParams: number | {
+      limit?: number;
+      offset?: number;
+      account_id?: string;
+      category_id?: string;
+      channel?: string;
+      search?: string;
+      is_transfer?: boolean;
+      type?: string;
+      months?: number;
+      start_date?: string;
+      end_date?: string;
+      min_amount_paise?: number;
+      max_amount_paise?: number;
+    } = 100,
+    offset = 0
+  ) => {
+    if (typeof limitOrParams === "number") {
+      return fetchFromApi(`/api/transactions?limit=${limitOrParams}&offset=${offset}`);
+    }
+    return fetchFromApi(`/api/transactions${toQueryString(limitOrParams)}`);
+  },
 
   // Recurring & Upcoming
-  getRecurringItems: () => fetchFromApi("/api/recurring"),
-  getUpcomingSchedule: (days = 30) => fetchFromApi(`/api/recurring/upcoming?days=${days}`),
+  getRecurringItems: (params?: {
+    type_filter?: string;
+    cadence?: string;
+    search?: string;
+    min_amount_paise?: number;
+    max_amount_paise?: number;
+    limit?: number;
+    offset?: number;
+  }) => fetchFromApi(`/api/recurring${toQueryString(params)}`),
+
+  getUpcomingSchedule: (
+    daysOrParams: number | {
+      days?: number;
+      months?: number;
+      as_of_date?: string;
+      account_id?: string;
+      type_filter?: string;
+      is_income?: boolean;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    } = 30
+  ) => {
+    if (typeof daysOrParams === "number") {
+      return fetchFromApi(`/api/recurring/upcoming?days=${daysOrParams}`);
+    }
+    return fetchFromApi(`/api/recurring/upcoming${toQueryString(daysOrParams)}`);
+  },
 
   // Anomalies
-  getAnomalies: () => fetchFromApi("/api/anomalies"),
+  getAnomalies: (params?: {
+    type_filter?: string;
+    severity_filter?: string;
+    months?: number;
+    start_date?: string;
+    end_date?: string;
+    account_id?: string;
+    search?: string;
+    min_amount_paise?: number;
+    limit?: number;
+    offset?: number;
+  }) => fetchFromApi(`/api/anomalies${toQueryString(params)}`),
+
+  // Egress Logs
+  getEgressLogs: (params?: {
+    mode_filter?: string;
+    destination?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) => fetchFromApi(`/api/privacy/egress-log${toQueryString(params)}`),
 
   // Affordability & Decision
   evaluateAffordability: (query: {
