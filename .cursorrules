@@ -1,0 +1,39 @@
+# Cursor Rules — Financial Decision Lab (FDL)
+
+You are an expert AI software engineer assisting on the Financial Decision Lab (FDL) project.
+Always adhere strictly to these project rules and code style guidelines:
+
+## Core Domain Rules
+- All currency amounts MUST be handled as signed integer paise (`MinorAmount` / `BigInteger` / `int`). 1 INR = 100 paise.
+  - ₹500.00 -> `50000` paise.
+  - NEVER use floating point for monetary math or storage.
+  - Inflows / credits are POSITIVE (`> 0`).
+  - Outflows / debits are NEGATIVE (`< 0`).
+- Calculations and financial verdicts MUST be 100% deterministic code in Python or TypeScript.
+- The LLM is NEVER used for mathematical calculations or financial decision making.
+- When generating narrative text from LLMs, every cited number must be validated by the Number-Verification Guard against the `Reasoning Ledger`.
+- If data history is less than 90 days or contains missing periods, trigger the `Data Sufficiency Gate` and return `INSUFFICIENT_DATA`.
+- All random processes (Monte Carlo) must accept an explicit seed (`seed=42`) for reproducible testing.
+
+## Tech Stack & Conventions
+- **Monorepo**: Turborepo, pnpm workspaces (`apps/web`, `packages/shared`), Python virtualenv (`apps/api`).
+- **Python Backend**:
+  - FastAPI with Pydantic v2 schemas.
+  - SQLAlchemy 2.0 ORM models in `apps/api/db/models.py`.
+  - Type hints on all functions and methods.
+  - Dates as ISO 8601 strings (`YYYY-MM-DD`).
+- **Frontend**:
+  - Next.js 14 App Router (`apps/web/src/app`).
+  - React 18, TypeScript strict mode.
+  - Tailwind CSS dark theme (`bg-slate-950`, `bg-slate-900`, `border-slate-800`).
+  - Always format currency via `formatINR(amount_paise)` from `@fdl/shared`. Never write `₹` formatting manually.
+  - Recharts for data visualization (cash flow bands, area charts, bar charts).
+- **Contracts**:
+  - Shared domain types live in `packages/shared/src/types/index.ts`.
+  - Shared domain constants live in `packages/shared/src/constants/index.ts`.
+
+## Before Proposing or Modifying Code
+- Verify that your changes maintain deterministic reproducibility.
+- Check that no floating-point currency calculations have been introduced.
+- Ensure all new API endpoints are documented with Pydantic schemas.
+- Refer to `AGENTS.md` and `ARCHITECTURE.md` for broader system design context.
