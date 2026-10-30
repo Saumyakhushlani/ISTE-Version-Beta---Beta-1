@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { 
   Wallet, 
   ArrowDownLeft, 
@@ -233,14 +234,43 @@ export default function DashboardPage() {
     forecast_readiness: "Ready"
   };
 
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.08,
+      },
+    },
+  };
+
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 15 },
+    show: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { duration: 0.4 } 
+    },
+  };
+
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+    <motion.div 
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="p-6 space-y-6 max-w-[1600px] mx-auto"
+    >
       {/* ========================================================
           ROW 1: TOP 4 METRIC CARDS
       ======================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 1. Total Balance */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex items-start justify-between">
+        <motion.div 
+          variants={itemVariants}
+          whileHover={{ y: -3, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08)' }}
+          transition={{ duration: 0.2 }}
+          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex items-start justify-between cursor-default"
+        >
           <div>
             <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
               <Wallet className="w-5 h-5" />
@@ -257,10 +287,15 @@ export default function DashboardPage() {
             <TrendingUp className="w-3 h-3" />
             8% vs last month
           </span>
-        </div>
+        </motion.div>
 
         {/* 2. Monthly Income */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex items-start justify-between">
+        <motion.div 
+          variants={itemVariants}
+          whileHover={{ y: -3, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08)' }}
+          transition={{ duration: 0.2 }}
+          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex items-start justify-between cursor-default"
+        >
           <div>
             <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
               <ArrowDownLeft className="w-5 h-5" />
@@ -275,10 +310,15 @@ export default function DashboardPage() {
             <TrendingUp className="w-3 h-3" />
             3% vs last month
           </span>
-        </div>
+        </motion.div>
 
         {/* 3. Monthly Expenses */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex items-start justify-between">
+        <motion.div 
+          variants={itemVariants}
+          whileHover={{ y: -3, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08)' }}
+          transition={{ duration: 0.2 }}
+          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex items-start justify-between cursor-default"
+        >
           <div>
             <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center mb-3">
               <ArrowUpRight className="w-5 h-5" />
@@ -293,10 +333,15 @@ export default function DashboardPage() {
             <TrendingUp className="w-3 h-3" />
             12% vs last month
           </span>
-        </div>
+        </motion.div>
 
         {/* 4. Net Cash Flow */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex items-start justify-between">
+        <motion.div 
+          variants={itemVariants}
+          whileHover={{ y: -3, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08)' }}
+          transition={{ duration: 0.2 }}
+          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex items-start justify-between cursor-default"
+        >
           <div>
             <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center mb-3">
               <BarChart3 className="w-5 h-5" />
@@ -311,13 +356,13 @@ export default function DashboardPage() {
             <TrendingUp className="w-3 h-3" />
             5% vs last month
           </span>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* ========================================================
           ROW 2: SPENDING BY CATEGORY & MONTHLY INCOME VS EXPENSES
       ======================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Spending by Category (Donut Chart + Breakdown) */}
         <div className="lg:col-span-5 bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex flex-col justify-between">
           <div>
@@ -367,7 +412,12 @@ export default function DashboardPage() {
               {/* Category Breakdown Rows */}
               <div className="flex-1 w-full space-y-2">
                 {categories.slice(0, 6).map((c: any) => (
-                  <div key={c.category_id} className="flex items-center justify-between text-xs py-0.5">
+                  <motion.div 
+                    whileHover={{ x: 3 }} 
+                    transition={{ duration: 0.15 }}
+                    key={c.category_id} 
+                    className="flex items-center justify-between text-xs py-0.5 rounded px-1 -mx-1 hover:bg-slate-50 transition-colors"
+                  >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }}></span>
                       <span className="text-slate-700 font-medium truncate">{c.category}</span>
@@ -382,7 +432,7 @@ export default function DashboardPage() {
                         {c.trend_pct > 0 ? `↑ ${c.trend_pct}%` : c.trend_pct < 0 ? `↓ ${Math.abs(c.trend_pct)}%` : '0%'}
                       </span>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </div>
@@ -473,12 +523,12 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* ========================================================
           ROW 3: FUTURE CASH-FLOW FORECAST & UPCOMING PAYMENTS
       ======================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Future Cash-Flow Forecast (Col Span 8) */}
         <div className="lg:col-span-8 bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-2">
@@ -595,7 +645,12 @@ export default function DashboardPage() {
               {upcomingList.map((item: any) => {
                 const IconComponent = item.icon || CreditCard;
                 return (
-                  <div key={item.id} className="pt-2.5 first:pt-0 flex items-center justify-between">
+                  <motion.div 
+                    whileHover={{ x: 3 }}
+                    transition={{ duration: 0.15 }}
+                    key={item.id} 
+                    className="pt-2.5 first:pt-0 flex items-center justify-between rounded-lg px-1.5 -mx-1.5 hover:bg-slate-50/80 transition-colors"
+                  >
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${item.iconBg}`}>
                         <IconComponent className="w-4 h-4" />
@@ -617,18 +672,18 @@ export default function DashboardPage() {
                         {item.user_status}
                       </span>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* ========================================================
           ROW 4: BOTTOM 3 CARDS
       ======================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 1. Ask Financial Decision Lab */}
         <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-sm flex flex-col justify-between">
           <div>
@@ -652,69 +707,87 @@ export default function DashboardPage() {
                 placeholder="What financial decision are you considering?"
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-12 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-inner"
               />
-              <button 
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 type="submit"
                 disabled={nlLoading}
                 className="w-7 h-7 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white flex items-center justify-center absolute right-1.5 top-1.5 transition"
               >
                 <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              </motion.button>
             </form>
 
             {/* Evaluation Result if user asked */}
-            {nlResult && (
-              <div className="p-3 my-2 bg-slate-50 border border-slate-200 rounded-lg text-xs animate-in fade-in">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                    nlResult.verdict?.code === 'AFFORDABLE' ? 'bg-emerald-100 text-emerald-800' :
-                    nlResult.verdict?.code === 'TIGHT' ? 'bg-amber-100 text-amber-800' :
-                    'bg-rose-100 text-rose-800'
-                  }`}>
-                    Verdict: {nlResult.verdict?.code}
-                  </span>
-                  <span className="text-[10px] text-slate-500">
-                    P50 Headroom: <span className="font-semibold text-slate-800">{formatINR(nlResult.headroom?.p50_minor || 0)}</span>
-                  </span>
-                </div>
-                <p className="text-slate-700 leading-relaxed text-[11px]">
-                  {nlResult.narration}
-                </p>
-              </div>
-            )}
+            <AnimatePresence>
+              {nlResult && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                  transition={{ duration: 0.2 }}
+                  className="p-3 my-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                      nlResult.verdict?.code === 'AFFORDABLE' ? 'bg-emerald-100 text-emerald-800' :
+                      nlResult.verdict?.code === 'TIGHT' ? 'bg-amber-100 text-amber-800' :
+                      'bg-rose-100 text-rose-800'
+                    }`}>
+                      Verdict: {nlResult.verdict?.code}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      P50 Headroom: <span className="font-semibold text-slate-800">{formatINR(nlResult.headroom?.p50_minor || 0)}</span>
+                    </span>
+                  </div>
+                  <p className="text-slate-700 leading-relaxed text-[11px]">
+                    {nlResult.narration}
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Quick Pills */}
             <div className="grid grid-cols-2 gap-2 mt-3">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={() => handleNlSubmit(undefined, "Can I afford an ₹80,000 phone next month?")}
                 className="text-left bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-lg p-2 text-[11px] text-slate-700 transition"
               >
                 Can I afford an ₹80,000 phone next month?
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={() => handleNlSubmit(undefined, "How much can I safely spend?")}
                 className="text-left bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-lg p-2 text-[11px] text-slate-700 transition"
               >
                 How much can I safely spend?
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={() => handleNlSubmit(undefined, "What if my salary decreases by 20%?")}
                 className="text-left bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-lg p-2 text-[11px] text-slate-700 transition"
               >
                 What if my salary decreases by 20%?
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={() => handleNlSubmit(undefined, "Can I afford a new EMI?")}
                 className="text-left bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-lg p-2 text-[11px] text-slate-700 transition"
               >
                 Can I afford a new EMI?
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>
@@ -731,7 +804,12 @@ export default function DashboardPage() {
 
             <div className="space-y-3.5">
               {anomaliesList.map((a: any) => (
-                <div key={a.id} className="flex items-start gap-3">
+                <motion.div 
+                  whileHover={{ x: 3 }}
+                  transition={{ duration: 0.15 }}
+                  key={a.id} 
+                  className="flex items-start gap-3 rounded-lg p-1.5 -mx-1.5 hover:bg-slate-50 transition-colors"
+                >
                   <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-xs ${a.badgeBg}`}>
                     {a.badge}
                   </div>
@@ -745,7 +823,7 @@ export default function DashboardPage() {
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5 truncate">{a.desc}</p>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -762,47 +840,47 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-2.5 text-xs">
-              <div className="flex items-center justify-between">
+              <motion.div whileHover={{ x: 2 }} className="flex items-center justify-between py-0.5">
                 <span className="flex items-center gap-2 text-slate-600">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Statement coverage
                 </span>
                 <span className="font-semibold text-slate-900">{health.statement_coverage_months} months</span>
-              </div>
+              </motion.div>
 
-              <div className="flex items-center justify-between">
+              <motion.div whileHover={{ x: 2 }} className="flex items-center justify-between py-0.5">
                 <span className="flex items-center gap-2 text-slate-600">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Transactions processed
                 </span>
                 <span className="font-semibold text-slate-900">{Number(health.transactions_processed).toLocaleString('en-IN')}</span>
-              </div>
+              </motion.div>
 
-              <div className="flex items-center justify-between">
+              <motion.div whileHover={{ x: 2 }} className="flex items-center justify-between py-0.5">
                 <span className="flex items-center gap-2 text-slate-600">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Transactions categorized
                 </span>
                 <span className="font-semibold text-slate-900">{health.transactions_categorized_pct}%</span>
-              </div>
+              </motion.div>
 
-              <div className="flex items-center justify-between">
+              <motion.div whileHover={{ x: 2 }} className="flex items-center justify-between py-0.5">
                 <span className="flex items-center gap-2 text-slate-600">
                   <AlertCircle className="w-4 h-4 text-amber-500" /> Transactions needing review
                 </span>
                 <span className="font-bold text-rose-600">{health.transactions_needing_review}</span>
-              </div>
+              </motion.div>
 
-              <div className="flex items-center justify-between">
+              <motion.div whileHover={{ x: 2 }} className="flex items-center justify-between py-0.5">
                 <span className="flex items-center gap-2 text-slate-600">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Last successful import
                 </span>
                 <span className="font-semibold text-slate-900">{health.last_successful_import}</span>
-              </div>
+              </motion.div>
 
-              <div className="flex items-center justify-between">
+              <motion.div whileHover={{ x: 2 }} className="flex items-center justify-between py-0.5">
                 <span className="flex items-center gap-2 text-slate-600">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Forecast readiness
                 </span>
                 <span className="font-semibold text-emerald-600">{health.forecast_readiness}</span>
-              </div>
+              </motion.div>
             </div>
           </div>
 
@@ -812,7 +890,7 @@ export default function DashboardPage() {
             <p>Your data looks good! Keep adding your latest statements for more accurate forecasts.</p>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

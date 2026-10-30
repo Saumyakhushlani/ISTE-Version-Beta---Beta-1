@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { 
   LayoutDashboard, 
   CreditCard, 
@@ -64,14 +65,21 @@ export default function RootLayout({
                   <Link
                     key={item.name}
                     href={item.href}
-                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    className={`relative flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-blue-50 text-blue-600 font-semibold'
+                        ? 'text-blue-600 font-semibold'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
-                    {item.name}
+                    {isActive && (
+                      <motion.div
+                        layoutId="sidebarActivePill"
+                        className="absolute inset-0 bg-blue-50 rounded-lg -z-0"
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                    <Icon className={`w-4 h-4 relative z-10 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
+                    <span className="relative z-10">{item.name}</span>
                   </Link>
                 );
               })}
@@ -92,7 +100,12 @@ export default function RootLayout({
                 </div>
               </div>
               <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden my-2">
-                <div className="h-full bg-emerald-500 rounded-full w-[96%]"></div>
+                <motion.div 
+                  className="h-full bg-emerald-500 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: '96%' }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                />
               </div>
               <p className="text-[11px] text-slate-500">Transactions categorized</p>
             </Link>
@@ -163,7 +176,15 @@ export default function RootLayout({
 
           {/* Main Scrollable Viewport */}
           <main className="flex-1 overflow-y-auto bg-slate-50">
-            {children}
+            <motion.div
+              key={pathname}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="h-full"
+            >
+              {children}
+            </motion.div>
           </main>
         </div>
       </body>
