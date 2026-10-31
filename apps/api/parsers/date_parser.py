@@ -72,6 +72,9 @@ def parse_date_to_iso(val: str, preferred_order: str = "DMY") -> Optional[str]:
     s_clean = strip_time_suffix(s)
     # Collapse multiple whitespace
     s_clean = re.sub(r"\s+", " ", s_clean)
+    # Normalize common non-standard month abbreviations (e.g. 'Sept' -> 'Sep', 'Sept.' -> 'Sep')
+    s_clean = re.sub(r"\bSept\b", "Sep", s_clean, flags=re.IGNORECASE)
+    s_clean = re.sub(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.", r"\1", s_clean, flags=re.IGNORECASE)
 
     # Choose format list based on preferred order
     format_list = COMMON_DATE_FORMATS_DMY if preferred_order == "DMY" else COMMON_DATE_FORMATS_MDY

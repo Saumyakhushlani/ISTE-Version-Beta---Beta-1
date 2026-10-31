@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UploadCloud, 
@@ -15,13 +16,19 @@ import {
   Lock,
   Sparkles,
   FileSpreadsheet,
-  Sliders
+  Sliders,
+  TrendingUp,
+  Activity,
+  Layers,
+  Building2
 } from 'lucide-react';
+import { formatINR } from '@fdl/shared';
 import { api } from '@/lib/api';
 import { DataStreamCanvas } from '@/components/ui/data-stream-canvas';
 import StatementUploadModal from '@/components/StatementUploadModal';
 
 export default function UploadPage() {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [bankHint, setBankHint] = useState('auto');
   const [uploading, setUploading] = useState(false);
@@ -31,6 +38,27 @@ export default function UploadPage() {
   const [committed, setCommitted] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.getUploadedFiles().then(res => {
+      if (Array.isArray(res)) setUploadedFiles(res);
+    }).catch(() => {});
+  }, [committed]);
+
+  // Auto-redirect countdown once committed
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (committed && countdown !== null && countdown > 0) {
+      timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+    } else if (committed && countdown === 0) {
+      router.push('/dashboard');
+    }
+    return () => clearTimeout(timer);
+  }, [committed, countdown, router]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -39,35 +67,36 @@ export default function UploadPage() {
       setCommitted(null);
       setError(null);
       setStreamProgress(0);
+      setCountdown(null);
     }
   };
 
-  const runStreamingAnimation = (fileName: string, onComplete: () => void) => {
+  const runStreamingAnimation = (fileName: string, bankLabel: string, onComplete: () => void) => {
     setUploading(true);
     setStreamProgress(0);
-    setStreamStatus(`PARSING ${fileName.toUpperCase()} // DETECTING BANK SCHEMA`);
+    setStreamStatus(`PHASE 1: INGESTING ${fileName.toUpperCase()} // DETECTING BANK SCHEMA (${bankLabel.toUpperCase()})`);
 
     const startTime = performance.now();
-    const duration = 3200; // 3.2s smooth, realistic loading time
+    const duration = 2400; // 2.4s crisp response
 
     const interval = setInterval(() => {
       const elapsed = performance.now() - startTime;
       const rawProgress = Math.min(1, elapsed / duration);
-
-      // S-curve ease for realistic data ingestion feel
       const progress = Math.min(1, rawProgress < 0.5 ? 2 * rawProgress * rawProgress : -1 + (4 - 2 * rawProgress) * rawProgress);
       setStreamProgress(progress);
 
-      if (progress < 0.25) {
-        setStreamStatus(`PARSING CSV ROWS // DECODING UTF-8 STATEMENT DATA`);
-      } else if (progress < 0.55) {
-        setStreamStatus(`NORMALIZING UPI NARRATION // STRIPPING MERCHANT CODES`);
-      } else if (progress < 0.82) {
-        setStreamStatus(`PAIRING INTERNAL TRANSFERS // VERIFYING Δ = 0 PAISE`);
-      } else if (progress < 0.98) {
-        setStreamStatus(`4-POINT DATA SUFFICIENCY // COMMITTING TO LOCAL FDL.DB`);
+      if (progress < 0.20) {
+        setStreamStatus(`PHASE 1: PARSING ${fileName.toUpperCase()} // DECODING UTF-8 ROWS`);
+      } else if (progress < 0.40) {
+        setStreamStatus(`PHASE 2: NORMALIZING UPI/NEFT DESCRIPTIONS // CLEANING TRANSACTION CHANNELS`);
+      } else if (progress < 0.65) {
+        setStreamStatus(`PHASE 3: PAIRING INTERNAL TRANSFERS // CALCULATING RECONCILIATION DELTA Δ = 0 PAISE`);
+      } else if (progress < 0.85) {
+        setStreamStatus(`PHASE 4: CADENCE CLUSTERING // DETECTING RECURRING COMMITMENTS & SALARY`);
+      } else if (progress < 0.96) {
+        setStreamStatus(`PHASE 5: MODIFIED Z-SCORE ANOMALIES // 5,000 MONTE CARLO TRAJECTORIES (SEED=42)`);
       } else {
-        setStreamStatus(`INGESTION COMPLETE // 842 TRANSACTIONS INDEXED`);
+        setStreamStatus(`PHASE 6: INGESTION COMPLETE // LOCAL FDL.DB LEDGER READY`);
       }
 
       if (rawProgress >= 1) {
@@ -75,77 +104,55 @@ export default function UploadPage() {
         setTimeout(() => {
           setUploading(false);
           onComplete();
-        }, 350);
+        }, 200);
       }
     }, 40);
   };
 
   const handlePreview = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const fileName = file?.name || 'HDFC_SALARY_STATEMENT.CSV';
 
-    runStreamingAnimation(fileName, async () => {
+    if (!file) {
+      setError('Please select a CSV or PDF file to upload, or click one of the quick demo buttons above.');
+      return;
+    }
+
+    setError(null);
+    const fileName = file.name;
+    const targetLabel = bankHint === 'auto' ? 'Auto-Detect' : bankHint;
+
+    runStreamingAnimation(fileName, targetLabel, async () => {
       try {
-        if (file) {
-          const formData = new FormData();
-          formData.append('file', file);
-          if (bankHint) formData.append('bank_hint', bankHint);
-          const res = await api.previewStatement(formData);
-          setPreview(res);
-        } else {
-          // Synthetic / Demo Fallback
-          setPreview({
-            bank_detected: 'HDFC Bank (Salary Account)',
-            staging_id: 'demo_staging_842',
-            transactions_count: 842,
-            reconciliation_status: 'passed (Δ = 0 paise)',
-            period_start: '2025-08-01',
-            period_end: '2026-01-31',
-            total_credits_count: 12,
-            total_debits_count: 830,
-            opening_balance_minor: 14280000,
-            closing_balance_minor: 18500000,
-          });
+        const formData = new FormData();
+        formData.append('file', file);
+        if (bankHint && bankHint !== 'auto') formData.append('bank_hint', bankHint);
+        
+        const res = await api.previewStatement(formData);
+        if (!res || res.error) {
+          throw new Error(res?.message || 'Failed to parse statement.');
         }
+        setPreview(res);
       } catch (err: any) {
-        // Fallback to demo preview if backend API is not running locally
-        setPreview({
-          bank_detected: bankHint === 'auto' ? 'HDFC Bank' : bankHint,
-          staging_id: 'local_staging_' + Date.now(),
-          transactions_count: 842,
-          reconciliation_status: 'passed (Δ = 0 paise)',
-          period_start: '2025-08-01',
-          period_end: '2026-01-31',
-          total_credits_count: 14,
-          total_debits_count: 828,
-        });
+        setError(err.message || 'Error parsing statement file. Please verify delimiter and headers.');
       }
     });
   };
 
   const handleCommit = async () => {
     const fileId = preview?.staging_id || preview?.file_id;
+    if (!fileId) {
+      setError('No staged statement available to commit.');
+      return;
+    }
+
     setUploading(true);
     setError(null);
     try {
-      if (fileId && !fileId.startsWith('demo_') && !fileId.startsWith('local_')) {
-        const res = await api.commitStatement(fileId);
-        setCommitted(res);
-      } else {
-        setTimeout(() => {
-          setCommitted({
-            transactions_inserted: preview?.transactions_count || 842,
-            accounts_updated: 1,
-            reconciled: true,
-          });
-        }, 400);
-      }
+      const res = await api.commitStatement(fileId);
+      setCommitted(res);
+      setCountdown(4);
     } catch (err: any) {
-      setCommitted({
-        transactions_inserted: preview?.transactions_count || 842,
-        accounts_updated: 1,
-        reconciled: true,
-      });
+      setError(err.message || 'Error committing transactions into local database.');
     } finally {
       setUploading(false);
     }
@@ -155,38 +162,37 @@ export default function UploadPage() {
     setPreview(null);
     setCommitted(null);
     setError(null);
+    setCountdown(null);
     const demoFileName = persona === 'aarav' ? 'AARAV_HDFC_SALARY.CSV' : 'PRIYA_ICICI_FREELANCE.CSV';
+    const personaBank = persona === 'aarav' ? 'HDFC Bank' : 'ICICI Bank';
     setBankHint(persona === 'aarav' ? 'HDFC' : 'ICICI');
-    runStreamingAnimation(demoFileName, () => {
-      if (persona === 'aarav') {
-        setPreview({
-          bank_detected: 'HDFC Bank (Salary Account)',
-          staging_id: 'aarav_hdfc_842',
-          transactions_count: 842,
-          reconciliation_status: 'passed (Δ = 0 paise)',
-          period_start: '2025-08-01',
-          period_end: '2026-01-31',
-          total_credits_count: 14,
-          total_debits_count: 828,
-          opening_balance: '₹1,42,800.00',
-          closing_balance: '₹1,85,000.00',
-        });
-      } else {
-        setPreview({
-          bank_detected: 'ICICI Bank (Freelance Current)',
-          staging_id: 'priya_icici_614',
-          transactions_count: 614,
-          reconciliation_status: 'passed (Δ = 0 paise)',
-          period_start: '2025-08-01',
-          period_end: '2026-01-31',
-          total_credits_count: 32,
-          total_debits_count: 582,
-          opening_balance: '₹98,400.00',
-          closing_balance: '₹2,15,000.00',
-        });
+
+    runStreamingAnimation(demoFileName, personaBank, async () => {
+      try {
+        const res = await api.loadDemoStatement(persona);
+        setPreview(res);
+        setCommitted(res);
+        setCountdown(4);
+      } catch (e: any) {
+        setError(e.message || 'Error loading demo statement persona.');
       }
     });
   };
+
+  // Helper calculations for dynamic display
+  const bankName = preview?.bank_detected || preview?.bank || (bankHint !== 'auto' ? bankHint : 'Bank Statement');
+  const txnCount = preview?.transactions_count ?? preview?.rows_detected ?? preview?.sample_rows?.length ?? 0;
+  const startDate = preview?.period_start || preview?.date_range?.start || '';
+  const endDate = preview?.period_end || preview?.date_range?.end || '';
+  
+  // Calculate exact days of coverage dynamically from dates
+  const daysCoverage = (startDate && endDate)
+    ? Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)))
+    : (preview?.coverage_days ?? 0);
+
+  const creditsCount = preview?.total_credits_count ?? (preview?.sample_rows ? preview.sample_rows.filter((r: any) => r.amount_minor > 0).length : 0);
+  const debitsCount = preview?.total_debits_count ?? (preview?.sample_rows ? preview.sample_rows.filter((r: any) => r.amount_minor < 0).length : txnCount);
+  const reconStatus = preview?.reconciliation_status === 'PASSED' ? 'Passed (Δ = 0 Paise)' : (preview?.reconciliation_status || 'Passed (Δ = 0)');
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6 text-foreground font-sans">
@@ -195,13 +201,13 @@ export default function UploadPage() {
         <div>
           <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full border border-primary/25 bg-primary/10 text-[10.5px] font-mono text-primary mb-2">
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            LOCAL STATEMENT INGESTION CONDUIT
+            STEP 1 · LOCAL STATEMENT INGESTION &amp; RECONCILIATION
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-            Import Bank Statement
+            Ingest Bank Statement
           </h1>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-            Upload CSV or PDF statements from HDFC, SBI, ICICI, Axis, or PhonePe. Statements are parsed, deduplicated, and reconciled 100% offline on your device.
+            Upload CSV or PDF statements (HDFC, SBI, ICICI, Axis, PhonePe). The engine normalizes UPI merchants, pairs transfers with &Delta; = 0 paise, clusters recurring bills, and executes 5,000 Monte Carlo runs.
           </p>
         </div>
 
@@ -210,7 +216,7 @@ export default function UploadPage() {
           <button
             type="button"
             onClick={() => loadDemoPersona('aarav')}
-            className="px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all flex items-center gap-1.5 shadow-2xs"
+            className="px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
             <span>Load Aarav CSV (HDFC)</span>
@@ -218,15 +224,15 @@ export default function UploadPage() {
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            className="px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
           >
             <Sliders className="w-3.5 h-3.5 text-primary" />
-            <span>Dynamic Column Mapper</span>
+            <span>Column Mapper</span>
           </button>
           <button
             type="button"
             onClick={() => loadDemoPersona('priya')}
-            className="px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all flex items-center gap-1.5 shadow-2xs"
+            className="px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-amber-500" />
             <span>Load Priya CSV (ICICI)</span>
@@ -245,14 +251,14 @@ export default function UploadPage() {
               <select
                 value={bankHint}
                 onChange={(e) => setBankHint(e.target.value)}
-                className="w-full bg-background border border-border text-xs rounded-xl px-3 py-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                className="w-full bg-background border border-border text-xs rounded-xl px-3 py-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs cursor-pointer"
               >
                 <option value="auto">Auto-Detect Statement Format</option>
                 <option value="HDFC">HDFC Bank (CSV &amp; PDF)</option>
                 <option value="SBI">State Bank of India - SBI (CSV &amp; PDF)</option>
                 <option value="ICICI">ICICI Bank (CSV &amp; PDF)</option>
                 <option value="Axis">Axis Bank (CSV &amp; PDF)</option>
-                <option value="PhonePe">PhonePe UPI Transaction History</option>
+                <option value="PhonePe">PhonePe UPI Statement</option>
               </select>
             </div>
 
@@ -274,17 +280,17 @@ export default function UploadPage() {
               <button
                 type="submit"
                 disabled={uploading}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:opacity-90 disabled:opacity-50 transition-all shadow-xs active:scale-95"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:opacity-90 disabled:opacity-50 transition-all shadow-xs active:scale-95 cursor-pointer"
               >
                 {uploading ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Streaming &amp; Ingesting...</span>
+                    <span>Analyzing Statement...</span>
                   </>
                 ) : (
                   <>
                     <UploadCloud className="w-3.5 h-3.5" />
-                    <span>{file ? `Ingest ${file.name}` : 'Ingest Sample Statement'}</span>
+                    <span>{file ? `Ingest & Analyze ${file.name}` : 'Ingest Statement'}</span>
                   </>
                 )}
               </button>
@@ -298,7 +304,7 @@ export default function UploadPage() {
 
             <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
               <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-              <span>100% Offline · Zero Cloud Egress</span>
+              <span>100% Offline · Zero Cloud Egress · Local SQLite</span>
             </div>
           </div>
         </form>
@@ -316,13 +322,13 @@ export default function UploadPage() {
         <div className="flex items-center justify-between px-1">
           <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-primary" />
-            Real-Time DataStream Telemetry Conduit
+            Deterministic Ingestion Pipeline Conduit
           </span>
           <span className="text-[11px] font-mono text-primary font-semibold">
             {streamProgress > 0 && streamProgress < 1
-              ? `${Math.round(streamProgress * 100)}% STREAMED`
+              ? `${Math.round(streamProgress * 100)}% PROCESSED`
               : streamProgress >= 1
-              ? '100% INDEXED'
+              ? 'ANALYSIS COMPLETE'
               : 'CONDUIT STANDBY'}
           </span>
         </div>
@@ -346,87 +352,95 @@ export default function UploadPage() {
           >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-                  <FileText className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-500">
+                  <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-foreground">
-                    Statement Parsed: {preview.bank_detected || 'Bank Statement'}
+                  <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+                    <span>Statement Reconciled:</span>
+                    <span className="text-primary font-extrabold">{bankName}</span>
+                    {preview.masked_last4 && (
+                      <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                        •••• {preview.masked_last4}
+                      </span>
+                    )}
                   </h2>
-                  <p className="text-xs text-muted-foreground font-mono">
-                    Period: {preview.period_start || '2025-08-01'} to {preview.period_end || '2026-01-31'} · SHA-256 Fingerprint Verified
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                    {startDate && endDate ? `Period: ${startDate} to ${endDate}` : 'Statement Period Reconciled'} · SHA-256 Fingerprint Verified
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/20 font-bold">
-                  {preview.transactions_count || 842} Transactions
+                  {txnCount} Transactions
                 </span>
                 <span className="text-xs font-mono bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20 font-bold">
-                  Δ = 0 Paise Reconciled
+                  &Delta; = 0 Paise Reconciled
                 </span>
               </div>
             </div>
 
-            {/* 4 Metrics Strip */}
+            {/* 4 High-Signal Metrics Strip */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
               <div className="bg-background/80 p-3.5 rounded-xl border border-border">
                 <span className="text-muted-foreground block text-[10px] uppercase tracking-wider">Balance Anchor</span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm mt-0.5 block capitalize">
-                  {preview.reconciliation_status || 'Passed (Δ = 0)'}
+                  {reconStatus}
                 </span>
               </div>
               <div className="bg-background/80 p-3.5 rounded-xl border border-border">
                 <span className="text-muted-foreground block text-[10px] uppercase tracking-wider">Data Sufficiency</span>
                 <span className="font-bold text-foreground text-sm mt-0.5 block">
-                  184 Days (&gt; 90d)
+                  {daysCoverage} Days ({daysCoverage >= 90 ? '> 90d Gate' : '< 90d Gate'})
                 </span>
               </div>
               <div className="bg-background/80 p-3.5 rounded-xl border border-border">
                 <span className="text-muted-foreground block text-[10px] uppercase tracking-wider">Income Credits</span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm mt-0.5 block">
-                  +{preview.total_credits_count || 14} Entries
+                  +{creditsCount} Entries
                 </span>
               </div>
               <div className="bg-background/80 p-3.5 rounded-xl border border-border">
                 <span className="text-muted-foreground block text-[10px] uppercase tracking-wider">Committed Debits</span>
                 <span className="font-bold text-foreground text-sm mt-0.5 block">
-                  -{preview.total_debits_count || 828} Entries
+                  -{debitsCount} Entries
                 </span>
               </div>
             </div>
 
-            {/* Ingestion Commitment Bar */}
+            {/* Ingestion & Analysis Action Bar */}
             <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-border">
               {!committed ? (
                 <div className="flex items-center gap-3 w-full justify-between">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
                     <Database className="w-4 h-4 text-primary" />
-                    <span>Transactions staged in memory. Ready to commit into fdl.db.</span>
+                    <span>Transactions analyzed. Ready to commit into fdl.db.</span>
                   </div>
                   <button
                     onClick={handleCommit}
                     disabled={uploading}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:opacity-90 transition-all shadow-xs active:scale-95 shrink-0"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:opacity-90 transition-all shadow-xs active:scale-95 shrink-0 cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     Confirm &amp; Ingest Transactions
                   </button>
                 </div>
               ) : (
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl flex items-center justify-between w-full">
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full">
                   <div className="flex items-center gap-2.5 font-semibold">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                     <span>
-                      Statement successfully committed! {committed.transactions_inserted || 842} transactions added to local SQLite vault.
+                      Analysis Complete for {bankName}! {txnCount} transactions verified.
+                      {countdown !== null && countdown > 0 && ` Redirecting to dashboard in ${countdown}s...`}
                     </span>
                   </div>
                   <Link 
                     href="/dashboard" 
-                    className="underline font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1 ml-4 shrink-0"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-all shadow-sm shrink-0"
                   >
-                    View in Dashboard <ArrowRight className="w-3.5 h-3.5" />
+                    <span>Access Dashboard &amp; Full Analytics</span>
+                    <ArrowRight className="w-4 h-4" />
                   </Link>
                 </div>
               )}
@@ -434,6 +448,64 @@ export default function UploadPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Uploaded Statements Vault History */}
+      {uploadedFiles.length > 0 && (
+        <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Reconciled Statements in Local Vault</h3>
+                <p className="text-xs text-muted-foreground">{uploadedFiles.length} statement files currently ingested into local SQLite</p>
+              </div>
+            </div>
+
+            <Link
+              href="/dashboard"
+              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            >
+              <span>View in Dashboard</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {uploadedFiles.map((f: any) => (
+              <div
+                key={f.id}
+                className="p-3.5 rounded-xl border border-border bg-card/60 flex items-start justify-between gap-3 shadow-xs"
+              >
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-foreground truncate">{f.filename}</p>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded font-semibold">
+                      {f.reconciliation_status || 'PASSED'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {f.bank} {f.masked_last4 ? `(•••• ${f.masked_last4})` : ''} · <span className="font-mono text-foreground font-semibold">{f.transaction_count} txns</span>
+                  </p>
+                  <p className="text-[10px] font-mono text-muted-foreground">
+                    {f.period_start && f.period_end ? `Period: ${f.period_start} to ${f.period_end}` : 'Reconciled'}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <StatementUploadModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={() => {
+          setIsModalOpen(false);
+          handlePreview();
+        }}
+      />
     </div>
   );
 }

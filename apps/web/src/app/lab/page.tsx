@@ -109,6 +109,7 @@ export default function DecisionLabPage() {
   const verdict = decision?.verdict;
   const headroom = decision?.headroom;
   const ledger = decision?.ledger || [];
+  const gate = decision?.gate;
 
   return (
     <motion.div 
@@ -264,11 +265,11 @@ export default function DecisionLabPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: 0.3 }}
-                className={`p-6 rounded-xl border shadow-sm ${
+                className={`p-6 rounded-xl border shadow-sm space-y-4 ${
                   verdict.code === 'AFFORDABLE' ? 'bg-emerald-500/10 border-emerald-500/30 text-foreground' :
                   verdict.code === 'TIGHT' ? 'bg-amber-500/10 border-amber-500/30 text-foreground' :
                   verdict.code === 'NOT_ADVISABLE' ? 'bg-orange-500/10 border-orange-500/30 text-foreground' :
-                  verdict.code === 'INSUFFICIENT_DATA' ? 'bg-muted border-border text-foreground' :
+                  verdict.code === 'INSUFFICIENT_DATA' ? 'bg-amber-500/10 border-amber-500/30 text-foreground' :
                   'bg-destructive/10 border-destructive/30 text-foreground'
                 }`}
               >
@@ -277,20 +278,87 @@ export default function DecisionLabPage() {
                     verdict.code === 'AFFORDABLE' ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' :
                     verdict.code === 'TIGHT' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30' :
                     verdict.code === 'NOT_ADVISABLE' ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30' :
+                    verdict.code === 'INSUFFICIENT_DATA' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30' :
                     'bg-destructive/20 text-destructive border border-destructive/30'
                   }`}>
                     Verdict: {verdict.code}
                   </span>
 
                   <span className="text-xs text-muted-foreground">
-                    Breach Probability: <span className="font-bold text-foreground">{(verdict.breach_probability * 100).toFixed(1)}%</span>
+                    {verdict.code === 'INSUFFICIENT_DATA' ? (
+                      <span className="text-amber-600 dark:text-amber-400 font-bold font-mono">Simulations Suspended</span>
+                    ) : (
+                      <>
+                        Breach Probability: <span className="font-bold text-foreground">{(verdict.breach_probability * 100).toFixed(1)}%</span>
+                      </>
+                    )}
                   </span>
                 </div>
 
-                <h2 className="text-xl font-extrabold text-foreground mt-3">{verdict.headline}</h2>
-                <p className="text-sm text-foreground/90 mt-2 leading-relaxed font-normal">
-                  {decision.narration}
-                </p>
+                <div>
+                  <h2 className="text-xl font-extrabold text-foreground">{verdict.headline}</h2>
+                  <p className="text-sm text-foreground/90 mt-2 leading-relaxed font-normal">
+                    {decision.narration}
+                  </p>
+                </div>
+
+                {/* Data Sufficiency 4-Point Checklist on Refusal */}
+                {gate && verdict.code === 'INSUFFICIENT_DATA' && (
+                  <div className="mt-4 pt-4 border-t border-border/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-primary" />
+                        4-Point Data Health Gate Diagnosis
+                      </span>
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {gate.coverage_days} Days Observed
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {gate.checks?.map((chk: any) => (
+                        <div
+                          key={chk.id}
+                          className={`p-3 rounded-lg border text-xs flex items-start gap-2.5 ${
+                            chk.passed
+                              ? 'bg-card border-border/80 text-foreground'
+                              : 'bg-destructive/10 border-destructive/30 text-destructive'
+                          }`}
+                        >
+                          {chk.passed ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                          )}
+                          <div>
+                            <p className="font-bold">{chk.title}: {chk.passed ? 'PASSED' : 'ACTION REQUIRED'}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">{chk.detail}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {gate.missing_items && gate.missing_items.length > 0 && (
+                      <div className="p-3.5 bg-card border border-border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3">
+                        <div>
+                          <p className="text-xs font-bold text-foreground">Remediation Checklist:</p>
+                          <ul className="list-disc list-inside text-xs text-muted-foreground mt-1 space-y-0.5">
+                            {gate.missing_items.map((item: string, i: number) => (
+                              <li key={i}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <a
+                          href="/upload"
+                          className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shrink-0 transition shadow-xs"
+                        >
+                          <span>Upload Statement</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

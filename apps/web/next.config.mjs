@@ -2,13 +2,14 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@fdl/shared"],
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: "http://127.0.0.1:8000/api/:path*",
-      },
-    ];
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // Use memory cache in development on Windows to prevent packfile lock conflicts and CSS chunk eviction
+      config.cache = {
+        type: 'memory',
+      };
+    }
+    return config;
   },
 };
 

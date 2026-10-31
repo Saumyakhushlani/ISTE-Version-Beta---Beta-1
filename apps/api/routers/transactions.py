@@ -41,6 +41,7 @@ def list_transactions(
     end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
     min_amount_paise: Optional[int] = Query(None, description="Minimum absolute amount in paise"),
     max_amount_paise: Optional[int] = Query(None, description="Maximum absolute amount in paise"),
+    source_file_ids: Optional[str] = Query(None, description="Comma-separated list of SourceFile IDs to include"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -65,6 +66,11 @@ def list_transactions(
         query = query.filter(Transaction.account_id == account_id)
     else:
         query = query.filter(Transaction.account_id.in_(user_account_ids))
+
+    if source_file_ids:
+        sf_list = [s.strip() for s in source_file_ids.split(",") if s.strip()]
+        if sf_list:
+            query = query.filter(Transaction.source_file_id.in_(sf_list))
 
     if category_id:
         query = query.filter(Transaction.category_id == category_id)

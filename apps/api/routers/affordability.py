@@ -31,14 +31,16 @@ class AffordabilityQuery(BaseModel):
     emi_months: Optional[int] = None
     emi_interest_rate_pct: Optional[float] = None
     buffer_multiplier_override: Optional[float] = None
+    source_file_ids: Optional[List[str]] = None
 
 class NaturalLanguageAsk(BaseModel):
     question: str
+    source_file_ids: Optional[List[str]] = None
 
-def fetch_db_state(db: Session, user_id: Optional[str] = None):
+def fetch_db_state(db: Session, user_id: Optional[str] = None, source_file_ids: Optional[List[str]] = None):
     """
     Retrieves active transactions, current account balances, recurring items, and source files
-    strictly filtered by user_id for multi-user isolation.
+    strictly filtered by user_id and optional source_file_ids for multi-user isolation.
     """
     # 0. User Accounts
     acct_query = db.query(Account).filter_by(status="active")
@@ -48,10 +50,13 @@ def fetch_db_state(db: Session, user_id: Optional[str] = None):
     user_account_ids = [a.id for a in accounts]
 
     # 1. Transactions
-    db_txns = db.query(Transaction).filter(
+    txn_q = db.query(Transaction).filter(
         Transaction.status == "active",
         Transaction.account_id.in_(user_account_ids)
-    ).order_by(Transaction.posted_date.asc()).all()
+    )
+    if source_file_ids:
+        txn_q = txn_q.filter(Transaction.source_file_id.in_(source_file_ids))
+    db_txns = txn_q.order_by(Transaction.posted_date.asc()).all()
 
     txns = [
         {
@@ -151,7 +156,7 @@ def evaluate_affordability(
       - Number-verified narration
     Enforces strict user isolation.
     """
-    txns, account_balances, recurring, source_files = fetch_db_state(db, user_id=current_user.id)
+    txns, account_balances, recurring, source_files = fetch_db_state(db, user_id=current_user.id, source_file_ids=query.source_file_ids)
 
     # Evaluate decision
     decision = evaluate_affordability_decision(

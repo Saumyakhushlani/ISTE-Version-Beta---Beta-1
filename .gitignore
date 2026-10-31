@@ -34,6 +34,9 @@ data/real/
 .env.local
 .env.*.local
 
+# Agent state & internal directories
+.agents/
+
 # OS files
 .DS_Store
 Thumbs.db

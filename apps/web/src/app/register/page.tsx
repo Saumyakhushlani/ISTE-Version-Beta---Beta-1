@@ -4,7 +4,22 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Lock, Mail, User, Phone, Eye, EyeOff, AlertCircle, ArrowRight, Check } from 'lucide-react';
+import {
+  ChevronLeft as ChevronLeftIcon,
+  AtSign as AtSignIcon,
+  Lock as LockIcon,
+  Eye as EyeIcon,
+  EyeOff as EyeOffIcon,
+  User as UserIcon,
+  Phone as PhoneIcon,
+  ShieldCheck as ShieldCheckIcon,
+  ArrowRight as ArrowRightIcon,
+  Sparkles as SparklesIcon,
+  Check as CheckIcon,
+  AlertCircle as AlertCircleIcon
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 
@@ -19,21 +34,21 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [currency, setCurrency] = useState('INR');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Validation checks
+  // Password complexity checks
   const isMinLength = password.length >= 8;
   const hasLetter = /[a-zA-Z]/.test(password);
   const hasNumber = /\d/.test(password);
-  const passwordsMatch = password && password === confirmPassword;
+  const passwordsMatch = password.length > 0 && password === confirmPassword;
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
     if (!isMinLength || !hasLetter || !hasNumber) {
-      setErrorMessage('Password must meet all complexity requirements.');
+      setErrorMessage('Password must be at least 8 characters and contain both letters and numbers.');
       return;
     }
 
@@ -42,7 +57,7 @@ export default function RegisterPage() {
       return;
     }
 
-    setIsLoading(true);
+    setLoading(true);
 
     try {
       const res = await api.register({
@@ -55,190 +70,318 @@ export default function RegisterPage() {
 
       if (res && res.status === 'success') {
         setUser(res.user);
-        router.push('/onboarding');
+        // After registration flow -> proceed directly to upload tab
+        router.push('/upload');
       } else {
-        setErrorMessage(res?.detail || 'Registration failed.');
+        setErrorMessage(res?.detail || 'Registration failed. Please try again.');
       }
     } catch (err: any) {
       setErrorMessage(
         err.detail || err.message || 'Unable to create account. Please check your details and try again.'
       );
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 select-none">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl p-8"
-      >
-        {/* Brand */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-500 mb-3">
-            <ShieldCheck className="w-6 h-6" />
+    <main className="relative h-screen w-screen overflow-hidden bg-background text-foreground lg:grid lg:grid-cols-2 font-sans select-none">
+      {/* ========================================================
+          LEFT COLUMN: BRAND SHOWCASE & PLATFORM VALUE
+      ======================================================== */}
+      <div className="bg-muted/40 relative hidden h-full flex-col justify-between border-r border-border p-10 lg:flex overflow-hidden">
+        {/* Subtle gradient vignette */}
+        <div className="from-background absolute inset-0 z-10 bg-gradient-to-t to-transparent pointer-events-none opacity-80" />
+
+        {/* Brand Header */}
+        <div className="z-20 flex items-center gap-3">
+          <div className="flex items-end gap-1 h-6">
+            <span className="w-2 h-4 bg-primary rounded-sm shadow-sm" />
+            <span className="w-2 h-6 bg-primary rounded-sm shadow-sm" />
+            <span className="w-2 h-5 bg-primary rounded-sm shadow-sm" />
           </div>
-          <h1 className="text-xl font-bold text-slate-100 tracking-tight">Create Your Account</h1>
-          <p className="text-xs text-slate-400 mt-1">Get deterministic, explainable personal finance insights</p>
+          <div className="flex flex-col">
+            <span className="text-lg font-bold tracking-tight text-foreground">
+              Financial Decision Lab
+            </span>
+            <span className="text-[10px] font-mono uppercase tracking-widest text-primary font-semibold">
+              Deterministic Math Engine
+            </span>
+          </div>
         </div>
 
-        {/* Error Notification */}
-        {errorMessage && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="mb-5 p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-3 text-rose-400 text-xs"
+        {/* Center Pillar Highlight Badge */}
+        <div className="z-20 my-auto max-w-md">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-xs font-mono text-primary mb-4 backdrop-blur-sm">
+            <ShieldCheckIcon className="size-3.5" />
+            <span>100% LOCAL-FIRST &amp; AIR-GAPPED</span>
+          </div>
+          <blockquote className="space-y-3">
+            <p className="text-2xl font-bold tracking-tight leading-snug text-foreground">
+              &ldquo;Can I afford this next month? Proving every calculation with zero hallucinations and provable mathematical headroom.&rdquo;
+            </p>
+            <footer className="font-mono text-xs text-muted-foreground flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span>5,000 Monte Carlo Runs · Strict Number Guard · Seed=42</span>
+            </footer>
+          </blockquote>
+        </div>
+
+        {/* Bottom Feature Badges */}
+        <div className="z-20 flex items-center justify-between text-xs text-muted-foreground pt-4 border-t border-border/60">
+          <span>Local SQLite Storage (fdl.db)</span>
+          <span className="font-mono text-[11px] text-primary font-semibold">Zero Cloud Egress</span>
+        </div>
+
+        {/* Ambient Subtle Accent Glow */}
+        <div 
+          className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-30"
+          style={{
+            background: 'radial-gradient(circle at 30% 50%, rgba(16, 185, 129, 0.18) 0%, transparent 65%)'
+          }}
+        />
+      </div>
+
+      {/* ========================================================
+          RIGHT COLUMN: REGISTRATION INTERFACE
+      ======================================================== */}
+      <div className="relative flex h-full flex-col justify-between p-6 sm:p-10 overflow-y-auto">
+        {/* Ambient Radial Gradient Mesh */}
+        <div
+          aria-hidden
+          className="absolute inset-0 isolate contain-strict -z-10 opacity-50 dark:opacity-30 pointer-events-none"
+        >
+          <div className="bg-[radial-gradient(ellipse_at_top_right,var(--ring)_0%,transparent_60%)] absolute -top-24 right-0 h-96 w-96 rounded-full blur-3xl opacity-20" />
+          <div className="bg-[radial-gradient(circle_at_bottom_left,var(--primary)_0%,transparent_70%)] absolute -bottom-24 left-0 h-80 w-80 rounded-full blur-3xl opacity-15" />
+        </div>
+
+        {/* Top Controls: Back Button & Theme Toggle */}
+        <div className="flex items-center justify-between w-full">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg border border-border bg-card/60 backdrop-blur-sm hover:bg-muted"
           >
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{errorMessage}</span>
-          </motion.div>
-        )}
+            <ChevronLeftIcon className="size-3.5" />
+            <span>Home</span>
+          </Link>
 
-        {/* Form */}
-        <form onSubmit={handleRegister} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name</label>
-            <div className="relative">
-              <User className="w-4 h-4 text-slate-500 absolute left-3 top-3.5" />
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Priya Sharma"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
-              />
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+          </div>
+        </div>
+
+        {/* Main Sign-Up Card Container */}
+        <div className="mx-auto w-full max-w-sm my-auto py-4">
+          {/* Mobile-only brand */}
+          <div className="flex items-center gap-2 mb-4 lg:hidden">
+            <div className="flex items-end gap-1 h-5">
+              <span className="w-1.5 h-3 bg-primary rounded-sm" />
+              <span className="w-1.5 h-5 bg-primary rounded-sm" />
+              <span className="w-1.5 h-4 bg-primary rounded-sm" />
             </div>
+            <p className="text-base font-bold text-foreground">Financial Decision Lab</p>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3.5" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="priya@example.com"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
-              />
-            </div>
+          <div className="flex flex-col space-y-1 mb-4">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              Create Your Account
+            </h1>
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              Set up your local workspace to analyze statements with provable math.
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Error Notification */}
+          {errorMessage && (
+            <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-xl flex items-start gap-2.5 text-destructive text-xs">
+              <AlertCircleIcon className="size-4 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{errorMessage}</span>
+            </div>
+          )}
+
+          {/* Registration Form */}
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {/* Full Name */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Mobile (Optional)</label>
+              <label className="text-xs font-medium text-foreground block mb-1">
+                Full Name
+              </label>
               <div className="relative">
-                <Phone className="w-4 h-4 text-slate-500 absolute left-3 top-3.5" />
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="e.g. Aarav Kumar"
+                  required
+                  className="w-full bg-input border border-border rounded-lg ps-8 pe-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+                />
+                <div className="text-muted-foreground pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-2.5">
+                  <UserIcon className="size-3.5" aria-hidden="true" />
+                </div>
+              </div>
+            </div>
+
+            {/* Email Address */}
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1">
+                Email Address
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  required
+                  className="w-full bg-input border border-border rounded-lg ps-8 pe-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+                />
+                <div className="text-muted-foreground pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-2.5">
+                  <AtSignIcon className="size-3.5" aria-hidden="true" />
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Number (Optional) */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-foreground">Mobile Number</label>
+                <span className="text-[10px] text-muted-foreground">Optional</span>
+              </div>
+              <div className="relative">
                 <input
                   type="tel"
                   value={mobileNumber}
                   onChange={(e) => setMobileNumber(e.target.value)}
                   placeholder="+91 98765 43210"
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
+                  className="w-full bg-input border border-border rounded-lg ps-8 pe-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all font-mono"
                 />
+                <div className="text-muted-foreground pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-2.5">
+                  <PhoneIcon className="size-3.5" aria-hidden="true" />
+                </div>
               </div>
             </div>
 
+            {/* Password */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Currency</label>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
-              >
-                <option value="INR">INR (₹)</option>
-                <option value="USD">USD ($)</option>
-                <option value="EUR">EUR (€)</option>
-                <option value="GBP">GBP (£)</option>
-              </select>
+              <label className="text-xs font-medium text-foreground block mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••••••"
+                  className="w-full bg-input border border-border rounded-lg ps-8 pe-8 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+                />
+                <div className="text-muted-foreground pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-2.5">
+                  <LockIcon className="size-3.5" aria-hidden="true" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 end-0 flex items-center justify-center pe-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  {showPassword ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Password</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3.5" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-10 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 transition"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+            {/* Confirm Password */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-foreground">Confirm Password</label>
+                {confirmPassword && (
+                  <span className={cn(
+                    'text-[10px] font-medium flex items-center gap-0.5',
+                    passwordsMatch ? 'text-emerald-500' : 'text-rose-500'
+                  )}>
+                    {passwordsMatch ? '✓ Matches' : '✗ Mismatch'}
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="••••••••••••"
+                  className="w-full bg-input border border-border rounded-lg ps-8 pe-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+                />
+                <div className="text-muted-foreground pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-2.5">
+                  <LockIcon className="size-3.5" aria-hidden="true" />
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Confirm Password</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3.5" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
-              />
-            </div>
-          </div>
-
-          {/* Password checklist */}
-          <div className="p-3 bg-slate-900/60 rounded-xl space-y-1.5 text-[11px]">
-            <div className="flex items-center gap-2">
-              <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${isMinLength ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
-                {isMinLength ? <Check className="w-2.5 h-2.5" /> : '•'}
+            {/* Password Requirement Chips */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              <span className={cn(
+                'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+                isMinLength ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold' : 'bg-muted border-border text-muted-foreground'
+              )}>
+                {isMinLength ? '✓ 8+ chars' : '8+ chars'}
               </span>
-              <span className={isMinLength ? 'text-slate-300' : 'text-slate-500'}>At least 8 characters</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${hasLetter && hasNumber ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
-                {hasLetter && hasNumber ? <Check className="w-2.5 h-2.5" /> : '•'}
+              <span className={cn(
+                'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+                hasLetter ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold' : 'bg-muted border-border text-muted-foreground'
+              )}>
+                {hasLetter ? '✓ Letters' : 'Letters'}
               </span>
-              <span className={hasLetter && hasNumber ? 'text-slate-300' : 'text-slate-500'}>Contains at least 1 letter and 1 number</span>
+              <span className={cn(
+                'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+                hasNumber ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold' : 'bg-muted border-border text-muted-foreground'
+              )}>
+                {hasNumber ? '✓ Numbers' : 'Numbers'}
+              </span>
             </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 px-4 rounded-lg bg-foreground text-background font-semibold text-xs hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 mt-2 cursor-pointer"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="size-3 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                  Creating Account...
+                </span>
+              ) : (
+                <>
+                  <span>Create Account &amp; Ingest Statement</span>
+                  <ArrowRightIcon className="size-3.5" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Login Link */}
+          <div className="mt-4 text-center">
+            <p className="text-xs text-muted-foreground">
+              Already have an account?{' '}
+              <Link href="/login" className="text-primary hover:underline font-semibold transition">
+                Sign in here
+              </Link>
+            </p>
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading || !isMinLength || !hasLetter || !hasNumber || !passwordsMatch}
-            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-sm transition mt-2 cursor-pointer"
-          >
-            {isLoading ? (
-              <span className="inline-block w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-            ) : (
-              <>
-                <span>Complete Registration</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
-        </form>
-
-        {/* Login Link */}
-        <div className="mt-6 text-center">
-          <p className="text-xs text-slate-400">
-            Already have an account?{' '}
-            <Link href="/login" className="text-blue-400 hover:text-blue-300 font-semibold transition">
-              Sign in
-            </Link>
-          </p>
+          {/* Privacy Note */}
+          <div className="mt-4 pt-3 border-t border-border/80 flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="size-1.5 rounded-full bg-primary shrink-0 animate-pulse" />
+            <span className="leading-tight">
+              <strong className="text-foreground font-medium">Local-Only Session:</strong> No external cloud egress. Statements remain in local SQLite.
+            </span>
+          </div>
         </div>
-      </motion.div>
-    </div>
+
+        {/* Footer */}
+        <footer className="text-center text-[11px] text-muted-foreground pt-2">
+          Financial Decision Lab · Confidential Personal Finance Assistant
+        </footer>
+      </div>
+    </main>
   );
 }
-

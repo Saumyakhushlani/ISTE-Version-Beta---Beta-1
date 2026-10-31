@@ -10,7 +10,14 @@ const FASTAPI_INTERNAL_URL =
   'http://127.0.0.1:8000';
 
 async function handleProxy(req: NextRequest, { params }: { params: { path: string[] } }) {
-  const targetPath = '/' + (params.path || []).join('/');
+  let targetPath = '/' + (params.path || []).join('/');
+  if (targetPath.startsWith('/api/proxy')) {
+    targetPath = targetPath.replace(/^\/api\/proxy/, '');
+  }
+  if (!targetPath.startsWith('/api/') && targetPath !== '/api' && !targetPath.startsWith('/health')) {
+    targetPath = '/api' + (targetPath.startsWith('/') ? targetPath : '/' + targetPath);
+  }
+
   const query = req.nextUrl.search;
   const targetUrl = `${FASTAPI_INTERNAL_URL}${targetPath}${query}`;
 
@@ -50,12 +57,19 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
       }
     }
 
-    const response = await fetch(targetUrl, {
+    const fetchOptions: any = {
       method: req.method,
       headers: outgoingHeaders,
       body,
       cache: 'no-store',
-    });
+    };
+
+    // Node 18+ undici requirement for request body streaming/buffers
+    if (body) {
+      fetchOptions.duplex = 'half';
+    }
+
+    const response = await fetch(targetUrl, fetchOptions);
 
     // Extract response headers
     const resHeaders = new Headers();

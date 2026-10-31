@@ -25,7 +25,11 @@ import {
   RefreshCw,
   Building2,
   UploadCloud,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileCheck,
+  PieChart as PieChartIcon,
+  HelpCircle,
+  Inbox
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -59,6 +63,8 @@ export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [activeAccount, setActiveAccount] = useState('all');
   const [activeTimeRange, setActiveTimeRange] = useState('all');
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+  const [hasInitializedFiles, setHasInitializedFiles] = useState(false);
 
   // Natural Language query state
   const [nlQuery, setNlQuery] = useState('');
@@ -66,10 +72,10 @@ export default function DashboardPage() {
   const [nlResult, setNlResult] = useState<any>(null);
 
   useEffect(() => {
-    fetchDashboard(activeAccount, activeTimeRange);
+    fetchDashboard(activeAccount, activeTimeRange, selectedFileIds);
   }, [activeAccount, activeTimeRange]);
 
-  async function fetchDashboard(accId = activeAccount, range = activeTimeRange) {
+  async function fetchDashboard(accId = activeAccount, range = activeTimeRange, fileIds = selectedFileIds) {
     setLoading(true);
     try {
       const params: any = {};
@@ -77,15 +83,42 @@ export default function DashboardPage() {
       if (range === '3m') params.months = 3;
       else if (range === '6m') params.months = 6;
       else if (range === '12m') params.months = 12;
+      if (fileIds && fileIds.length > 0) {
+        params.source_file_ids = fileIds.join(',');
+      }
 
       const summary = await api.getDashboardSummary(params);
       setData(summary);
+
+      if (!hasInitializedFiles && summary?.source_files) {
+        setSelectedFileIds(summary.source_files.map((sf: any) => sf.id));
+        setHasInitializedFiles(true);
+      }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
       setLoading(false);
     }
   }
+
+  const toggleSourceFile = (fileId: string) => {
+    const next = selectedFileIds.includes(fileId)
+      ? selectedFileIds.filter(id => id !== fileId)
+      : [...selectedFileIds, fileId];
+    setSelectedFileIds(next);
+    fetchDashboard(activeAccount, activeTimeRange, next);
+  };
+
+  const selectAllFiles = () => {
+    const all = (data?.source_files || []).map((sf: any) => sf.id);
+    setSelectedFileIds(all);
+    fetchDashboard(activeAccount, activeTimeRange, all);
+  };
+
+  const clearAllFiles = () => {
+    setSelectedFileIds([]);
+    fetchDashboard(activeAccount, activeTimeRange, []);
+  };
 
   async function handleNlSubmit(e?: React.FormEvent, customQuery?: string) {
     if (e) e.preventDefault();
@@ -104,148 +137,106 @@ export default function DashboardPage() {
     }
   }
 
-  // Fallback defaults mapping to real API metrics
+  // 100% Real KPI metrics directly from backend
   const kpi = data?.kpi_metrics || {
-    total_balance_paise: data?.combined_liquid_paise || 18500000,
-    total_accounts_count: data?.total_accounts_count || 1,
-    monthly_income_paise: 7500000,
-    monthly_expenses_paise: 4200000,
-    net_cash_flow_paise: 3300000,
-    balance_trend_pct: 8.0,
-    income_trend_pct: 3.0,
-    expenses_trend_pct: 12.0,
-    net_cash_flow_trend_pct: 5.0
+    total_balance_paise: data?.combined_liquid_paise ?? 0,
+    total_accounts_count: data?.total_accounts_count ?? 0,
+    monthly_income_paise: 0,
+    monthly_expenses_paise: 0,
+    net_cash_flow_paise: 0,
+    balance_trend_pct: 0,
+    income_trend_pct: 0,
+    expenses_trend_pct: 0,
+    net_cash_flow_trend_pct: 0
   };
 
   const accounts = data?.accounts_breakdown || [];
 
-  // Spending By Category
-  const categories = (data?.category_spend && data.category_spend.length > 0)
-    ? data.category_spend
-    : [
-        { category_id: "cat_rent", category: "Rent", amount_paise: 1200000, percentage: 29, trend_pct: 5, color: "#3B82F6" },
-        { category_id: "cat_shopping", category: "Shopping", amount_paise: 1000000, percentage: 24, trend_pct: 18, color: "#EC4899" },
-        { category_id: "cat_food_dining", category: "Food & Groceries", amount_paise: 800000, percentage: 19, trend_pct: -6, color: "#10B981" },
-        { category_id: "cat_transport", category: "Transportation", amount_paise: 400000, percentage: 10, trend_pct: 4, color: "#F59E0B" },
-        { category_id: "cat_subscriptions", category: "Subscriptions", amount_paise: 200000, percentage: 5, trend_pct: 0, color: "#8B5CF6" },
-        { category_id: "cat_uncategorized", category: "Other", amount_paise: 600000, percentage: 14, trend_pct: 9, color: "#94A3B8" }
-      ];
+  // Spending By Category - Real data only
+  const categories = data?.category_spend || [];
+  const totalSpendingPaise = data?.total_spending_paise || categories.reduce((sum: number, c: any) => sum + (c.amount_paise || c.amount_minor || 0), 0);
 
-  const totalSpendingPaise = data?.total_spending_paise || categories.reduce((sum: number, c: any) => sum + (c.amount_paise || 0), 0);
-
-  // Monthly Summary
-  const rawMonthly = data?.monthly_summary && data.monthly_summary.length > 0
-    ? data.monthly_summary.slice(-6)
-    : [
-        { month_label: "May", income_paise: 6500000, spend_paise: 3800000, net_cash_flow_paise: 2700000 },
-        { month_label: "Jun", income_paise: 6500000, spend_paise: 4200000, net_cash_flow_paise: 2300000 },
-        { month_label: "Jul", income_paise: 7000000, spend_paise: 4500000, net_cash_flow_paise: 2500000 },
-        { month_label: "Aug", income_paise: 7000000, spend_paise: 4000000, net_cash_flow_paise: 3000000 },
-        { month_label: "Sep", income_paise: 7500000, spend_paise: 4300000, net_cash_flow_paise: 3200000 },
-        { month_label: "Oct", income_paise: 7500000, spend_paise: 4200000, net_cash_flow_paise: 3300000 }
-      ];
-
+  // Monthly Summary - Real data only
+  const rawMonthly = data?.monthly_summary || [];
   const chartMonthlyData = rawMonthly.map((m: any) => ({
     name: m.month_label || m.month,
     income: Math.round((m.income_paise || 0) / 100),
-    expenses: Math.round((m.spend_paise || 0) / 100),
-    net: Math.round((m.net_cash_flow_paise || 0) / 100)
+    expenses: Math.round((m.spend_paise || m.expenses_paise || 0) / 100),
+    net: Math.round((m.net_cash_flow_paise || m.net_savings_paise || 0) / 100)
   }));
 
-  // Future Cash-Flow Forecast
+  // Future Cash-Flow Forecast - Real data only
   const forecast = data?.cash_flow_forecast;
-  const forecastTimeline = (forecast?.timeline && forecast.timeline.length > 0)
-    ? forecast.timeline.map((pt: any) => ({
-        date: pt.date,
-        p10: Math.round((pt.p10_paise || 0) / 100),
-        p50: Math.round((pt.p50_paise || 0) / 100),
-        p90: Math.round((pt.p90_paise || 0) / 100),
-        buffer: Math.round((pt.safety_buffer_paise || forecast.safety_buffer_paise || 5800000) / 100)
-      }))
-    : [
-        { date: "1 Nov", p10: 160000, p50: 185000, p90: 200000, buffer: 58000 },
-        { date: "15 Nov", p10: 175000, p50: 210000, p90: 240000, buffer: 58000 },
-        { date: "1 Dec", p10: 130000, p50: 168000, p90: 195000, buffer: 58000 },
-        { date: "15 Dec", p10: 145000, p50: 190000, p90: 225000, buffer: 58000 },
-        { date: "1 Jan", p10: 110000, p50: 145000, p90: 175000, buffer: 58000 },
-        { date: "15 Jan", p10: 125000, p50: 165000, p90: 190000, buffer: 58000 }
-      ];
+  const forecastTimeline = (forecast?.timeline || []).map((pt: any) => ({
+    date: pt.date,
+    p10: Math.round((pt.p10_paise || 0) / 100),
+    p50: Math.round((pt.p50_paise || 0) / 100),
+    p90: Math.round((pt.p90_paise || 0) / 100),
+    buffer: Math.round((pt.safety_buffer_paise || forecast.safety_buffer_paise || 0) / 100)
+  }));
 
-  const endingBalPaise = forecast?.projected_ending_balance_paise ?? 14500000;
-  const lowestBalPaise = forecast?.lowest_projected_balance_paise ?? 6800000;
-  const breachProbPct = forecast?.probability_of_breaching_buffer_pct ?? 12;
-  const negProbPct = forecast?.probability_of_negative_balance_pct ?? 2;
+  const endingBalPaise = forecast?.projected_ending_balance_paise ?? 0;
+  const lowestBalPaise = forecast?.lowest_projected_balance_paise ?? 0;
+  const breachProbPct = forecast?.probability_of_breaching_buffer_pct ?? 0;
+  const negProbPct = forecast?.probability_of_negative_balance_pct ?? 0;
 
-  // Upcoming Payments
-  const upcomingList = (data?.upcoming_payments && data.upcoming_payments.length > 0)
-    ? data.upcoming_payments.map((u: any, idx: number) => {
-        let icon = CreditCard;
-        let iconBg = "bg-primary/10 text-primary";
-        const m = (u.merchant || "").toLowerCase();
-        if (m.includes("rent") || u.type === "rent") {
-          icon = Home;
-          iconBg = "bg-destructive/10 text-destructive";
-        } else if (m.includes("emi") || u.type === "emi" || m.includes("loan")) {
-          icon = CreditCard;
-          iconBg = "bg-purple-500/10 text-purple-600 dark:text-purple-400";
-        } else if (m.includes("netflix") || m.includes("subscription")) {
-          icon = Tv;
-          iconBg = "bg-rose-500/10 text-rose-600 dark:text-rose-400";
-        } else if (m.includes("airtel") || m.includes("wifi") || m.includes("internet") || m.includes("blinkit")) {
-          icon = Wifi;
-          iconBg = "bg-sky-500/10 text-sky-600 dark:text-sky-400";
-        } else if (m.includes("insurance") || u.type === "insurance") {
-          icon = ShieldCheck;
-          iconBg = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400";
-        }
+  // Upcoming Payments - Real data only
+  const upcomingList = (data?.upcoming_payments || []).map((u: any, idx: number) => {
+    let icon = CreditCard;
+    let iconBg = "bg-primary/10 text-primary";
+    const m = (u.merchant || "").toLowerCase();
+    const t = (u.type || "").toLowerCase();
+    if (m.includes("rent") || t.includes("rent") || t.includes("housing")) {
+      icon = Home;
+      iconBg = "bg-destructive/10 text-destructive";
+    } else if (m.includes("emi") || t.includes("emi") || m.includes("loan")) {
+      icon = CreditCard;
+      iconBg = "bg-purple-500/10 text-purple-600 dark:text-purple-400";
+    } else if (m.includes("netflix") || t.includes("subscription") || m.includes("spotify")) {
+      icon = Tv;
+      iconBg = "bg-rose-500/10 text-rose-600 dark:text-rose-400";
+    } else if (m.includes("airtel") || m.includes("wifi") || m.includes("internet") || m.includes("jio") || m.includes("broadband")) {
+      icon = Wifi;
+      iconBg = "bg-sky-500/10 text-sky-600 dark:text-sky-400";
+    } else if (m.includes("insurance") || t.includes("insurance")) {
+      icon = ShieldCheck;
+      iconBg = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400";
+    }
 
-        const amt = u.amount_paise ?? u.typical_amount_paise ?? u.amount_minor ?? u.typical_amount_minor ?? 0;
+    const amt = u.amount_paise ?? u.typical_amount_paise ?? u.amount_minor ?? u.typical_amount_minor ?? 0;
 
-        return {
-          id: idx,
-          name: u.merchant?.replace("UPI-", "").replace("ACH D-", "").split("-")[0] || u.merchant || "Scheduled Bill",
-          date: u.due_date ? `${u.due_date.slice(8, 10)} Nov 2024` : "1 Nov 2024",
-          amount_paise: amt,
-          user_status: idx < 3 ? "Auto" : "User",
-          icon,
-          iconBg
-        };
-      })
-    : [
-        { id: 1, name: "Rent", date: "1 Nov 2024", amount_paise: 1200000, user_status: "Auto", icon: Home, iconBg: "bg-destructive/10 text-destructive" },
-        { id: 2, name: "Loan EMI", date: "5 Nov 2024", amount_paise: 850000, user_status: "Auto", icon: CreditCard, iconBg: "bg-purple-500/10 text-purple-600" },
-        { id: 3, name: "Netflix", date: "10 Nov 2024", amount_paise: 64900, user_status: "Auto", icon: Tv, iconBg: "bg-rose-500/10 text-rose-600" },
-        { id: 4, name: "Internet", date: "12 Nov 2024", amount_paise: 99900, user_status: "User", icon: Wifi, iconBg: "bg-sky-500/10 text-sky-600" },
-        { id: 5, name: "Insurance", date: "15 Nov 2024", amount_paise: 200000, user_status: "User", icon: ShieldCheck, iconBg: "bg-indigo-500/10 text-indigo-600" }
-      ];
+    return {
+      id: u.id || idx,
+      name: u.merchant?.replace("UPI-", "").replace("ACH D-", "").split("-")[0] || u.merchant || "Scheduled Bill",
+      date: u.due_date || u.next_expected_date || "Upcoming",
+      amount_paise: amt,
+      user_status: u.user_tag || (u.user_status === 'active' ? 'Auto' : 'User'),
+      icon,
+      iconBg
+    };
+  });
 
-  // Anomalies
-  const anomaliesList = (data?.top_anomalies && data.top_anomalies.length > 0)
-    ? data.top_anomalies.map((a: any, idx: number) => ({
-        id: a.id || idx,
-        type: a.type === "large_amount" ? "Unusually large transaction" : a.type === "duplicate_charge" ? "Possible duplicate payment" : "New merchant",
-        amount_paise: a.amount_paise ?? a.amount_minor ?? a.amount ?? 0,
-        merchant: a.merchant || "XYZ Store",
-        desc: a.reason_text?.length > 70 ? a.reason_text.slice(0, 67) + "..." : a.reason_text || "Unusual transaction flagged.",
-        time: a.time_ago || "2 days ago",
-        badge: a.type === "large_amount" ? "A" : a.type === "duplicate_charge" ? "!" : "+",
-        badgeBg: a.type === "large_amount" ? "bg-destructive text-destructive-foreground" : a.type === "duplicate_charge" ? "bg-amber-500 text-white" : "bg-primary text-primary-foreground"
-      }))
-    : [
-        { id: 1, type: "Unusually large transaction", amount_paise: 1840000, merchant: "XYZ Store", desc: "6.2x your typical shopping transaction.", time: "2 days ago", badge: "A", badgeBg: "bg-destructive text-destructive-foreground" },
-        { id: 2, type: "Possible duplicate payment", amount_paise: 250000, merchant: "ABC Services", desc: "Two similar transactions detected.", time: "5 days ago", badge: "!", badgeBg: "bg-amber-500 text-white" },
-        { id: 3, type: "New merchant", amount_paise: 499900, merchant: "XYZ Electronics", desc: "First transaction with this merchant.", time: "1 week ago", badge: "+", badgeBg: "bg-primary text-primary-foreground" }
-      ];
+  // Anomalies - Real data only
+  const anomaliesList = (data?.top_anomalies || []).map((a: any, idx: number) => ({
+    id: a.id || idx,
+    type: a.type === "large_amount" ? "Unusually large transaction" : a.type === "duplicate_charge" ? "Possible duplicate payment" : (a.type ? a.type.replace('_', ' ') : "Unusual spend"),
+    amount_paise: a.amount_paise ?? a.amount_minor ?? a.amount ?? 0,
+    merchant: a.merchant || "Merchant",
+    desc: a.reason_text?.length > 70 ? a.reason_text.slice(0, 67) + "..." : a.reason_text || "Unusual transaction flagged.",
+    time: a.time_ago || "Recently",
+    badge: a.type === "large_amount" ? "A" : a.type === "duplicate_charge" ? "!" : "+",
+    badgeBg: a.type === "large_amount" ? "bg-destructive text-destructive-foreground" : a.type === "duplicate_charge" ? "bg-amber-500 text-white" : "bg-primary text-primary-foreground"
+  }));
 
-  // Financial Data Health
+  // Financial Data Health - Real data only
   const health = data?.financial_data_health || {
-    statement_coverage_months: 6,
-    transactions_processed: 1250,
-    transactions_categorized_pct: 96,
-    transactions_needing_review: 2,
-    last_successful_import: "30 Oct 2024",
-    forecast_readiness: "Ready",
-    status_label: "Data Ready"
+    statement_coverage_months: 0,
+    transactions_processed: 0,
+    transactions_categorized_pct: 0,
+    transactions_needing_review: 0,
+    last_successful_import: "None",
+    forecast_readiness: "Needs Data",
+    status_label: "No Data"
   };
 
   const containerVariants: Variants = {
@@ -279,8 +270,12 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Executive Financial Analysis</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/20 text-foreground border border-primary/30">
-              Verified Statement Reconciled
+            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+              accounts.length > 0 
+                ? 'bg-primary/20 text-foreground border-primary/30' 
+                : 'bg-muted text-muted-foreground border-border'
+            }`}>
+              {accounts.length > 0 ? `${accounts.length} Account${accounts.length > 1 ? 's' : ''} Reconciled` : 'No Accounts Connected'}
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -339,7 +334,7 @@ export default function DashboardPage() {
 
           {/* Refresh Button */}
           <button
-            onClick={() => fetchDashboard(activeAccount, activeTimeRange)}
+            onClick={() => fetchDashboard(activeAccount, activeTimeRange, selectedFileIds)}
             title="Refresh Analysis"
             className="p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted shadow-sm transition"
           >
@@ -347,6 +342,131 @@ export default function DashboardPage() {
           </button>
         </div>
       </motion.div>
+
+      {/* Statement Sources Inclusion Checkbox Bar */}
+      {data?.source_files && data.source_files.length > 0 && (
+        <motion.div
+          variants={itemVariants}
+          className="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-xs space-y-3"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                <FileCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                    Uploaded Statement Sources
+                  </h3>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                    selectedFileIds.length === data.source_files.length
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                      : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                  }`}>
+                    {selectedFileIds.length} of {data.source_files.length} Included in Calculations
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Select which uploaded statements to include or exclude from balances, spending trends, and forecasts.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto pt-1 sm:pt-0">
+              <button
+                type="button"
+                onClick={selectAllFiles}
+                className="px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/10 rounded-lg transition"
+              >
+                Include All
+              </button>
+              <span className="text-muted-foreground/40">|</span>
+              <button
+                type="button"
+                onClick={clearAllFiles}
+                className="px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
+              >
+                Deselect All
+              </button>
+            </div>
+          </div>
+
+          {/* Statement Checkbox Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {data.source_files.map((sf: any) => {
+              const isIncluded = selectedFileIds.includes(sf.id);
+              return (
+                <div
+                  key={sf.id}
+                  onClick={() => toggleSourceFile(sf.id)}
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-start gap-3 ${
+                    isIncluded
+                      ? 'bg-card border-primary/50 shadow-xs'
+                      : 'bg-muted/40 border-border opacity-50 hover:opacity-75'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isIncluded}
+                    onChange={() => {}} // handled by parent onClick
+                    className="w-4 h-4 rounded text-primary accent-primary mt-0.5 cursor-pointer shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-xs font-bold truncate ${isIncluded ? 'text-foreground' : 'text-muted-foreground line-through'}`}>
+                        {sf.filename}
+                      </p>
+                      <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border shrink-0 ${
+                        isIncluded 
+                          ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
+                          : 'text-muted-foreground bg-muted border-border'
+                      }`}>
+                        {isIncluded ? 'INCLUDED' : 'EXCLUDED'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
+                      <span className="font-semibold text-foreground/80">{sf.bank}</span>
+                      {sf.masked_last4 && <span>(•••• {sf.masked_last4})</span>}
+                      <span>·</span>
+                      <span className="font-mono">{sf.transaction_count} txns</span>
+                    </div>
+
+                    <p className="text-[10px] font-mono text-muted-foreground/80 mt-1">
+                      {sf.period_start && sf.period_end ? `Period: ${sf.period_start} to ${sf.period_end}` : 'Statement Period Active'}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* NO STATEMENTS BANNER */}
+      {!loading && accounts.length === 0 && (
+        <motion.div 
+          variants={itemVariants}
+          className="p-4 rounded-xl border border-primary/25 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0">
+              <UploadCloud className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-foreground">No bank statements reconciled yet</p>
+              <p className="text-xs text-muted-foreground">Upload an official bank statement (CSV or PDF) to generate live analytics and predictive forecasts.</p>
+            </div>
+          </div>
+          <Link 
+            href="/upload" 
+            className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-semibold text-xs shadow-sm hover:opacity-90 transition whitespace-nowrap self-start sm:self-auto"
+          >
+            Upload Statement &rarr;
+          </Link>
+        </motion.div>
+      )}
 
       {/* ROW 1: TOP 4 METRIC CARDS */}
       <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -366,13 +486,19 @@ export default function DashboardPage() {
               {formatINR(kpi.total_balance_paise)}
             </p>
             <p className="text-xs text-muted-foreground/80 mt-1">
-              Across {kpi.total_accounts_count || accounts.length || 1} accounts
+              Across {kpi.total_accounts_count || accounts.length} accounts
             </p>
           </div>
-          <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
-            <TrendingUp className="w-3 h-3" />
-            {kpi.balance_trend_pct || 8}% vs last month
-          </span>
+          {kpi.balance_trend_pct !== 0 && (
+            <span className={`inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded ${
+              kpi.balance_trend_pct > 0 
+                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' 
+                : 'text-rose-600 dark:text-rose-400 bg-rose-500/10'
+            }`}>
+              {kpi.balance_trend_pct > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              {Math.abs(kpi.balance_trend_pct)}% vs last month
+            </span>
+          )}
         </motion.div>
 
         {/* 2. Monthly Income */}
@@ -386,16 +512,22 @@ export default function DashboardPage() {
             <div className="w-10 h-10 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3">
               <ArrowDownLeft className="w-5 h-5" />
             </div>
-            <p className="text-xs font-medium text-muted-foreground">Monthly Income</p>
+            <p className="text-xs font-medium text-muted-foreground">Average Monthly Income</p>
             <p className="text-2xl font-bold text-foreground tracking-tight mt-1 font-mono">
               {formatINR(kpi.monthly_income_paise)}
             </p>
-            <p className="text-xs text-muted-foreground/80 mt-1">This month</p>
+            <p className="text-xs text-muted-foreground/80 mt-1">Computed from credits</p>
           </div>
-          <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
-            <TrendingUp className="w-3 h-3" />
-            {kpi.income_trend_pct || 3}% vs last month
-          </span>
+          {kpi.income_trend_pct !== 0 && (
+            <span className={`inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded ${
+              kpi.income_trend_pct > 0 
+                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' 
+                : 'text-rose-600 dark:text-rose-400 bg-rose-500/10'
+            }`}>
+              {kpi.income_trend_pct > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              {Math.abs(kpi.income_trend_pct)}% vs last month
+            </span>
+          )}
         </motion.div>
 
         {/* 3. Monthly Expenses */}
@@ -409,16 +541,22 @@ export default function DashboardPage() {
             <div className="w-10 h-10 rounded-lg bg-destructive/10 text-destructive flex items-center justify-center mb-3">
               <ArrowUpRight className="w-5 h-5" />
             </div>
-            <p className="text-xs font-medium text-muted-foreground">Monthly Expenses</p>
+            <p className="text-xs font-medium text-muted-foreground">Average Monthly Expenses</p>
             <p className="text-2xl font-bold text-foreground tracking-tight mt-1 font-mono">
               {formatINR(kpi.monthly_expenses_paise)}
             </p>
-            <p className="text-xs text-muted-foreground/80 mt-1">This month</p>
+            <p className="text-xs text-muted-foreground/80 mt-1">Computed from debits</p>
           </div>
-          <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded">
-            <TrendingUp className="w-3 h-3" />
-            {kpi.expenses_trend_pct || 12}% vs last month
-          </span>
+          {kpi.expenses_trend_pct !== 0 && (
+            <span className={`inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded ${
+              kpi.expenses_trend_pct < 0 
+                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' 
+                : 'text-rose-600 dark:text-rose-400 bg-rose-500/10'
+            }`}>
+              {kpi.expenses_trend_pct > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              {Math.abs(kpi.expenses_trend_pct)}% vs last month
+            </span>
+          )}
         </motion.div>
 
         {/* 4. Net Cash Flow */}
@@ -432,16 +570,24 @@ export default function DashboardPage() {
             <div className="w-10 h-10 rounded-lg bg-chart-3/15 text-chart-3 flex items-center justify-center mb-3">
               <BarChart3 className="w-5 h-5" />
             </div>
-            <p className="text-xs font-medium text-muted-foreground">Net Cash Flow</p>
-            <p className="text-2xl font-bold text-foreground tracking-tight mt-1 font-mono">
-              +{formatINR(kpi.net_cash_flow_paise)}
+            <p className="text-xs font-medium text-muted-foreground">Net Monthly Cash Flow</p>
+            <p className={`text-2xl font-bold tracking-tight mt-1 font-mono ${
+              kpi.net_cash_flow_paise >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
+            }`}>
+              {kpi.net_cash_flow_paise >= 0 ? '+' : ''}{formatINR(kpi.net_cash_flow_paise)}
             </p>
-            <p className="text-xs text-muted-foreground/80 mt-1">This month</p>
+            <p className="text-xs text-muted-foreground/80 mt-1">Income minus expenses</p>
           </div>
-          <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
-            <TrendingUp className="w-3 h-3" />
-            {kpi.net_cash_flow_trend_pct || 5}% vs last month
-          </span>
+          {kpi.net_cash_flow_trend_pct !== 0 && (
+            <span className={`inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded ${
+              kpi.net_cash_flow_trend_pct > 0 
+                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' 
+                : 'text-rose-600 dark:text-rose-400 bg-rose-500/10'
+            }`}>
+              {kpi.net_cash_flow_trend_pct > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              {Math.abs(kpi.net_cash_flow_trend_pct)}% vs last month
+            </span>
+          )}
         </motion.div>
       </motion.div>
 
@@ -534,83 +680,87 @@ export default function DashboardPage() {
               <div className="text-xs text-muted-foreground font-medium">Categorized spend</div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-6 my-2">
-              <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={categories}
-                      dataKey="amount_paise"
-                      nameKey="category"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={80}
-                      paddingAngle={2}
-                      stroke="none"
-                    >
-                      {categories.map((entry: any, index: number) => {
-                        const palette = [
-                          'var(--chart-1)',
-                          'var(--chart-2)',
-                          'var(--chart-3)',
-                          'var(--chart-4)',
-                          'var(--chart-5)',
-                          '#64748B'
-                        ];
-                        const fill = entry.color || palette[index % palette.length];
-                        return <Cell key={`cell-${index}`} fill={fill} />;
-                      })}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                  <span className="text-base font-extrabold text-foreground leading-tight font-mono">
-                    {formatINR(totalSpendingPaise)}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground font-medium">Total Spending</span>
-                  <span className="text-[11px] font-semibold text-muted-foreground">100%</span>
+            {categories.length === 0 ? (
+              <div className="py-12 flex flex-col items-center justify-center text-center text-muted-foreground space-y-2">
+                <PieChartIcon className="w-10 h-10 text-muted-foreground/40" />
+                <p className="text-xs font-semibold text-foreground">No Categorized Spending Yet</p>
+                <p className="text-[11px] text-muted-foreground max-w-xs">
+                  Upload a statement to automatically categorize your debit transactions into Rent, Shopping, Groceries, and Utilities.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row items-center gap-6 my-2">
+                <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categories}
+                        dataKey="amount_paise"
+                        nameKey="category"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={2}
+                        stroke="none"
+                      >
+                        {categories.map((entry: any, index: number) => {
+                          const palette = [
+                            'var(--chart-1)',
+                            'var(--chart-2)',
+                            'var(--chart-3)',
+                            'var(--chart-4)',
+                            'var(--chart-5)',
+                            '#64748B'
+                          ];
+                          const fill = entry.color || palette[index % palette.length];
+                          return <Cell key={`cell-${index}`} fill={fill} />;
+                        })}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                    <span className="text-base font-extrabold text-foreground leading-tight font-mono">
+                      {formatINR(totalSpendingPaise)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-medium">Total Spending</span>
+                    <span className="text-[11px] font-semibold text-muted-foreground">100%</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 w-full space-y-2">
+                  {categories.slice(0, 6).map((c: any) => {
+                    const pct = totalSpendingPaise > 0 
+                      ? Math.round(((c.amount_paise || c.amount_minor || 0) / totalSpendingPaise) * 100) 
+                      : 0;
+                    return (
+                      <motion.div 
+                        whileHover={{ x: 3 }} 
+                        transition={{ duration: 0.15 }}
+                        key={c.id || c.category_id} 
+                        className="flex items-center justify-between text-xs py-0.5 rounded px-1 -mx-1 hover:bg-muted transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color || 'var(--primary)' }}></span>
+                          <span className="text-foreground font-medium truncate">{c.category || c.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="font-semibold text-foreground font-mono">{formatINR(c.amount_paise || c.amount_minor || 0)}</span>
+                          <span className="text-muted-foreground w-7 text-right">{pct}%</span>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </div>
-
-              <div className="flex-1 w-full space-y-2">
-                {categories.slice(0, 6).map((c: any) => {
-                  const pct = totalSpendingPaise > 0 
-                    ? Math.round(((c.amount_paise || 0) / totalSpendingPaise) * 100) 
-                    : 0;
-                  return (
-                    <motion.div 
-                      whileHover={{ x: 3 }} 
-                      transition={{ duration: 0.15 }}
-                      key={c.category_id} 
-                      className="flex items-center justify-between text-xs py-0.5 rounded px-1 -mx-1 hover:bg-muted transition-colors"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color || 'var(--primary)' }}></span>
-                        <span className="text-foreground font-medium truncate">{c.category}</span>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="font-semibold text-foreground font-mono">{formatINR(c.amount_paise)}</span>
-                        <span className="text-muted-foreground w-7 text-right">{pct}%</span>
-                        <span className={`w-10 text-right font-medium text-[11px] flex items-center justify-end ${
-                          c.trend_pct > 0 ? (c.category === "Rent" || c.category === "Shopping" ? "text-rose-500" : "text-emerald-500") :
-                          c.trend_pct < 0 ? "text-emerald-500" : "text-muted-foreground"
-                        }`}>
-                          {c.trend_pct > 0 ? `↑ ${c.trend_pct}%` : c.trend_pct < 0 ? `↓ ${Math.abs(c.trend_pct)}%` : '0%'}
-                        </span>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </div>
+            )}
           </div>
 
           <Link 
             href="/transactions" 
             className="text-xs font-semibold text-muted-foreground hover:text-foreground pt-3 border-t border-border flex items-center justify-center gap-1 transition"
           >
-            View all categories <ArrowRight className="w-3.5 h-3.5" />
+            View all transactions <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
@@ -634,52 +784,95 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="h-48 w-full mt-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartMonthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.6} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
-                  <YAxis 
-                    tickFormatter={(val) => `₹${val >= 100000 ? `${val/100000}L` : `${val/1000}K`}`}
-                    tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} 
-                    axisLine={false} 
-                    tickLine={false}
-                  />
-                  <Tooltip 
-                    formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, '']}
-                    contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--card-foreground)', fontSize: '12px' }}
-                  />
-                  <Bar dataKey="income" fill="var(--chart-1)" barSize={16} radius={[3, 3, 0, 0]} name="Income" />
-                  <Bar dataKey="expenses" fill="var(--chart-4)" barSize={16} radius={[3, 3, 0, 0]} name="Expenses" />
-                  <Line type="monotone" dataKey="net" stroke="var(--chart-2)" strokeWidth={2.5} dot={{ fill: 'var(--chart-2)', r: 4, stroke: 'var(--card)', strokeWidth: 2 }} name="Net Cash Flow" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+            {chartMonthlyData.length === 0 ? (
+              <div className="h-48 w-full flex flex-col items-center justify-center text-center text-muted-foreground space-y-2">
+                <BarChart3 className="w-10 h-10 text-muted-foreground/40" />
+                <p className="text-xs font-semibold text-foreground">No Monthly History Recorded</p>
+                <p className="text-[11px] text-muted-foreground max-w-xs">
+                  Upload a bank statement with multiple months of history to unlock cash flow trends.
+                </p>
+              </div>
+            ) : (
+              <div className="h-48 w-full mt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={chartMonthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.6} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
+                    <YAxis 
+                      tickFormatter={(val) => `₹${val >= 100000 ? `${(val/100000).toFixed(1)}L` : `${val/1000}K`}`}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} 
+                      axisLine={false} 
+                      tickLine={false}
+                    />
+                    <Tooltip 
+                      formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, '']}
+                      contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--card-foreground)', fontSize: '12px' }}
+                    />
+                    <Bar dataKey="income" fill="var(--chart-1)" barSize={16} radius={[3, 3, 0, 0]} name="Income" />
+                    <Bar dataKey="expenses" fill="var(--chart-4)" barSize={16} radius={[3, 3, 0, 0]} name="Expenses" />
+                    <Line type="monotone" dataKey="net" stroke="var(--chart-2)" strokeWidth={2.5} dot={{ fill: 'var(--chart-2)', r: 4, stroke: 'var(--card)', strokeWidth: 2 }} name="Net Cash Flow" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
 
-          <div className="border-t border-border pt-3 mt-2 overflow-x-auto">
-            <div className="min-w-[420px] grid grid-cols-7 text-xs text-muted-foreground gap-y-1">
-              <span className="font-medium text-muted-foreground">Month</span>
-              {rawMonthly.map((m: any, i: number) => (
-                <span key={i} className="text-center font-semibold text-foreground">{m.month_label || m.month}</span>
-              ))}
-
-              <span className="font-medium text-muted-foreground">Income</span>
-              {rawMonthly.map((m: any, i: number) => (
-                <span key={i} className="text-center font-medium text-foreground">₹{Math.round((m.income_paise || 0) / 100000)}K</span>
-              ))}
-
-              <span className="font-medium text-muted-foreground">Expenses</span>
-              {rawMonthly.map((m: any, i: number) => (
-                <span key={i} className="text-center font-medium text-foreground">₹{Math.round((m.spend_paise || 0) / 100000)}K</span>
-              ))}
-
-              <span className="font-medium text-muted-foreground">Net Cash Flow</span>
-              {rawMonthly.map((m: any, i: number) => (
-                <span key={i} className="text-center font-bold text-emerald-600 dark:text-emerald-400">+₹{Math.round((m.net_cash_flow_paise || 0) / 100000)}K</span>
-              ))}
+          {rawMonthly.length > 0 && (
+            <div className="border-t border-border pt-3 mt-3 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left font-semibold text-muted-foreground pb-2 pr-4 whitespace-nowrap">Metric</th>
+                    {rawMonthly.map((m: any, i: number) => (
+                      <th key={i} className="text-center font-bold text-foreground pb-2 px-3 whitespace-nowrap">
+                        {m.month_label || m.month}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  <tr>
+                    <td className="font-medium text-muted-foreground py-2 pr-4 whitespace-nowrap flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-xs bg-primary shrink-0" />
+                      Income
+                    </td>
+                    {rawMonthly.map((m: any, i: number) => (
+                      <td key={i} className="text-center font-mono font-medium text-foreground py-2 px-3 whitespace-nowrap">
+                        ₹{Math.round((m.income_paise || 0) / 100000)}K
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="font-medium text-muted-foreground py-2 pr-4 whitespace-nowrap flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-xs bg-chart-4 shrink-0" />
+                      Expenses
+                    </td>
+                    {rawMonthly.map((m: any, i: number) => (
+                      <td key={i} className="text-center font-mono font-medium text-foreground py-2 px-3 whitespace-nowrap">
+                        ₹{Math.round((m.spend_paise || m.expenses_paise || 0) / 100000)}K
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="font-medium text-muted-foreground py-2 pr-4 whitespace-nowrap flex items-center gap-1.5">
+                      <span className="w-2 h-0.5 bg-chart-2 shrink-0" />
+                      Net Cash Flow
+                    </td>
+                    {rawMonthly.map((m: any, i: number) => {
+                      const net = m.net_cash_flow_paise ?? m.net_savings_paise ?? 0;
+                      return (
+                        <td key={i} className={`text-center font-mono font-bold py-2 px-3 whitespace-nowrap ${
+                          net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
+                        }`}>
+                          {net >= 0 ? '+' : ''}₹{Math.round(net / 100000)}K
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          </div>
+          )}
         </div>
       </motion.div>
 
@@ -709,69 +902,73 @@ export default function DashboardPage() {
             <span className="flex items-center gap-1.5">
               <span className="w-4 border-t-2 border-dashed border-chart-4"></span> Safety Buffer
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Salary
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-destructive"></span> Upcoming Payment
-            </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-            <div className="md:col-span-3 h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={forecastTimeline} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.6} />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
-                  <YAxis 
-                    tickFormatter={(val) => `₹${val >= 100000 ? `${(val/100000).toFixed(0)}L` : `${val/1000}K`}`}
-                    tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} 
-                    axisLine={false} 
-                    tickLine={false} 
-                  />
-                  <Tooltip 
-                    formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, '']}
-                    contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--card-foreground)', fontSize: '12px' }}
-                  />
-                  <Area type="monotone" dataKey="p90" stroke="none" fill="var(--chart-1)" fillOpacity={0.15} />
-                  <Line type="monotone" dataKey="p90" stroke="var(--chart-2)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="P90 (Higher)" />
-                  <Line type="monotone" dataKey="p50" stroke="var(--chart-1)" strokeWidth={2.5} dot={false} name="P50 (Median)" />
-                  <Line type="monotone" dataKey="p10" stroke="var(--chart-3)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="P10 (Lower)" />
-                  <Line type="monotone" dataKey="buffer" stroke="var(--chart-4)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} name="Safety Buffer" />
-                </ComposedChart>
-              </ResponsiveContainer>
+          {forecastTimeline.length === 0 ? (
+            <div className="h-56 w-full flex flex-col items-center justify-center text-center text-muted-foreground space-y-2">
+              <TrendingUp className="w-10 h-10 text-muted-foreground/40" />
+              <p className="text-xs font-semibold text-foreground">No Forecast Available</p>
+              <p className="text-[11px] text-muted-foreground max-w-md">
+                Monte Carlo forecasting activates when you upload a verified statement with at least 90 days of history and identified cash flows.
+              </p>
             </div>
-
-            <div className="md:col-span-1 border-t md:border-t-0 md:border-l border-border pt-3 md:pt-0 md:pl-5 space-y-3.5">
-              <div>
-                <p className="text-[11px] font-medium text-muted-foreground">Projected ending balance</p>
-                <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight font-mono">
-                  {formatINR(endingBalPaise)}
-                </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+              <div className="md:col-span-3 h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={forecastTimeline} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.6} />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
+                    <YAxis 
+                      tickFormatter={(val) => `₹${val >= 100000 ? `${(val/100000).toFixed(0)}L` : `${val/1000}K`}`}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} 
+                      axisLine={false} 
+                      tickLine={false} 
+                    />
+                    <Tooltip 
+                      formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, '']}
+                      contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--card-foreground)', fontSize: '12px' }}
+                    />
+                    <Area type="monotone" dataKey="p90" stroke="none" fill="var(--chart-1)" fillOpacity={0.15} />
+                    <Line type="monotone" dataKey="p90" stroke="var(--chart-2)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="P90 (Higher)" />
+                    <Line type="monotone" dataKey="p50" stroke="var(--chart-1)" strokeWidth={2.5} dot={false} name="P50 (Median)" />
+                    <Line type="monotone" dataKey="p10" stroke="var(--chart-3)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="P10 (Lower)" />
+                    <Line type="monotone" dataKey="buffer" stroke="var(--chart-4)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} name="Safety Buffer" />
+                  </ComposedChart>
+                </ResponsiveContainer>
               </div>
 
-              <div>
-                <p className="text-[11px] font-medium text-muted-foreground">Lowest projected balance</p>
-                <p className="text-xl font-extrabold text-destructive tracking-tight font-mono">
-                  {formatINR(lowestBalPaise)}
-                </p>
-              </div>
+              <div className="md:col-span-1 border-t md:border-t-0 md:border-l border-border pt-3 md:pt-0 md:pl-5 space-y-3.5">
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground">Projected ending balance</p>
+                  <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight font-mono">
+                    {formatINR(endingBalPaise)}
+                  </p>
+                </div>
 
-              <div>
-                <p className="text-[11px] font-medium text-muted-foreground">Probability of breaching buffer</p>
-                <p className="text-base font-bold text-foreground">
-                  {breachProbPct}%
-                </p>
-              </div>
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground">Lowest projected balance</p>
+                  <p className="text-xl font-extrabold text-destructive tracking-tight font-mono">
+                    {formatINR(lowestBalPaise)}
+                  </p>
+                </div>
 
-              <div>
-                <p className="text-[11px] font-medium text-muted-foreground">Probability of negative balance</p>
-                <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">
-                  {negProbPct}%
-                </p>
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground">Probability of breaching buffer</p>
+                  <p className="text-base font-bold text-foreground">
+                    {breachProbPct}%
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground">Probability of negative balance</p>
+                  <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                    {negProbPct}%
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Upcoming Payments */}
@@ -784,41 +981,51 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="space-y-3 divide-y divide-border">
-              {upcomingList.map((item: any) => {
-                const IconComponent = item.icon || CreditCard;
-                return (
-                  <motion.div 
-                    whileHover={{ x: 3 }}
-                    transition={{ duration: 0.15 }}
-                    key={item.id} 
-                    className="pt-2.5 first:pt-0 flex items-center justify-between rounded-lg px-1.5 -mx-1.5 hover:bg-muted transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${item.iconBg}`}>
-                        <IconComponent className="w-4 h-4" />
+            {upcomingList.length === 0 ? (
+              <div className="py-12 flex flex-col items-center justify-center text-center text-muted-foreground space-y-2">
+                <CreditCard className="w-8 h-8 text-muted-foreground/40" />
+                <p className="text-xs font-semibold text-foreground">No Upcoming Bills Detected</p>
+                <p className="text-[11px] text-muted-foreground max-w-xs">
+                  Recurring cadence clustering will automatically surface rent, EMIs, and bills once detected.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 divide-y divide-border">
+                {upcomingList.map((item: any) => {
+                  const IconComponent = item.icon || CreditCard;
+                  return (
+                    <motion.div 
+                      whileHover={{ x: 3 }}
+                      transition={{ duration: 0.15 }}
+                      key={item.id} 
+                      className="pt-2.5 first:pt-0 flex items-center justify-between rounded-lg px-1.5 -mx-1.5 hover:bg-muted transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${item.iconBg}`}>
+                          <IconComponent className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-foreground">{item.name}</p>
+                          <p className="text-[11px] text-muted-foreground">{item.date}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-foreground">{item.name}</p>
-                        <p className="text-[11px] text-muted-foreground">{item.date}</p>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xs font-bold text-foreground font-mono">
+                          {formatINR(item.amount_paise)}
+                        </span>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                          item.user_status === 'Auto'
+                            ? 'bg-primary/20 text-foreground'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {item.user_status}
+                        </span>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xs font-bold text-foreground font-mono">
-                        {formatINR(item.amount_paise)}
-                      </span>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                        item.user_status === 'Auto'
-                          ? 'bg-primary/20 text-foreground'
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {item.user_status}
-                      </span>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
@@ -888,7 +1095,7 @@ export default function DashboardPage() {
 
             <div className="grid grid-cols-2 gap-2 mt-3">
               {[
-                "Can I afford an ₹80,000 phone next month?",
+                "Can I afford an ₹80,000 purchase next month?",
                 "How much can I safely spend?",
                 "What if my salary decreases by 20%?",
                 "Can I afford a new EMI?"
@@ -918,30 +1125,40 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="space-y-3.5">
-              {anomaliesList.map((a: any) => (
-                <motion.div 
-                  whileHover={{ x: 3 }}
-                  transition={{ duration: 0.15 }}
-                  key={a.id} 
-                  className="flex items-start gap-3 rounded-lg p-1.5 -mx-1.5 hover:bg-muted transition-colors"
-                >
-                  <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center font-bold text-xs ${a.badgeBg}`}>
-                    {a.badge}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-foreground truncate">{a.type}</p>
-                      <span className="text-[10px] text-muted-foreground shrink-0">{a.time}</span>
+            {anomaliesList.length === 0 ? (
+              <div className="py-12 flex flex-col items-center justify-center text-center text-muted-foreground space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-primary" />
+                <p className="text-xs font-semibold text-foreground">No Anomalies Flagged</p>
+                <p className="text-[11px] text-muted-foreground max-w-xs">
+                  All transactions fall within standard mathematical variance parameters (Modified Z-Score &lt; 3.5).
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3.5">
+                {anomaliesList.map((a: any) => (
+                  <motion.div 
+                    whileHover={{ x: 3 }}
+                    transition={{ duration: 0.15 }}
+                    key={a.id} 
+                    className="flex items-start gap-3 rounded-lg p-1.5 -mx-1.5 hover:bg-muted transition-colors"
+                  >
+                    <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center font-bold text-xs ${a.badgeBg}`}>
+                      {a.badge}
                     </div>
-                    <p className="text-xs font-semibold text-foreground mt-0.5">
-                      <span className="font-mono">{formatINR(a.amount_paise)}</span> · <span className="text-muted-foreground font-medium">{a.merchant}</span>
-                    </p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{a.desc}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold text-foreground truncate">{a.type}</p>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{a.time}</span>
+                      </div>
+                      <p className="text-xs font-semibold text-foreground mt-0.5">
+                        <span className="font-mono">{formatINR(a.amount_paise)}</span> · <span className="text-muted-foreground font-medium">{a.merchant}</span>
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{a.desc}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -979,9 +1196,11 @@ export default function DashboardPage() {
 
               <motion.div whileHover={{ x: 2 }} className="flex items-center justify-between py-0.5">
                 <span className="flex items-center gap-2 text-muted-foreground">
-                  <AlertCircle className="w-4 h-4 text-amber-500" /> Transactions needing review
+                  <AlertCircle className={`w-4 h-4 ${health.transactions_needing_review > 0 ? 'text-amber-500' : 'text-primary'}`} /> Transactions needing review
                 </span>
-                <span className="font-bold text-destructive">{health.transactions_needing_review}</span>
+                <span className={`font-bold ${health.transactions_needing_review > 0 ? 'text-destructive' : 'text-foreground'}`}>
+                  {health.transactions_needing_review}
+                </span>
               </motion.div>
 
               <motion.div whileHover={{ x: 2 }} className="flex items-center justify-between py-0.5">
@@ -993,16 +1212,22 @@ export default function DashboardPage() {
 
               <motion.div whileHover={{ x: 2 }} className="flex items-center justify-between py-0.5">
                 <span className="flex items-center gap-2 text-muted-foreground">
-                  <CheckCircle2 className="w-4 h-4 text-primary" /> Forecast readiness
+                  <CheckCircle2 className={`w-4 h-4 ${health.forecast_readiness === 'Ready' ? 'text-primary' : 'text-amber-500'}`} /> Forecast readiness
                 </span>
-                <span className="font-semibold text-primary">{health.forecast_readiness}</span>
+                <span className={`font-semibold ${health.forecast_readiness === 'Ready' ? 'text-primary' : 'text-amber-500'}`}>
+                  {health.forecast_readiness}
+                </span>
               </motion.div>
             </div>
           </div>
 
           <div className="mt-4 p-2.5 bg-primary/10 border border-primary/20 rounded-lg flex items-start gap-2 text-[11px] text-foreground">
             <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-            <p>Your data looks good! Keep adding your latest statements for more accurate forecasts.</p>
+            <p>
+              {health.transactions_processed > 0
+                ? "Your statement data is reconciled and mathematically verified in integer paise."
+                : "No data reconciled yet. Ingest your bank statement to activate live tracking."}
+            </p>
           </div>
         </div>
       </motion.div>

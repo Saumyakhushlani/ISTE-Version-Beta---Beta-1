@@ -55,11 +55,8 @@ export default function LoginPage() {
       const res = await api.login(email.trim(), password);
       if (res && res.status === 'success') {
         setUser(res.user);
-        if (res.user.is_onboarded === false) {
-          router.push('/onboarding');
-        } else {
-          router.push('/dashboard');
-        }
+        // After login flow -> the first tab should be upload tab with animation
+        router.push('/upload');
       } else {
         setErrorMessage(res?.detail || 'Login failed. Please check your credentials.');
       }

@@ -23,9 +23,12 @@ function toQueryString(params?: Record<string, any>): string {
 
 export async function fetchFromApi<T = any>(endpoint: string, options?: RequestInit): Promise<T> {
   const isDirectAuth = endpoint.startsWith("/api/auth/") || endpoint.startsWith("/api/user/");
+  const cleanEndpoint = endpoint.replace(/^\/api\/proxy/, "");
   const url = isDirectAuth
     ? endpoint
-    : `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+    : typeof window !== "undefined"
+      ? `/api/proxy${cleanEndpoint.startsWith("/") ? cleanEndpoint : `/${cleanEndpoint}`}`
+      : `${process.env.FASTAPI_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}${cleanEndpoint.startsWith("/") ? cleanEndpoint : `/${cleanEndpoint}`}`;
   try {
     const res = await fetch(url, {
       ...options,
@@ -92,6 +95,17 @@ export const api = {
       body: form,
     });
   },
+
+  loadDemoStatement: (persona: 'aarav' | 'priya') => {
+    const form = new FormData();
+    form.append("persona", persona);
+    return fetchFromApi("/api/imports/demo-load", {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  getUploadedFiles: () => fetchFromApi("/api/imports/files"),
 
   // Transactions
   getTransactions: (

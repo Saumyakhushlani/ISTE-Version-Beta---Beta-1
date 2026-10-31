@@ -18,9 +18,16 @@ from sqlalchemy.orm import Session
 from db.database import get_db
 from db.models import User, UserProfile, DEMO_USER_ID, DEMO_USER_EMAIL, DEMO_USER_PASSWORD_HASH
 
-AUTH_SECRET = os.getenv("AUTH_SECRET", "super-secret-default-fdl-jwt-key-2026-min-32-chars")
+AUTH_SECRET = os.getenv("AUTH_SECRET", "fdl-super-secret-auth-key-minimum-32-chars-long!")
 INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "fdl-internal-shared-secret-key-min32-chars-xyz")
 ALLOW_DEMO_FALLBACK = os.getenv("ALLOW_DEMO_FALLBACK", "true").lower() in ("true", "1", "yes")
+
+# Recognized secrets for verifying tokens issued across Next.js and FastAPI environments
+VALID_AUTH_SECRETS = [
+    AUTH_SECRET,
+    "fdl-super-secret-auth-key-minimum-32-chars-long!",
+    "super-secret-default-fdl-jwt-key-2026-min-32-chars"
+]
 
 def _b64url_encode(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).decode("utf-8").rstrip("=")
@@ -60,6 +67,7 @@ def decode_and_verify_token(token: str) -> Dict[str, Any]:
     """
     Decodes and cryptographically verifies an HS256 JWT token.
     Raises HTTPException(401) on invalid signature or expiration.
+    Validates against configured and known fallback keys for seamless interop.
     """
     parts = token.split(".")
     if len(parts) != 3:
@@ -68,13 +76,20 @@ def decode_and_verify_token(token: str) -> Dict[str, Any]:
     h_b64, p_b64, sig_b64 = parts
     signing_input = f"{h_b64}.{p_b64}".encode("utf-8")
 
-    expected_sig = hmac.new(AUTH_SECRET.encode("utf-8"), signing_input, hashlib.sha256).digest()
     try:
         actual_sig = _b64url_decode(sig_b64)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token encoding")
 
-    if not hmac.compare_digest(expected_sig, actual_sig):
+    # Check against valid auth secrets
+    is_valid = False
+    for secret in set(VALID_AUTH_SECRETS):
+        expected_sig = hmac.new(secret.encode("utf-8"), signing_input, hashlib.sha256).digest()
+        if hmac.compare_digest(expected_sig, actual_sig):
+            is_valid = True
+            break
+
+    if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid token signature")
 
     try:

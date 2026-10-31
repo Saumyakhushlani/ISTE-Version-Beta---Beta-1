@@ -180,9 +180,14 @@ def parse_csv_statement(
             raw_amt_paise = parse_indian_amount_to_paise(row[col_map["amount"]])
             txn_type = row[col_map["txn_type"]].strip().upper()
             if raw_amt_paise is not None:
-                if any(dr in txn_type for dr in ("DEBIT", "DR", "DR.", "D", "OUT")):
+                clean_type = re.sub(r"[^A-Z]", "", txn_type)
+                if clean_type in ("DEBIT", "DR", "D", "OUT", "WITHDRAWAL", "W"):
                     amount_minor = -abs(raw_amt_paise)
-                elif any(cr in txn_type for cr in ("CREDIT", "CR", "CR.", "C", "IN")):
+                elif clean_type in ("CREDIT", "CR", "C", "IN", "DEPOSIT", "DEP"):
+                    amount_minor = abs(raw_amt_paise)
+                elif "DEBIT" in clean_type or "WITHDRAW" in clean_type or clean_type.startswith("DR"):
+                    amount_minor = -abs(raw_amt_paise)
+                elif "CREDIT" in clean_type or "DEPOSIT" in clean_type or clean_type.startswith("CR"):
                     amount_minor = abs(raw_amt_paise)
                 else:
                     amount_minor = raw_amt_paise
