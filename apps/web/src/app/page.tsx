@@ -35,6 +35,7 @@ import { FaqSection } from '@/components/ui/faq-section';
 import { FooterSection } from '@/components/ui/footer-section';
 import SplitText from '@/components/ui/split-text';
 import Integrations from '@/components/ui/integrations-4';
+import FinancialPipelineBeam from '@/components/ui/financial-pipeline-beam';
 import RuixenBentoCards from '@/components/ui/ruixen-bento-cards';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
 
@@ -157,6 +158,7 @@ export default function HomePage() {
               Overview
             </a>
             <a href="#how-it-helps" className="hover:text-foreground transition-colors whitespace-nowrap">How It Helps</a>
+            <a href="#pipeline" className="hover:text-foreground transition-colors whitespace-nowrap">Pipeline</a>
             <a href="#ingestion" className="hover:text-foreground transition-colors whitespace-nowrap">
               Bank Ingestion
             </a>
@@ -290,7 +292,7 @@ export default function HomePage() {
                 <div className="max-w-4xl px-4 text-center">
                   <SplitText
                     tag="h1"
-                    text="Know Exactly What You Can Afford."
+                    text="Your Complete Financial Advisor."
                     className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-center leading-[1.15] tracking-tight text-foreground block"
                     effect="rise"
                     splitType="chars"
@@ -323,8 +325,8 @@ export default function HomePage() {
                   transition={{ duration: 0.5, delay: 0.2 }}
                   className="text-sm sm:text-base text-center max-w-2xl px-6 mt-3 mb-6 text-muted-foreground leading-relaxed"
                 >
-                  The personal finance assistant that shows its work and proves every calculation.
-                  Zero LLM hallucinations, 5,000 Monte Carlo runs, and dynamic safety buffers.
+                  The intelligent financial advisor that proves every calculation and shows its work.
+                  Plan cash flows, detect anomalies, track recurring bills, and make confident purchase decisions—backed by 100% verifiable math.
                 </motion.p>
 
                 {/* CTA Action Buttons */}
@@ -737,6 +739,29 @@ export default function HomePage() {
         <RuixenBentoCards />
 
         {/* ========================================================
+            2.4 AUTOMATED TRANSACTION NORMALIZATION PIPELINE BEAM
+        ======================================================== */}
+        <section id="pipeline" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-border/60 bg-card/20">
+          <div className="max-w-6xl mx-auto space-y-12">
+            <div className="text-center max-w-3xl mx-auto">
+              <div className="text-xs font-bold uppercase tracking-widest text-primary mb-2 font-mono">
+                DATA CLEANING &amp; STREAM PIPELINE
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+                Automated Transaction Normalization &amp; Transfer Pairing
+              </h2>
+              <p className="text-sm text-muted-foreground mt-3 max-w-2xl mx-auto leading-relaxed">
+                Watch how noisy Indian UPI descriptions, internal account transfers, and statement discrepancies are parsed, cleaned, and reconciled.
+              </p>
+            </div>
+
+            <div className="w-full">
+              <FinancialPipelineBeam />
+            </div>
+          </div>
+        </section>
+
+        {/* ========================================================
             2.5 UNIVERSAL BANK & PAYMENT INGESTION
         ======================================================== */}
         <section id="ingestion" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-border/60 bg-card/20">
@@ -838,10 +863,10 @@ export default function HomePage() {
         <section className="py-20 px-6 sm:px-8 border-t border-border text-center bg-card">
           <div className="max-w-3xl mx-auto">
             <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
-              Ready to know exactly what you can afford?
+              Ready for a financial advisor you can truly trust?
             </h3>
             <p className="text-sm text-muted-foreground mt-3 max-w-xl mx-auto">
-              Experience personal finance intelligence that never hallucinates and shows its work step-by-step.
+              Experience complete financial intelligence that forecasts cash flows, tracks obligations, and proves every decision step-by-step.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3.5">
               <Link

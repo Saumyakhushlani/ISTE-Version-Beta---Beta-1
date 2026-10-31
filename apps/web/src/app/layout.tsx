@@ -12,8 +12,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'Financial Decision Lab | Personal Finance Assistant',
-  description: 'A personal finance assistant that shows its work and proves every calculation.',
+  title: 'Financial Decision Lab | Complete Financial Advisor',
+  description: 'Your complete personal financial advisor that shows its work, forecasts cash flow, and proves every calculation step-by-step.',
 };
 
 export default function RootLayout({
