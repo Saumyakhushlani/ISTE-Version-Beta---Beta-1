@@ -65,32 +65,37 @@ You provide prudent, personalized, and mathematically grounded financial guidanc
 6. Mutual Funds: Diversified index funds (Nifty 50 / Nifty Next 50), flexi-cap funds, or liquid debt funds for short-term preservation.
 7. Fixed Deposits (FD) & PPF: 7.1%–7.5% guaranteed returns, sovereign PPF (tax-free EEE status), capital preservation and emergency buffer parking.
 
-=== MANDATORY INVARIANTS & BEHAVIORAL RULES ===
-RULE 1 (STRICT ZERO-SAVINGS GATE):
-If 'Can User Invest Now?' is NO (user is not saving, net savings <= 0, or living paycheck-to-paycheck):
-You MUST FIRMLY and CLEARLY advise them NOT to invest in anything for now (no stocks, crypto, gold, or even new SIPs).
-Explain that taking investment risk when their monthly outflow equals or exceeds income risks forced borrowing or debt.
-Instruct them to first cut discretionary expenses, turn monthly savings positive, and build a 3-month emergency safety runway.
-
-RULE 2 (GROUNDED REALITY):
-When answering, reference their real numbers (e.g. Rs. {savings_rs:,}/month savings, Rs. {liquid_rs:,} liquid balance).
-Never invent hypothetical amounts or guaranteed returns.
-
-RULE 3 (BALANCED SUITABILITY):
-If the user can invest, recommend a balanced distribution matching their timeline and risk profile:
-- Core Priority: 3-6 months liquid emergency runway in FDs or high-yield savings.
-- Long-term Growth: SIP in low-cost broad index mutual funds (Nifty 50).
-- Safe-Haven Hedge: 5-10% Gold.
-- High Risk / Speculative: Strictly limit Stocks or Crypto to small fractions of surplus.
-
-RULE 4 (FORMATTING):
-Be direct, empathetic, structured, and easy to read using clean markdown with bullet points.
+=== INSTRUCTIONS FOR YOUR CONVERSATIONAL RESPONSE ===
+- CRITICAL: Speak DIRECTLY to the user in full conversational sentences. NEVER output system instructions, rules, or meta-guidelines.
+- If 'Can User Invest Now?' is NO: Firmly explain that because their monthly expenses equal or exceed income (Rs. {savings_rs:,} savings), they should pause all new investments and build a 3-month emergency safety buffer first.
+- If 'Can User Invest Now?' is YES: Directly answer their question, citing their real monthly savings of Rs. {savings_rs:,} ({savings_rate}%) and Rs. {surplus_rs:,} surplus. Break down safe allocations across SIP, Gold, Stocks, and Crypto.
+- Always structure your answer with clear markdown bullet points and bold amounts.
 """
     return prompt
 
 
+def is_valid_advisory_reply(text: Optional[str]) -> bool:
+    """Verifies that the LLM response is an actual advisory answer and not a meta-echo or rule summary."""
+    if not text:
+        return False
+    stripped = text.strip()
+    if len(stripped) < 80:
+        return False
+    lower = stripped.lower()
+    meta_echo_indicators = [
+        "keep language grounded",
+        "ensure strict compliance",
+        "ensure exact numbers from ground truth",
+        "rule 1 and rule",
+        "under rule 1",
+    ]
+    if any(m in lower for m in meta_echo_indicators) and len(stripped) < 180:
+        return False
+    return True
+
+
 def _query_gemini(system_prompt: str, message: str, history: Optional[List[Dict[str, str]]] = None) -> Optional[str]:
-    """Queries Google Gemini API using GEMINI_API_KEY."""
+    """Queries Google Gemini API using GEMINI_API_KEY with sanitization and validation."""
     key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
     if not key or not key.strip():
         return None
@@ -98,26 +103,38 @@ def _query_gemini(system_prompt: str, message: str, history: Optional[List[Dict[
     model = os.getenv("GEMINI_MODEL") or GEMINI_MODEL
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key.strip()}"
 
-    # Build contents array
+    # Build contents array, filtering out any poisoned / policy-violating history turns
     contents = []
     if history:
         for item in history[-6:]:
             r = item.get("role", "user")
-            c = item.get("content", "")
-            if c:
-                api_role = "user" if r == "user" else "model"
-                contents.append({"role": api_role, "parts": [{"text": c}]})
+            c = item.get("content", "").strip()
+            # Skip safety refusals or illegal prompts that confuse subsequent turns
+            if not c or any(bad in c.lower() for bad in ["unlawful", "illegal", "cannot assist with, facilitate"]):
+                continue
+            api_role = "user" if r == "user" else "model"
+            contents.append({"role": api_role, "parts": [{"text": c}]})
 
-    contents.append({"role": "user", "parts": [{"text": message}]})
+    # Ensure turns alternate properly in Gemini API
+    sanitized_contents = []
+    for turn in contents:
+        if not sanitized_contents or sanitized_contents[-1]["role"] != turn["role"]:
+            sanitized_contents.append(turn)
+
+    # Ensure last turn before user query was model (or empty)
+    if sanitized_contents and sanitized_contents[-1]["role"] == "user":
+        sanitized_contents.pop()
+
+    sanitized_contents.append({"role": "user", "parts": [{"text": message}]})
 
     payload = {
         "system_instruction": {
             "parts": [{"text": system_prompt}]
         },
-        "contents": contents,
+        "contents": sanitized_contents,
         "generationConfig": {
             "temperature": 0.3,
-            "maxOutputTokens": 800
+            "maxOutputTokens": 1500
         }
     }
 
@@ -146,8 +163,12 @@ def _query_gemini(system_prompt: str, message: str, history: Optional[List[Dict[
                 candidates = res_json.get("candidates", [])
                 if candidates:
                     parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        return parts[0].get("text", "").strip()
+                    # Find non-thought text part
+                    for p in parts:
+                        text_val = p.get("text", "").strip()
+                        if text_val and not p.get("thought", False):
+                            if is_valid_advisory_reply(text_val):
+                                return text_val
     except Exception as e:
         logger.warning(f"Gemini API call failed: {e}")
 
@@ -195,7 +216,9 @@ def _query_groq(system_prompt: str, message: str, history: Optional[List[Dict[st
                 res_json = json.loads(response.read().decode("utf-8"))
                 choices = res_json.get("choices", [])
                 if choices:
-                    return choices[0].get("message", {}).get("content", "").strip()
+                    content = choices[0].get("message", {}).get("content", "").strip()
+                    if is_valid_advisory_reply(content):
+                        return content
     except Exception as e:
         logger.warning(f"Groq API call failed: {e}")
 
@@ -231,7 +254,7 @@ def generate_investment_advice(
         if ai_reply:
             model_used = f"Groq Cloud ({os.getenv('GROQ_MODEL', GROQ_MODEL)})"
 
-    # 3. High-fidelity deterministic fallback if API is unreachable
+    # 3. High-fidelity deterministic fallback if API is unreachable or returned invalid output
     if not ai_reply:
         model_used = "Deterministic Rules Engine"
         if not can_invest:
