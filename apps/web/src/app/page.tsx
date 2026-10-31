@@ -33,6 +33,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { ContainerScroll } from '@/components/ui/container-scroll-animation';
 import { FaqSection } from '@/components/ui/faq-section';
 import { FooterSection } from '@/components/ui/footer-section';
+import SplitText from '@/components/ui/split-text';
 import Integrations from '@/components/ui/integrations-4';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
 
@@ -283,16 +284,35 @@ export default function HomePage() {
                   </Link>
                 </motion.div>
 
-                {/* Master Headline */}
-                <motion.h1
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.1 }}
-                  className="text-4xl sm:text-5xl lg:text-6xl font-bold text-center max-w-4xl px-4 leading-[1.12] tracking-tight text-foreground"
-                >
-                  Can I afford this next month? <br className="hidden sm:inline" />
-                  <span className="text-primary">Proven step-by-step.</span>
-                </motion.h1>
+                {/* Master Headline with SplitText Animation */}
+                <div className="max-w-4xl px-4 text-center">
+                  <SplitText
+                    tag="h1"
+                    text="Know Exactly What You Can Afford."
+                    className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-center leading-[1.15] tracking-tight text-foreground block"
+                    effect="rise"
+                    splitType="chars"
+                    delay={30}
+                    duration={0.8}
+                    trigger="load"
+                    hoverEffect="lift"
+                    textAlign="center"
+                  />
+                  <div className="mt-1 sm:mt-2">
+                    <SplitText
+                      tag="span"
+                      text="Proven Step-by-Step."
+                      className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-center text-primary leading-[1.15] tracking-tight block"
+                      effect="blur"
+                      splitType="chars"
+                      delay={35}
+                      duration={0.9}
+                      trigger="load"
+                      hoverEffect="lift"
+                      textAlign="center"
+                    />
+                  </div>
+                </div>
 
                 {/* Subtitle */}
                 <motion.p
