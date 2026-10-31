@@ -4,6 +4,21 @@ Provides deterministic finance calculations, multi-bank statement parsing, ML ca
 upcoming payment calendars, anomaly detection, and evidence-linked affordability decisioning.
 """
 
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Auto-load .env and .env.local from project root or workspace
+for candidate in [
+    Path(".env.local"),
+    Path(".env"),
+    Path(__file__).resolve().parent / ".env.local",
+    Path(__file__).resolve().parent / ".env",
+    Path(__file__).resolve().parent.parent.parent / ".env.local",
+    Path(__file__).resolve().parent.parent.parent / ".env",
+]:
+    if candidate.exists():
+        load_dotenv(candidate, override=False)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager

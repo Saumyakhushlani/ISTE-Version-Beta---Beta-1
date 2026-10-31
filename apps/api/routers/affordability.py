@@ -211,6 +211,23 @@ def evaluate_affordability(
 
     return decision
 
+@router.post("/parse")
+def parse_natural_language_affordability_query(
+    payload: NaturalLanguageAsk,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Parses a natural language question via Groq NLU (or heuristic fallback)
+    and returns the extracted structured parameters and entity chips.
+    """
+    parsed_params = parse_natural_language_query(payload.question)
+    return {
+        "query": payload.question,
+        "parsed": parsed_params,
+        "parsed_by": parsed_params.get("parsed_by", "groq"),
+        "model_used": parsed_params.get("model_used")
+    }
+
 @router.post("/ask")
 def natural_language_ask(
     payload: NaturalLanguageAsk,

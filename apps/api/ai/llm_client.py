@@ -1,9 +1,10 @@
 """
 Multi-Provider LLM Client for Financial Decision Lab (FDL).
 Supports:
-  1. Ollama Local-First (zero-egress, http://localhost:11434)
-  2. Gemini API (if GEMINI_API_KEY is provided)
-  3. Deterministic template fallback
+  1. Groq Cloud (ultra-fast inference, e.g. openai/gpt-oss-20b or llama-3.1-8b-instant)
+  2. Ollama Local-First (zero-egress, http://localhost:11434)
+  3. Gemini API (if GEMINI_API_KEY is provided)
+  4. Deterministic template fallback
 Audited strictly by the Number-Verification Guard.
 """
 
@@ -11,14 +12,31 @@ import os
 import json
 import urllib.request
 import urllib.error
+from pathlib import Path
 from typing import Dict, Any, Optional
+from dotenv import load_dotenv
 
 from ai.guard import verify_narrative_numbers
 from middleware.egress import record_egress
 
+# Attempt loading .env.local / .env
+for candidate in [
+    Path(".env.local"),
+    Path(".env"),
+    Path(__file__).resolve().parent.parent / ".env.local",
+    Path(__file__).resolve().parent.parent / ".env",
+    Path(__file__).resolve().parent.parent.parent.parent / ".env.local",
+    Path(__file__).resolve().parent.parent.parent.parent / ".env",
+]:
+    if candidate.exists():
+        load_dotenv(candidate, override=False)
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
 
 def build_prompt_from_decision(decision: Dict[str, Any]) -> str:
     """
@@ -42,6 +60,56 @@ def build_prompt_from_decision(decision: Dict[str, Any]) -> str:
     )
     return prompt
 
+
+def query_groq_api(prompt: str) -> Optional[str]:
+    """
+    Queries Groq endpoint with fast JSON/text completion.
+    """
+    key = os.getenv("GROQ_API_KEY") or GROQ_API_KEY
+    if not key or not key.strip():
+        return None
+
+    model = os.getenv("GROQ_MODEL") or GROQ_MODEL
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    req_body = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are a personal finance assistant. Adhere strictly to the numbers provided. Do not invent any figures."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.2,
+        "max_tokens": 300
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        url,
+        data=req_body,
+        headers={
+            "Authorization": f"Bearer {key.strip()}",
+            "Content-Type": "application/json",
+            "User-Agent": "FinancialDecisionLab/1.0"
+        },
+        method="POST"
+    )
+
+    try:
+        try:
+            record_egress(purpose="groq_cloud_narration", destination="api.groq.com", payload={"model": model}, mode="cloud")
+        except Exception:
+            pass
+
+        with urllib.request.urlopen(req, timeout=6) as response:
+            if response.status == 200:
+                res_json = json.loads(response.read().decode("utf-8"))
+                choices = res_json.get("choices", [])
+                if choices:
+                    return choices[0].get("message", {}).get("content", "").strip()
+    except Exception:
+        return None
+
+    return None
+
+
 def query_ollama(prompt: str) -> Optional[str]:
     """
     Queries local Ollama endpoint (zero cloud egress).
@@ -62,26 +130,26 @@ def query_ollama(prompt: str) -> Optional[str]:
     )
 
     try:
-        # Record local audit event
         record_egress(purpose="ollama_local_narration", destination="localhost", payload={"model": OLLAMA_MODEL}, mode="local")
         with urllib.request.urlopen(req, timeout=5) as response:
             if response.status == 200:
                 res_json = json.loads(response.read().decode("utf-8"))
                 return res_json.get("response", "").strip()
     except Exception:
-        # Ollama not running or timeout; return None to trigger fallback
         return None
 
     return None
+
 
 def query_gemini_api(prompt: str) -> Optional[str]:
     """
     Queries Gemini REST endpoint if GEMINI_API_KEY is configured.
     """
-    if not GEMINI_API_KEY:
+    key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
+    if not key:
         return None
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
     req_body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 300}
@@ -109,9 +177,10 @@ def query_gemini_api(prompt: str) -> Optional[str]:
 
     return None
 
+
 def generate_guarded_llm_narration(decision: Dict[str, Any]) -> Optional[str]:
     """
-    Tries Ollama first, then Gemini API if configured.
+    Tries Groq first (if GROQ_API_KEY is present), then Ollama, then Gemini API.
     Audits the generated response through the Number-Verification Guard.
     Returns valid narrative, or None if rejected/unavailable.
     """
@@ -124,18 +193,20 @@ def generate_guarded_llm_narration(decision: Dict[str, Any]) -> Optional[str]:
         "confidence_score": decision.get("verdict", {}).get("confidence", {}).get("score")
     }
 
-    # 1. Try local Ollama first
-    candidate = query_ollama(prompt)
+    # 1. Try Groq first
+    candidate = query_groq_api(prompt)
     if not candidate:
-        # 2. Try Gemini API
+        # 2. Try local Ollama
+        candidate = query_ollama(prompt)
+    if not candidate:
+        # 3. Try Gemini API
         candidate = query_gemini_api(prompt)
 
     if candidate:
-        # 3. Number-Verification Guard Audit
+        # Number-Verification Guard Audit
         if verify_narrative_numbers(candidate, ledger, extra_meta):
             return candidate
         else:
-            # Rejection due to unverified number
             return None
 
     return None

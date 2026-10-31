@@ -267,9 +267,15 @@ export default function DecisionLabPage() {
               Ask Natural Language Question
             </span>
           </div>
-          <span className="text-[11px] font-mono text-muted-foreground">
-            Rule & Regex Parser · Fallback Safe
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+              <Zap className="w-3 h-3 text-amber-500" />
+              Groq NLU Active
+            </span>
+            <span className="text-[11px] font-mono text-muted-foreground hidden sm:inline">
+              Neural Parser · Fallback Safe
+            </span>
+          </div>
         </div>
 
         <form onSubmit={handleNaturalLanguageSubmit} className="relative">
@@ -334,20 +340,39 @@ export default function DecisionLabPage() {
 
         {/* Parsed Entity Confirmation Chips */}
         {parsedEntities && (
-          <div className="pt-2 border-t border-border flex items-center gap-2 flex-wrap text-[11px] font-mono">
-            <span className="text-muted-foreground font-sans font-semibold">Parsed Entities:</span>
-            <span className="px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-              Item: {parsedEntities.label || label}
-            </span>
-            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
-              {formatINR(parsedEntities.purchase_amount_minor || rupeesToPaise(parseFloat(purchaseRs || '0')))}
-            </span>
-            <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-              {parsedEntities.timing === 'this_month' ? 'This Month' : 'Next Month Horizon'}
-            </span>
-            <span className="px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 uppercase">
-              {parsedEntities.payment_type === 'emi' ? `${parsedEntities.emi_months || emiMonths}-Mo EMI` : 'Upfront Cash'}
-            </span>
+          <div className="pt-2 border-t border-border flex items-center justify-between flex-wrap gap-2 text-[11px] font-mono">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-muted-foreground font-sans font-semibold">Parsed Entities:</span>
+              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                Item: {parsedEntities.label || label}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
+                {formatINR(parsedEntities.purchase_amount_minor || rupeesToPaise(parseFloat(purchaseRs || '0')))}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                {parsedEntities.timing === 'this_month' ? 'This Month' : 'Next Month Horizon'}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 uppercase">
+                {parsedEntities.payment_type === 'emi' ? `${parsedEntities.emi_months || emiMonths}-Mo EMI` : 'Upfront Cash'}
+              </span>
+            </div>
+
+            {parsedEntities.parsed_by && (
+              <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold flex items-center gap-1 border ${
+                parsedEntities.parsed_by === 'groq'
+                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                  : 'bg-muted text-muted-foreground border-border'
+              }`}>
+                {parsedEntities.parsed_by === 'groq' ? (
+                  <>
+                    <Zap className="w-2.5 h-2.5 text-amber-500" />
+                    <span>Groq NLU ({parsedEntities.model_used || 'openai/gpt-oss-20b'})</span>
+                  </>
+                ) : (
+                  <span>Rule Engine Fallback</span>
+                )}
+              </span>
+            )}
           </div>
         )}
       </motion.div>

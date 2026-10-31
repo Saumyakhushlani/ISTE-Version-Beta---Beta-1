@@ -294,6 +294,27 @@ export const api = {
       body: JSON.stringify({ question }),
     }),
 
+  parseAffordabilityQuery: (question: string) =>
+    fetchFromApi<{
+      query: string;
+      parsed: {
+        purchase_amount_minor: number;
+        label: string;
+        timing: string;
+        payment_type: string;
+        emi_months: number | null;
+        emi_interest_rate_pct: number | null;
+        parsed_by?: string;
+        model_used?: string;
+      };
+      parsed_by: string;
+      model_used?: string;
+    }>("/api/affordability/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    }),
+
   // What-If Scenarios
   getScenarioRecurringOptions: () =>
     fetchFromApi("/api/scenarios/recurring-options"),
