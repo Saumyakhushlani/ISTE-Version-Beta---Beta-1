@@ -30,7 +30,53 @@ import {
   X
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
-// Exported technical architecture components are hosted at /how-it-works
+import Integrations from '@/components/ui/integrations-4';
+import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
+
+const FDL_PILLARS: FeatureType[] = [
+  {
+    title: '100% Local-First & Air-Gapped',
+    icon: Lock,
+    badge: 'CORE USP · PRIVACY',
+    description:
+      'Runs completely offline on your local device. Statements, transactions, and balances remain strictly in your local SQLite database (fdl.db). Zero cloud transmission, zero telemetry, absolute data privacy.',
+  },
+  {
+    title: 'Deterministic Integer Paise Math',
+    icon: Cpu,
+    badge: '0 FLOAT DRIFT',
+    description:
+      'All calculations are executed in integer paise (1 INR = 100 Paise). The LLM is completely isolated from computing balances, safety buffers, or affordability verdicts.',
+  },
+  {
+    title: '5,000 Monte Carlo Simulations',
+    icon: TrendingUp,
+    badge: 'SEED=42',
+    description:
+      'Simulates 5,000 daily spend trajectories under random shocks to establish reproducible P10 (conservative), P50 (median), and P90 headroom probability percentiles.',
+  },
+  {
+    title: 'Dynamic Volatility Buffer',
+    icon: ShieldCheck,
+    badge: 'ADAPTIVE',
+    description:
+      'Measures income volatility via Coefficient of Variation. Freelancers with irregular credits automatically receive an elevated safety reserve multiplier (up to 2.0x essentials).',
+  },
+  {
+    title: '8-Step Reasoning Ledger',
+    icon: Layers,
+    badge: 'AUDITABLE',
+    description:
+      'Every verdict produces an immutable mathematical audit trail linking starting balance, expected cash flows, recurring obligations, safety buffers, and final headroom.',
+  },
+  {
+    title: 'Number-Verification Guard',
+    icon: FileCheck,
+    badge: 'ANTI-HALLUCINATION',
+    description:
+      'When generating natural English narration, a strict regex guard validates every numerical figure cited against the Reasoning Ledger. Any unverified figure defaults to template math.',
+  },
+];
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -77,6 +123,12 @@ export default function HomePage() {
           <div className="hidden lg:flex items-center justify-center gap-6 xl:gap-8 text-sm font-medium text-muted-foreground shrink-0">
             <a href="#overview" className="hover:text-foreground transition-colors whitespace-nowrap">
               Overview
+            </a>
+            <a href="#ingestion" className="hover:text-foreground transition-colors whitespace-nowrap">
+              Bank Ingestion
+            </a>
+            <a href="#pillars" className="hover:text-foreground transition-colors whitespace-nowrap">
+              Pillars &amp; Math
             </a>
             <Link href="/how-it-works" className="hover:text-foreground transition-colors whitespace-nowrap font-medium text-emerald-600 dark:text-emerald-400">
               How It Works &amp; Architecture
@@ -126,6 +178,20 @@ export default function HomePage() {
               className="block text-sm font-medium text-foreground py-1"
             >
               Overview
+            </a>
+            <a
+              href="#ingestion"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-foreground py-1"
+            >
+              Bank Ingestion
+            </a>
+            <a
+              href="#pillars"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-foreground py-1"
+            >
+              Pillars &amp; Math
             </a>
             <Link
               href="/how-it-works"
@@ -629,6 +695,46 @@ export default function HomePage() {
               </div>
             </motion.div>
           </div>
+        </section>
+
+        {/* ========================================================
+            2.5 UNIVERSAL BANK & PAYMENT INGESTION
+        ======================================================== */}
+        <section id="ingestion" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-border/60 bg-card/20">
+          <div className="max-w-6xl mx-auto">
+            <Integrations />
+          </div>
+        </section>
+
+        {/* ========================================================
+            2.6 6 CORE ARCHITECTURAL INVARIANTS & PILLARS
+        ======================================================== */}
+        <section id="pillars" className="py-24 px-6 sm:px-8 lg:px-12 max-w-6xl mx-auto border-t border-border/60">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-primary mb-2 font-mono">
+              ENGINEERING GUARANTEES
+            </h2>
+            <h3 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+              6 Core Invariants Built Into Every Calculation
+            </h3>
+            <p className="text-sm text-muted-foreground mt-3 max-w-xl mx-auto leading-relaxed">
+              Why Financial Decision Lab is fundamentally different from generic LLM chat wrappers.
+            </p>
+          </div>
+
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: '-40px' }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
+            {FDL_PILLARS.map((pillar) => (
+              <motion.div key={pillar.title} variants={itemVariants}>
+                <FeatureCard feature={pillar} />
+              </motion.div>
+            ))}
+          </motion.div>
         </section>
 
         {/* ========================================================
