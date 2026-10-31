@@ -280,7 +280,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.3 }}
-                  className="flex items-center gap-3.5 relative z-10 mb-2"
+                  className="flex items-center gap-3.5 relative z-10 mb-6 sm:mb-8"
                 >
                   <Link
                     href="/login"
@@ -299,10 +299,10 @@ export default function HomePage() {
               </div>
             }
           >
-            <div className="h-full w-full overflow-y-auto">
+            <div className="h-full w-full overflow-hidden select-none">
               <div className="flex flex-col lg:flex-row min-h-[580px]">
                 {/* ----------------- Mini-Sidebar ----------------- */}
-                <div className="w-full lg:w-56 bg-sidebar border-r border-sidebar-border p-4 flex flex-col justify-between shrink-0">
+                <div className="w-full lg:w-52 bg-sidebar border-r border-sidebar-border p-3.5 flex flex-col justify-between shrink-0">
                   <div className="space-y-6">
                     {/* Brand */}
                     <div className="flex items-center gap-2.5 px-2 py-1">
@@ -464,7 +464,7 @@ export default function HomePage() {
                       </div>
 
                       {/* SVG Line & Area Graphic */}
-                      <div className="w-full h-40 pt-2 relative">
+                      <div className="w-full h-28 pt-1 relative">
                         <svg className="w-full h-full overflow-visible" viewBox="0 0 400 120" preserveAspectRatio="none">
                           <defs>
                             <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">

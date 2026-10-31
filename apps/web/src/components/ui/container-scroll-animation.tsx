@@ -37,11 +37,11 @@ export const ContainerScroll = ({
 
   return (
     <div
-      className="h-[55rem] sm:h-[65rem] md:h-[78rem] flex flex-col items-center justify-start relative pt-3 sm:pt-6 md:pt-8 px-2 sm:px-6 md:px-12 overflow-hidden"
+      className="h-[58rem] sm:h-[68rem] md:h-[82rem] flex flex-col items-center justify-start relative pt-6 sm:pt-10 md:pt-12 px-2 sm:px-6 md:px-12 overflow-hidden"
       ref={containerRef}
     >
       <div
-        className="pt-0 sm:pt-2 pb-12 sm:pb-20 w-full relative"
+        className="pt-2 sm:pt-4 pb-12 sm:pb-20 w-full relative"
         style={{
           perspective: "1000px",
         }}
@@ -86,7 +86,7 @@ export const Card = ({
         boxShadow:
           "0 0 #0000004d, 0 9px 20px #0000004a, 0 37px 37px #00000042, 0 84px 50px #00000026, 0 149px 60px #0000000a, 0 233px 65px #00000003",
       }}
-      className="max-w-6xl -mt-8 sm:-mt-12 mx-auto h-[34rem] sm:h-[40rem] md:h-[44rem] w-full border-2 sm:border-4 border-border/80 dark:border-white/10 p-2 sm:p-4 bg-card/95 dark:bg-zinc-950/90 rounded-[24px] sm:rounded-[32px] shadow-2xl transition-colors"
+      className="max-w-6xl mt-4 sm:mt-8 mx-auto h-[36rem] sm:h-[42rem] md:h-[48rem] w-full border-2 sm:border-4 border-border/80 dark:border-white/10 p-2 sm:p-4 bg-card/95 dark:bg-zinc-950/90 rounded-[24px] sm:rounded-[32px] shadow-2xl transition-colors"
     >
       <div className="h-full w-full overflow-hidden rounded-xl sm:rounded-2xl bg-card border border-border/60 text-card-foreground">
         {children}
