@@ -531,4 +531,13 @@ def get_investment_advice(
         investment_label=req.investment_label or "Investment",
         user_id=current_user.id
     )
+    try:
+        from ai.narrator import generate_guarded_liquidity_narration
+        humanized = generate_guarded_liquidity_narration(plan)
+        if humanized:
+            plan["advice_text"] = humanized
+            plan["recommendation"] = humanized
+    except Exception:
+        pass
+
     return plan

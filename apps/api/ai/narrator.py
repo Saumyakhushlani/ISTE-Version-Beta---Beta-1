@@ -1,10 +1,10 @@
 """
 Narrator for Financial Decision Lab (FDL).
-Translates structured Reasoning Ledger into plain, comforting English narration.
+Translates structured Reasoning Ledger and Multi-Bank Liquidity plans into plain, comforting English narration.
 Guarded by Number-Verification Guard to prevent hallucination.
 """
 from typing import Dict, Any, List, Optional
-from ai.guard import verify_narrative_numbers
+from ai.guard import verify_narrative_numbers, verify_liquidity_numbers
 
 def build_deterministic_narrative(decision: Dict[str, Any]) -> str:
     """
@@ -60,7 +60,7 @@ def generate_guarded_narration(decision: Dict[str, Any], candidate_llm_text: Opt
     """
     If candidate_llm_text is provided, verifies all numbers against the ledger.
     If valid, returns the LLM text; otherwise falls back to deterministic template.
-    If candidate_llm_text is None, tries to query local Ollama / Gemini and verifies output.
+    If candidate_llm_text is None, tries to query Groq / Ollama / Gemini and verifies output.
     """
     ledger = decision.get("ledger", [])
     extra_meta = {
@@ -86,3 +86,26 @@ def generate_guarded_narration(decision: Dict[str, Any], candidate_llm_text: Opt
 
     # Safe deterministic fallback
     return build_deterministic_narrative(decision)
+
+
+def generate_guarded_liquidity_narration(plan: Dict[str, Any], candidate_llm_text: Optional[str] = None) -> str:
+    """
+    Generates humanized Groq explanation for Multi-Bank Fund Sourcing,
+    guaranteed by verify_liquidity_numbers to prevent hallucinations.
+    """
+    default_text = plan.get("advice_text") or plan.get("recommendation", "")
+
+    if candidate_llm_text:
+        if verify_liquidity_numbers(candidate_llm_text, plan):
+            return candidate_llm_text
+        return default_text
+
+    try:
+        from ai.llm_client import generate_guarded_liquidity_llm_narration
+        llm_text = generate_guarded_liquidity_llm_narration(plan)
+        if llm_text:
+            return llm_text
+    except Exception:
+        pass
+
+    return default_text

@@ -287,8 +287,8 @@ export default function DashboardPage() {
       className="p-6 space-y-6 max-w-[1600px] mx-auto text-foreground"
     >
       {/* HEADER: TITLE, RECONCILIATION BADGE & CONTROLS */}
-      <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-border">
-        <div>
+      <motion.div variants={itemVariants} className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2 border-b border-border">
+        <div className="shrink-0">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Executive Financial Analysis</h1>
             <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
@@ -304,31 +304,31 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Filter Controls & Upload Shortcut */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Filter Controls & Upload Shortcut in one horizontal line */}
+        <div className="flex items-center gap-2 shrink-0 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
           <Link
             href="/upload"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition shadow-sm"
+            className="h-9 inline-flex items-center gap-1.5 px-2.5 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition shadow-xs shrink-0 whitespace-nowrap"
           >
             <UploadCloud className="w-3.5 h-3.5 text-primary" />
-            Upload New Statement
+            <span>Upload New Statement</span>
           </Link>
 
           <button
             type="button"
             onClick={() => setIsLiquidityModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition shadow-sm cursor-pointer"
+            className="h-9 inline-flex items-center gap-1.5 px-2.5 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition shadow-xs cursor-pointer shrink-0 whitespace-nowrap"
           >
             <Coins className="w-3.5 h-3.5 text-amber-500" />
             <span>Liquidity & Sourcing Advisor</span>
           </button>
 
           {/* Account Filter */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <select
               value={activeAccount}
               onChange={(e) => setActiveAccount(e.target.value)}
-              className="appearance-none bg-card border border-border text-xs font-semibold text-foreground pl-3 pr-8 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary shadow-sm cursor-pointer"
+              className="h-9 appearance-none bg-card border border-border text-xs font-semibold text-foreground pl-3 pr-8 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary shadow-xs cursor-pointer"
             >
               <option value="all">All Accounts ({accounts.length})</option>
               {accounts.map((a: any) => (
@@ -337,38 +337,31 @@ export default function DashboardPage() {
                 </option>
               ))}
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground absolute right-2.5 top-3 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
-          {/* Time Range Filter */}
-          <div className="flex bg-muted p-0.5 rounded-xl border border-border text-xs font-semibold">
-            {[
-              { id: '3m', label: '3M' },
-              { id: '6m', label: '6M' },
-              { id: '12m', label: '12M' },
-              { id: 'all', label: 'All' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTimeRange(t.id)}
-                className={`px-3 py-1.5 rounded-lg transition ${
-                  activeTimeRange === t.id
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          {/* Time Period Filter Dropdown */}
+          <div className="relative shrink-0">
+            <select
+              value={activeTimeRange}
+              onChange={(e) => setActiveTimeRange(e.target.value)}
+              className="h-9 appearance-none bg-card border border-border text-xs font-semibold text-foreground pl-3 pr-8 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary shadow-xs cursor-pointer"
+            >
+              <option value="all">All Time</option>
+              <option value="3m">3 Months</option>
+              <option value="6m">6 Months</option>
+              <option value="12m">12 Months</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           {/* Refresh Button */}
           <button
             onClick={() => fetchDashboard(activeAccount, activeTimeRange, selectedFileIds)}
             title="Refresh Analysis"
-            className="p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted shadow-sm transition"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-xl border border-border bg-card text-foreground hover:bg-muted shadow-xs transition shrink-0 cursor-pointer"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-primary' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-primary' : ''}`} />
           </button>
         </div>
       </motion.div>

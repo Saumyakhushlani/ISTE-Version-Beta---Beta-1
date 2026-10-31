@@ -366,7 +366,7 @@ export default function DecisionLabPage() {
                 {parsedEntities.parsed_by === 'groq' ? (
                   <>
                     <Zap className="w-2.5 h-2.5 text-amber-500" />
-                    <span>Groq NLU ({parsedEntities.model_used || 'openai/gpt-oss-20b'})</span>
+                    <span>Groq NLU ({parsedEntities.model_used || 'llama-3.3-70b-versatile'})</span>
                   </>
                 ) : (
                   <span>Rule Engine Fallback</span>

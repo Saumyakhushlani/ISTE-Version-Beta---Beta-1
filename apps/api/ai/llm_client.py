@@ -1,7 +1,7 @@
 """
 Multi-Provider LLM Client for Financial Decision Lab (FDL).
 Supports:
-  1. Groq Cloud (ultra-fast inference, e.g. openai/gpt-oss-20b or llama-3.1-8b-instant)
+  1. Groq Cloud (ultra-fast inference via llama-3.3-70b-versatile or llama-3.1-8b-instant)
   2. Ollama Local-First (zero-egress, http://localhost:11434)
   3. Gemini API (if GEMINI_API_KEY is provided)
   4. Deterministic template fallback
@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 
-from ai.guard import verify_narrative_numbers
+from ai.guard import verify_narrative_numbers, verify_liquidity_numbers
 from middleware.egress import record_egress
 
 # Attempt loading .env.local / .env
@@ -32,7 +32,7 @@ for candidate in [
         load_dotenv(candidate, override=False)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -57,6 +57,53 @@ def build_prompt_from_decision(decision: Dict[str, Any]) -> str:
         f"- Lowest Projected Balance: ₹{lowest.get('p50_minor', 0) // 100:,} on {lowest.get('date')}\n"
         f"- Breach Probability: {int(round(verdict.get('breach_probability', 0) * 100))}%\n\n"
         f"CRITICAL RULE: Do NOT calculate or invent any new numbers. Cite ONLY the numbers listed above.\n"
+    )
+    return prompt
+
+
+def build_prompt_from_liquidity_plan(plan: Dict[str, Any]) -> str:
+    """
+    Constructs a prompt for multi-bank fund sourcing and liquidity allocation.
+    """
+    feasible = plan.get("feasible", False)
+    target_paise = plan.get("target_amount_paise", 0)
+    target_rs = target_paise // 100
+    combined_paise = plan.get("combined_liquid_paise", 0)
+    combined_rs = combined_paise // 100
+    safe_surplus_paise = plan.get("total_safe_surplus_paise", 0)
+    safe_surplus_rs = safe_surplus_paise // 100
+    allocation = plan.get("allocation", [])
+    transfers = plan.get("transfers_plan", [])
+    accounts = plan.get("accounts_surplus_breakdown", [])
+
+    acct_lines = []
+    for a in accounts:
+        bal_rs = a.get("current_balance_paise", 0) // 100
+        bills_rs = a.get("upcoming_commitments_paise", 0) // 100
+        buf_rs = a.get("safety_buffer_paise", 0) // 100
+        surplus_rs = a.get("available_surplus_paise", 0) // 100
+        acct_lines.append(
+            f"- {a.get('bank')} (ending in {a.get('masked_last4')}): Balance ₹{bal_rs:,}, "
+            f"reserved bills ₹{bills_rs:,}, safety buffer ₹{buf_rs:,}, safe idle surplus ₹{surplus_rs:,}"
+        )
+
+    alloc_lines = [f"- {al.get('bank')}: ₹{al.get('amount_paise', 0) // 100:,}" for al in allocation]
+    transfer_lines = [
+        f"- Transfer ₹{t.get('transfer_amount_paise', 0) // 100:,} from {t.get('from_bank')} to {t.get('to_bank')}"
+        for t in transfers
+    ]
+
+    prompt = (
+        f"You are a friendly, expert personal finance advisor. Explain this multi-bank fund sourcing advice to the user in 2-3 clear, reassuring, and conversational sentences.\n\n"
+        f"Facts:\n"
+        f"- Feasible: {feasible}\n"
+        f"- Target Deployment: ₹{target_rs:,}\n"
+        f"- Total Combined Liquid Balance: ₹{combined_rs:,}\n"
+        f"- Total Safe Idle Surplus (after bills and ₹5,000 floor reserve): ₹{safe_surplus_rs:,}\n"
+        f"Account Reserves Breakdown:\n" + ("\n".join(acct_lines) if acct_lines else "- None") + "\n"
+        f"Sourcing Allocation:\n" + ("\n".join(alloc_lines) if alloc_lines else "- None") + "\n"
+        f"Required Cross-Account Transfers:\n" + ("\n".join(transfer_lines) if transfer_lines else "- No transfers needed") + "\n\n"
+        f"CRITICAL RULE: Do NOT calculate or invent any new numbers or account details. Cite ONLY the figures and banks listed above.\n"
     )
     return prompt
 
@@ -205,6 +252,28 @@ def generate_guarded_llm_narration(decision: Dict[str, Any]) -> Optional[str]:
     if candidate:
         # Number-Verification Guard Audit
         if verify_narrative_numbers(candidate, ledger, extra_meta):
+            return candidate
+        else:
+            return None
+
+    return None
+
+
+def generate_guarded_liquidity_llm_narration(plan: Dict[str, Any]) -> Optional[str]:
+    """
+    Tries Groq first to humanize the Multi-Bank Liquidity Advice,
+    audited strictly through the Number-Verification Guard.
+    """
+    prompt = build_prompt_from_liquidity_plan(plan)
+
+    candidate = query_groq_api(prompt)
+    if not candidate:
+        candidate = query_ollama(prompt)
+    if not candidate:
+        candidate = query_gemini_api(prompt)
+
+    if candidate:
+        if verify_liquidity_numbers(candidate, plan):
             return candidate
         else:
             return None

@@ -38,7 +38,7 @@ for candidate in [
         load_dotenv(candidate, override=False)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 SYSTEM_PROMPT = """You are an expert financial query parser for the Financial Decision Lab.
@@ -57,29 +57,35 @@ Respond strictly with valid JSON. No conversational text."""
 
 def _extract_amount_regex(text: str) -> int:
     """Helper to extract purchase amount in minor paise via regex heuristics."""
-    # 1. First priority: currency symbol explicitly followed by number: e.g. ₹79,900 or Rs. 80000
-    currency_match = re.search(r'(?:₹|Rs\.?\s*)\s*(\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?', text)
-    if currency_match:
-        raw_num = currency_match.group(1).replace(',', '')
-        return int(float(raw_num) * 100)
+    # 1. Check for crore: e.g. 1.5 crore, Rs 2 cr
+    crore_match = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:crore|crores|cr)\b', text, re.IGNORECASE)
+    if crore_match:
+        val = float(crore_match.group(1))
+        return int(round(val * 10000000 * 100))
 
-    # 2. Check for "k" or "thousand": e.g. 50k, 80 thousand
-    k_match = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:k|thousand)', text, re.IGNORECASE)
-    if k_match:
-        val = float(k_match.group(1))
-        return int(round(val * 1000 * 100))
-
-    # 3. Check for lakh / lac: e.g. 1.2 lakh
-    lakh_match = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:lakh|lac|lacs)', text, re.IGNORECASE)
+    # 2. Check for lakh / lac: e.g. Rs 2.1 lakh, 1.5 lakh, ₹3 lacs
+    lakh_match = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs)\b', text, re.IGNORECASE)
     if lakh_match:
         val = float(lakh_match.group(1))
         return int(round(val * 100000 * 100))
 
-    # 4. Check for "for <number>" or numbers with comma separators
-    for_match = re.search(r'(?:for|costs?|of|worth)\s+(\d{1,3}(?:,\d{3})+|\d+)', text, re.IGNORECASE)
+    # 3. Check for "k" or "thousand": e.g. 50k, 80 thousand
+    k_match = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:k|thousand|thousands)\b', text, re.IGNORECASE)
+    if k_match:
+        val = float(k_match.group(1))
+        return int(round(val * 1000 * 100))
+
+    # 4. Explicit currency symbol followed by number: e.g. ₹79,900 or Rs. 80000
+    currency_match = re.search(r'(?:₹|Rs\.?\s*)\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)', text)
+    if currency_match:
+        raw_num = currency_match.group(1).replace(',', '')
+        return int(round(float(raw_num) * 100))
+
+    # 5. Check for "for <number>" or numbers with comma separators
+    for_match = re.search(r'(?:for|costs?|of|worth)\s+(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)', text, re.IGNORECASE)
     if for_match:
         raw_num = for_match.group(1).replace(',', '')
-        return int(float(raw_num) * 100)
+        return int(round(float(raw_num) * 100))
 
     # Fallback: find all numbers, pick largest number >= 100
     all_nums = re.findall(r'\b\d+\b', text)
