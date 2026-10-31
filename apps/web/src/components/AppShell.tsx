@@ -91,7 +91,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { name: 'Recurring Payments', href: '/recurring', icon: Clock },
     { name: 'Decision Lab', href: '/lab', icon: Scale },
     { name: 'Reports & Anomalies', href: '/anomalies', icon: FileText },
-    { name: 'Account & Profile', href: '/profile', icon: User },
     { name: 'Privacy & Security', href: '/privacy', icon: Settings },
   ];
 
