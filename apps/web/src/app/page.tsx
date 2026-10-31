@@ -263,7 +263,13 @@ export default function HomePage() {
         )}
       </header>
 
-      <main className="flex-1">
+      <main className="flex-1 relative overflow-hidden">
+        {/* Continuous Ambient Background Glow for unified canvas */}
+        <div className="ambient-canvas-glow pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full bg-primary/5 blur-[120px]" />
+          <div className="absolute top-[50%] left-1/3 -translate-x-1/2 w-[600px] h-[450px] rounded-full bg-emerald-500/5 blur-[140px]" />
+          <div className="absolute top-[75%] right-1/4 w-[500px] h-[400px] rounded-full bg-primary/4 blur-[130px]" />
+        </div>
         {/* ========================================================
             2. HERO SECTION WITH CLEAN SHADOWS & DASHBOARD MOCKUP
         ======================================================== */}
@@ -741,7 +747,7 @@ export default function HomePage() {
         {/* ========================================================
             2.4 AUTOMATED TRANSACTION NORMALIZATION PIPELINE BEAM
         ======================================================== */}
-        <section id="pipeline" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-border/60 bg-card/20">
+        <section id="pipeline" className="pt-20 pb-12 px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-6xl mx-auto space-y-12">
             <div className="text-center max-w-3xl mx-auto">
               <div className="text-xs font-bold uppercase tracking-widest text-primary mb-2 font-mono">
@@ -764,7 +770,7 @@ export default function HomePage() {
         {/* ========================================================
             2.5 UNIVERSAL BANK & PAYMENT INGESTION
         ======================================================== */}
-        <section id="ingestion" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-border/60 bg-card/20">
+        <section id="ingestion" className="pt-6 pb-20 px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-6xl mx-auto">
             <Integrations />
           </div>
@@ -773,7 +779,7 @@ export default function HomePage() {
         {/* ========================================================
             2.6 6 CORE ARCHITECTURAL INVARIANTS & PILLARS
         ======================================================== */}
-        <section id="pillars" className="py-24 px-6 sm:px-8 lg:px-12 max-w-6xl mx-auto border-t border-border/60">
+        <section id="pillars" className="py-20 px-6 sm:px-8 lg:px-12 max-w-6xl mx-auto relative">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-xs font-bold uppercase tracking-widest text-primary mb-2 font-mono">
               ENGINEERING GUARANTEES
@@ -804,7 +810,7 @@ export default function HomePage() {
         {/* ========================================================
             3. TECHNICAL ARCHITECTURE TEASER CARD
         ======================================================== */}
-        <section className="py-20 px-4 sm:px-6 lg:px-8 border-t border-border/60 bg-gradient-to-b from-card/30 via-background to-background">
+        <section className="py-16 px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-4xl mx-auto rounded-3xl border border-border bg-card/80 p-8 sm:p-12 text-center space-y-6 shadow-sm backdrop-blur-xs">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-primary/25 bg-primary/10 text-xs text-primary font-medium font-mono">
               <Cpu className="w-3.5 h-3.5 animate-pulse" />
@@ -839,7 +845,7 @@ export default function HomePage() {
         {/* ========================================================
             4. FREQUENTLY ASKED QUESTIONS (FAQ)
         ======================================================== */}
-        <section id="faq" className="border-t border-border/60">
+        <section id="faq" className="py-8 relative">
           <FaqSection
             title="Frequently Asked Questions"
             description="Clear, transparent answers about our deterministic math, local privacy, and affordability proofs."
@@ -860,15 +866,15 @@ export default function HomePage() {
         {/* ========================================================
             5. BOTTOM CALL TO ACTION
         ======================================================== */}
-        <section className="py-20 px-6 sm:px-8 border-t border-border text-center bg-card">
-          <div className="max-w-3xl mx-auto">
-            <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
+        <section className="py-20 px-4 sm:px-6 lg:px-8 relative">
+          <div className="max-w-4xl mx-auto rounded-3xl border border-border/80 bg-card/70 p-10 sm:p-14 text-center space-y-6 shadow-sm backdrop-blur-xs">
+            <h3 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
               Ready for a financial advisor you can truly trust?
             </h3>
-            <p className="text-sm text-muted-foreground mt-3 max-w-xl mx-auto">
+            <p className="text-sm sm:text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
               Experience complete financial intelligence that forecasts cash flows, tracks obligations, and proves every decision step-by-step.
             </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3.5">
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-3.5">
               <Link
                 href="/login"
                 className="inline-flex items-center gap-2 px-7 py-3 rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-semibold text-sm hover:opacity-90 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.08)] active:scale-95 border border-neutral-800 dark:border-white/20"
@@ -878,7 +884,7 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-card border border-border text-foreground font-semibold text-sm hover:bg-muted transition-all shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-background border border-border text-foreground font-semibold text-sm hover:bg-muted transition-all shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
               >
                 Explore Live Demo
               </Link>

@@ -149,7 +149,7 @@ const PlusCard: React.FC<{
 
 export function RuixenBentoCards() {
   return (
-    <section id="how-it-helps" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-border/60 bg-muted/20">
+    <section id="how-it-helps" className="py-24 px-4 sm:px-6 lg:px-8 relative">
       <div className="max-w-6xl mx-auto space-y-12">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto space-y-3">
