@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ContainerScroll } from '@/components/ui/container-scroll-animation';
+import { FaqSection } from '@/components/ui/faq-section';
 import Integrations from '@/components/ui/integrations-4';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
 
@@ -76,6 +77,33 @@ const FDL_PILLARS: FeatureType[] = [
     badge: 'ANTI-HALLUCINATION',
     description:
       'When generating natural English narration, a strict regex guard validates every numerical figure cited against the Reasoning Ledger. Any unverified figure defaults to template math.',
+  },
+];
+
+const FDL_FAQS = [
+  {
+    question: "How does Financial Decision Lab guarantee zero LLM math hallucinations?",
+    answer: "Financial Decision Lab strictly isolates computation from narration. 100% of balances, recurring obligations, Monte Carlo percentiles, and affordability headroom are computed by deterministic Python algorithms using integer paise (1 INR = 100 paise). The LLM is restricted to query parameter parsing and translation into natural English, protected by a strict regex guard that rejects any figure not present verbatim in the 8-Step Reasoning Ledger.",
+  },
+  {
+    question: "Is my sensitive bank statement and financial data uploaded to external clouds?",
+    answer: "No. FDL operates under a 100% local-first and air-gapped architecture. Your uploaded PDF/CSV bank statements, parsed transactions, account balances, and ledger calculations are stored exclusively on your local machine in SQLite (fdl.db). Zero transaction telemetry or financial figures are transmitted to external servers.",
+  },
+  {
+    question: "What happens if I upload less than 90 days of transaction history?",
+    answer: "Rather than providing ungrounded or misleading financial advice, our Data Sufficiency Gate evaluates history length, date gaps (> 7 days), and verified income credits. If data is insufficient, FDL returns an 'INSUFFICIENT_DATA' verdict with an actionable remediation checklist explaining exactly what statements are needed to achieve safe mathematical confidence.",
+  },
+  {
+    question: "Which Indian bank and payment statement formats are supported?",
+    answer: "FDL includes auto-detecting parsers for major Indian banks including HDFC, SBI, ICICI, Axis, and Kotak Mahindra, as well as digital payment exports from PhonePe, Google Pay, Paytm, and CRED. It seamlessly handles both standard CSVs and password-protected PDF statements with automatic merchant junk cleaning.",
+  },
+  {
+    question: "How does the system simulate future financial shocks and irregular income?",
+    answer: "Our simulation engine runs 5,000 Monte Carlo daily cash-flow trajectories using seed-based pseudo-random shocks (seed=42 for 100% reproducibility). For freelancers and gig workers with irregular income, our Dynamic Volatility Buffer adjusts automatically up to 2.0x essentials based on the Coefficient of Variation.",
+  },
+  {
+    question: "How does the 8-Step Reasoning Ledger prove affordability?",
+    answer: "Whenever you query a purchase (e.g. 'Can I buy an iPhone for ₹80,000 next month?'), FDL generates a step-by-step mathematical proof: Starting Balance → Inflow Forecast → Scheduled Obligations (SIP, EMIs, Rent) → Variable Spend Baseline → Dynamic Safety Buffer → Available Headroom. Every step is verifiable, auditable, and transparent.",
   },
 ];
 
@@ -131,6 +159,7 @@ export default function HomePage() {
             <a href="#pillars" className="hover:text-foreground transition-colors whitespace-nowrap">
               Pillars &amp; Math
             </a>
+            <a href="#faq" className="hover:text-foreground transition-colors whitespace-nowrap">FAQ</a>
             <Link href="/how-it-works" className="hover:text-foreground transition-colors whitespace-nowrap font-medium text-emerald-600 dark:text-emerald-400">
               How It Works &amp; Architecture
             </Link>
@@ -752,6 +781,27 @@ export default function HomePage() {
               </Link>
             </div>
           </div>
+        </section>
+
+        {/* ========================================================
+            4. FREQUENTLY ASKED QUESTIONS (FAQ)
+        ======================================================== */}
+        <section id="faq" className="border-t border-border/60">
+          <FaqSection
+            title="Frequently Asked Questions"
+            description="Clear, transparent answers about our deterministic math, local privacy, and affordability proofs."
+            items={FDL_FAQS}
+            contactInfo={{
+              title: "Have a technical or architecture question?",
+              description: "Explore our comprehensive engineering specifications or read our complete formula breakdown.",
+              buttonText: "Read How It Works",
+              onContact: () => {
+                if (typeof window !== "undefined") {
+                  window.location.href = "/how-it-works";
+                }
+              },
+            }}
+          />
         </section>
 
         {/* ========================================================
