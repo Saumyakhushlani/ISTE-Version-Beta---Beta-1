@@ -231,14 +231,7 @@ function useInView(threshold = 0.2) {
 }
 
 function Brackets() {
-  return (
-    <>
-      <span className="ib-c ib-c-tl" aria-hidden="true" />
-      <span className="ib-c ib-c-tr" aria-hidden="true" />
-      <span className="ib-c ib-c-bl" aria-hidden="true" />
-      <span className="ib-c ib-c-br" aria-hidden="true" />
-    </>
-  )
+  return null
 }
 
 function Title({ text, className = "ib-h2", as = "h2" }: { text: string; className?: string; as?: "h2" | "h3" }) {
@@ -546,8 +539,17 @@ function IntegrationsCard({ copy, reduced }: { copy: InkFeatures["integrations"]
   ]
   const path = (i: number) => {
     const t = tiles[i]
-    const dir = t.x < 150 ? -1 : 1
-    return "M" + (150 + dir * 17) + ",75 H" + (150 + dir * 42) + " V" + t.y + " H" + (t.x - dir * 15)
+    if (t.x < 150) {
+      const x1 = t.x + 16
+      const x2 = 133
+      const midX = (x1 + x2) / 2
+      return "M " + x1 + "," + t.y + " C " + midX + "," + t.y + " " + midX + ",75 " + x2 + ",75"
+    } else {
+      const x1 = t.x - 16
+      const x2 = 167
+      const midX = (x1 + x2) / 2
+      return "M " + x1 + "," + t.y + " C " + midX + "," + t.y + " " + midX + ",75 " + x2 + ",75"
+    }
   }
 
   const toolLabels = ["HDFC Bank", "SBI Ledger", "ICICI Net", "Axis UPI"]
@@ -665,9 +667,9 @@ function InsightsCard({ copy, uid, reduced }: { copy: InkFeatures["insights"]; u
           {hover >= 0 && <line x1={p[0]} x2={p[0]} y1="8" y2={H - 14} stroke="var(--ib-ink)" strokeOpacity=".4" />}
           {!reduced && hover < 0 && <circle cx={last[0]} cy={last[1]} r="7" fill="var(--ib-accent)" opacity=".2" className="ib-glow" />}
           <circle cx={p[0]} cy={p[1]} r="3.4" fill="var(--ib-raise)" stroke="var(--ib-accent)" strokeWidth="1.8" />
-          <g transform={"translate(" + clamp(p[0], 56, W - 56) + "," + (p[1] < 34 ? p[1] + 22 : p[1] - 12) + ")"}>
-            <rect x="-52" y="-11.5" width="104" height="16" rx="4" fill="var(--ib-inv)" />
-            <text x="0" y="0" textAnchor="middle" fontSize="7" fill="var(--ib-inv-ink)" fontFamily="var(--ib-mono)">
+          <g transform={"translate(" + clamp(p[0], 70, W - 70) + "," + (p[1] < 34 ? p[1] + 24 : p[1] - 14) + ")"}>
+            <rect x="-65" y="-12.5" width="130" height="18" rx="4" fill="var(--ib-inv)" />
+            <text x="0" y="-3.5" dominantBaseline="middle" textAnchor="middle" fontSize="7" fill="var(--ib-inv-ink)" fontFamily="var(--ib-mono)">
               {(i >= split ? "pred " : "day " + (i + 1) * 3 + " ") + currentValRupees + " (" + (pct >= 0 ? "+" : "") + pct + "%)"}
             </text>
           </g>
@@ -704,14 +706,14 @@ const IB_CSS = `
   position: relative;
   width: 100%;
   box-sizing: border-box;
-  background-color: var(--ib-page);
-  background-image: repeating-linear-gradient(135deg, var(--ib-hatch) 0 1px, transparent 1px 12px);
+  background-color: transparent;
+  background-image: none;
   color: var(--ib-ink);
   font-family: var(--ib-sans);
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  padding: 36px clamp(12px, 3vw, 36px);
+  padding: 0;
   transition: background-color .45s ease, color .45s ease;
 }
 
@@ -844,9 +846,9 @@ const IB_CSS = `
 }
 
 .ib-card {
-  background: linear-gradient(180deg, var(--ib-raise), var(--ib-card));
-  border: 1px solid var(--ib-line);
-  border-radius: 12px;
+  background: var(--card, #0f1115);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 16px;
   padding: clamp(16px, 2.2cqw, 24px);
   display: flex;
   flex-direction: column;

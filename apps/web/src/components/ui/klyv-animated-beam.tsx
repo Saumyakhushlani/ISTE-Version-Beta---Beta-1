@@ -1,28 +1,5 @@
 'use client'
 
-/*
-MIT License
-
-Copyright (c) 2026 Klyv contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
 import "./klyv-animated-beam-utils/klyv-theme.css";
 
 import { useEffect, useId, useState, type CSSProperties, type RefObject } from 'react'
@@ -35,8 +12,10 @@ export interface AnimatedBeamProps {
   fromRef: RefObject<HTMLElement | null>
   /** The element the beam ends at. */
   toRef: RefObject<HTMLElement | null>
-  /** Bow of the curve in pixels. Negative bows the other way. 0 is a straight line. */
+  /** Bow of the curve in pixels (used when connectionType is 'center'). */
   curvature?: number
+  /** Connection style: 'edge-horizontal' connects right edge to left edge via smooth cubic Bezier; 'center' connects centers. Defaults to 'edge-horizontal'. */
+  connectionType?: 'edge-horizontal' | 'center'
   /** Send the pulse from `to` to `from` instead. */
   reverse?: boolean
   /** Seconds for one pulse to cross. */
@@ -67,31 +46,21 @@ interface Geometry {
 }
 
 /** Centre of `node` in `container` coordinates. */
-function centreIn(container: DOMRect, node: DOMRect) {
+function centreIn(container: HTMLElement, node: HTMLElement) {
+  const containerRect = container.getBoundingClientRect()
+  const nodeRect = node.getBoundingClientRect()
   return {
-    x: node.left - container.left + node.width / 2,
-    y: node.top - container.top + node.height / 2,
+    x: nodeRect.left - containerRect.left - container.clientLeft + nodeRect.width / 2,
+    y: nodeRect.top - containerRect.top - container.clientTop + nodeRect.height / 2,
   }
 }
 
-/**
- * A curved connector between two elements, with light pulsing along it.
- *
- * It takes refs rather than coordinates because the whole point is that the
- * endpoints are real, reflowing UI: the beam re-measures on resize and on any
- * size change to the container or either endpoint, so it survives a responsive
- * breakpoint, a font swap and a node appearing mid-diagram.
- *
- * The pulse is one `stroke-dashoffset` animation on a second copy of the path ?
- * a dash of `beamLength` followed by a gap the length of the whole path, walked
- * backwards. That gives a travelling comet with no JS in the frame loop, and it
- * follows the curve exactly because it *is* the curve.
- */
 export function AnimatedBeam({
   containerRef,
   fromRef,
   toRef,
-  curvature = 60,
+  curvature = 0,
+  connectionType = 'edge-horizontal',
   reverse = false,
   duration = 3,
   delay = 0,
@@ -113,52 +82,89 @@ export function AnimatedBeam({
     if (!container || !from || !to) return
 
     const measure = () => {
-      const box = container.getBoundingClientRect()
-      const start = centreIn(box, from.getBoundingClientRect())
-      const end = centreIn(box, to.getBoundingClientRect())
+      const containerRect = container.getBoundingClientRect()
+      const fromRect = from.getBoundingClientRect()
+      const toRect = to.getBoundingClientRect()
 
-      // Bow perpendicular to the line, so the curve looks right whatever the
-      // angle between the two nodes happens to be.
-      const midX = (start.x + end.x) / 2
-      const midY = (start.y + end.y) / 2
-      const dx = end.x - start.x
-      const dy = end.y - start.y
-      const span = Math.hypot(dx, dy) || 1
-      const controlX = midX + (-dy / span) * curvature
-      const controlY = midY + (dx / span) * curvature
+      let d = ''
+      let length = 0
 
-      const d = `M ${start.x},${start.y} Q ${controlX},${controlY} ${end.x},${end.y}`
+      if (connectionType === 'edge-horizontal') {
+        const isForward = fromRect.left < toRect.left
+        const startX = isForward
+          ? fromRect.right - containerRect.left - container.clientLeft
+          : fromRect.left - containerRect.left - container.clientLeft
+        const startY = fromRect.top - containerRect.top - container.clientTop + fromRect.height / 2
 
-      // Quadratic arc length, approximated well enough for a dash pattern.
-      const chord = span
-      const legs = Math.hypot(controlX - start.x, controlY - start.y) +
-        Math.hypot(end.x - controlX, end.y - controlY)
+        const endX = isForward
+          ? toRect.left - containerRect.left - container.clientLeft
+          : toRect.right - containerRect.left - container.clientLeft
+        const endY = toRect.top - containerRect.top - container.clientTop + toRect.height / 2
+
+        const dx = endX - startX
+        const cp1x = startX + dx * 0.5
+        const cp1y = startY
+        const cp2x = startX + dx * 0.5
+        const cp2y = endY
+
+        d = `M ${startX.toFixed(1)},${startY.toFixed(1)} C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${endX.toFixed(1)},${endY.toFixed(1)}`
+
+        const chord = Math.hypot(endX - startX, endY - startY)
+        const net =
+          Math.hypot(cp1x - startX, cp1y - startY) +
+          Math.hypot(cp2x - cp1x, cp2y - cp1y) +
+          Math.hypot(endX - cp2x, endY - cp2y)
+        length = (chord + net) / 2
+      } else {
+        const start = centreIn(container, from)
+        const end = centreIn(container, to)
+
+        const midX = (start.x + end.x) / 2
+        const midY = (start.y + end.y) / 2
+        const dx = end.x - start.x
+        const dy = end.y - start.y
+        const span = Math.hypot(dx, dy) || 1
+        const controlX = midX + (-dy / span) * curvature
+        const controlY = midY + (dx / span) * curvature
+
+        d = `M ${start.x.toFixed(1)},${start.y.toFixed(1)} Q ${controlX.toFixed(1)},${controlY.toFixed(1)} ${end.x.toFixed(1)},${end.y.toFixed(1)}`
+
+        const chord = span
+        const legs =
+          Math.hypot(controlX - start.x, controlY - start.y) +
+          Math.hypot(end.x - controlX, end.y - controlY)
+        length = (chord + legs) / 2
+      }
 
       setGeometry({
-        width: box.width,
-        height: box.height,
+        width: containerRect.width,
+        height: containerRect.height,
         d,
-        length: (chord + legs) / 2,
+        length,
       })
     }
 
     measure()
+    const rafId = requestAnimationFrame(measure)
+    const timeoutId = setTimeout(measure, 60)
+
     const observer = new ResizeObserver(measure)
     observer.observe(container)
     observer.observe(from)
     observer.observe(to)
     window.addEventListener('resize', measure)
+
     return () => {
+      cancelAnimationFrame(rafId)
+      clearTimeout(timeoutId)
       observer.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [containerRef, fromRef, toRef, curvature])
+  }, [containerRef, fromRef, toRef, curvature, connectionType])
 
   if (!geometry) return null
 
-  const total = Math.round(geometry.length)
-  // One lap is the whole dash pattern ? the lit dash plus the gap behind it.
-  // Reversing flips the sign, which flips the direction of travel.
+  const total = Math.max(1, Math.round(geometry.length))
   const lap = total + beamLength
   const travel = reverse ? lap : -lap
 
@@ -169,7 +175,7 @@ export function AnimatedBeam({
       height={geometry.height}
       viewBox={`0 0 ${geometry.width} ${geometry.height}`}
       fill="none"
-      className={cn('pointer-events-none absolute left-0 top-0', className)}
+      className={cn('pointer-events-none absolute left-0 top-0 z-0', className)}
     >
       <path
         d={geometry.d}
@@ -206,4 +212,4 @@ export function AnimatedBeam({
   )
 }
 
-export default AnimatedBeam;
+export default AnimatedBeam

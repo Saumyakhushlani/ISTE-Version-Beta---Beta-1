@@ -724,60 +724,79 @@ export default function HomePage() {
         </section>
 
         {/* ========================================================
-            2.5 LIVE DETERMINISTIC FINANCIAL PIPELINE SHOWCASE
+            2.5 - 2.8 UNIFIED END-TO-END FINANCIAL DECISION PIPELINE
         ======================================================== */}
-        <section id="pipeline" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-border bg-gradient-to-b from-background via-card/30 to-background">
-          <div className="max-w-4xl mx-auto text-center mb-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Real-Time Verification Engine
+        <div className="relative w-full bg-background overflow-hidden border-t border-border/60">
+          {/* Subtle ambient background glow spanning the entire pipeline */}
+          <div 
+            className="absolute left-1/2 top-1/3 -translate-x-1/2 w-[850px] h-[850px] rounded-full blur-[160px] opacity-10 dark:opacity-20 pointer-events-none"
+            style={{
+              background: 'radial-gradient(circle, rgba(16,185,129,0.3) 0%, rgba(59,130,246,0.08) 50%, transparent 80%)'
+            }}
+          />
+
+          {/* Continuous vertical pipeline connecting spine in the background */}
+          <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[1px] bg-gradient-to-b from-transparent via-border to-transparent pointer-events-none opacity-40" />
+
+          {/* Stage 1: Universal Bank & Statement Ingestion */}
+          <section id="integrations" className="relative z-10 pt-20 pb-10 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto text-center mb-8">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-3 shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                STAGE 01 ? UNIVERSAL STATEMENT INGESTION
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+                Connect your accounts without sharing credentials.
+              </h2>
+              <p className="text-sm text-muted-foreground mt-3 max-w-xl mx-auto leading-relaxed">
+                Parse statement PDFs and CSVs offline from every major Indian bank and UPI provider. Zero third-party aggregation APIs, zero cloud data egress.
+              </p>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
-              Watch our pipeline prove every single rupee.
-            </h2>
-            <p className="text-sm text-muted-foreground mt-3 max-w-xl mx-auto leading-relaxed">
-              Zero hallucinated math. From statement ingestion through 4-point data sufficiency to 5,000 Monte Carlo runs and an audited Reasoning Ledger.
-            </p>
-          </div>
+            <Integrations />
+          </section>
 
-          <div className="w-full flex justify-center px-2">
-            <EnterpriseAIPipeline />
-          </div>
-        </section>
-
-        {/* ========================================================
-            2.6 INTERACTIVE DECISION ENGINE ARCHITECTURE FLOW (LIVE BENTO)
-        ======================================================== */}
-        <section id="engine-flow" className="w-full border-t border-border">
-          <InkOrbitFeatures theme="auto" />
-        </section>
-
-        {/* ========================================================
-            2.7 COMPLETE DATA PIPELINE & CLEANING ENGINE (ANIMATED BEAMS)
-        ======================================================== */}
-        <section id="data-cleaning" className="py-24 px-4 sm:px-6 lg:px-8 border-t border-border bg-gradient-to-b from-background via-card/25 to-background">
-          <div className="max-w-4xl mx-auto text-center mb-12">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+          {/* Visual Connecting Stream from Stage 1 -> Stage 2 */}
+          <div className="relative z-10 flex flex-col items-center justify-center my-6">
+            <div className="w-[1.5px] h-10 bg-gradient-to-b from-border via-emerald-500/60 to-border" />
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card/90 backdrop-blur-md text-[10px] font-mono font-semibold text-muted-foreground my-2 shadow-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              End-to-End Data Pipeline
+              <span>RAW DATA STREAMS INTO RECONCILIATION GATE</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
-              From Raw Statements to Verified Ledger: The Complete Data Cleaning Flow
-            </h2>
-            <p className="text-sm text-muted-foreground mt-3 max-w-2xl mx-auto leading-relaxed">
-              Discover how raw bank statements are parsed, UPI merchant strings sanitized, internal transfers paired, balances mathematically reconciled, and simulated across 5,000 Monte Carlo paths.
-            </p>
+            <div className="w-[1.5px] h-10 bg-gradient-to-b from-border via-emerald-500/60 to-border" />
           </div>
 
-          <FinancialPipelineBeam />
-        </section>
+          {/* Stage 2: Normalization, Deduplication & Sufficiency Gate */}
+          <section id="data-cleaning" className="relative z-10 py-10 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto text-center mb-10">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-3 shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                STAGE 02 ? NORMALIZATION &amp; RECONCILIATION
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+                Sanitize UPI noise, pair transfers, and prove balance integrity.
+              </h2>
+              <p className="text-sm text-muted-foreground mt-3 max-w-2xl mx-auto leading-relaxed">
+                Cleans chaotic merchant strings, pairs internal inter-account transfers to avoid double-counting, and strictly verifies Opening + ∑Tx = Closing (Δ = 0 paise).
+              </p>
+            </div>
+            <FinancialPipelineBeam />
+          </section>
 
-        {/* ========================================================
-            2.8 UNIVERSAL BANK & PAYMENT INTEGRATIONS
-        ======================================================== */}
-        <section id="integrations" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/20">
-          <Integrations />
-        </section>
+          {/* Visual Connecting Stream from Stage 2 -> Stage 3 */}
+          <div className="relative z-10 flex flex-col items-center justify-center my-6">
+            <div className="w-[1.5px] h-10 bg-gradient-to-b from-border via-emerald-500/60 to-border" />
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card/90 backdrop-blur-md text-[10px] font-mono font-semibold text-muted-foreground my-2 shadow-xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>VERIFIED CASH FLOW STREAMS INTO DETERMINISTIC CORE</span>
+            </div>
+            <div className="w-[1.5px] h-10 bg-gradient-to-b from-border via-emerald-500/60 to-border" />
+          </div>
+
+          {/* Stage 3: Deterministic Monte Carlo Simulation & Reasoning Ledger */}
+          <section id="engine-flow" className="relative z-10 pt-10 pb-20 px-4 sm:px-6 lg:px-8">
+            <InkOrbitFeatures theme="auto" />
+          </section>
+        </div>
 
         {/* ========================================================
             3. WHY FINANCIAL DECISION LAB (6 CORE ARCHITECTURE PILLARS)
@@ -810,75 +829,283 @@ export default function HomePage() {
         </section>
 
         {/* ========================================================
-            4. HOW THE PLATFORM WORKS (3-STEP JOURNEY)
+            4. HOW THE PLATFORM WORKS (3-STEP JOURNEY & CORE EQUATIONS)
         ======================================================== */}
-        <section id="how-it-works" className="py-24 px-6 sm:px-8 lg:px-12 border-t border-border bg-card/25">
-          <div className="max-w-5xl mx-auto">
-            <div className="text-center max-w-2xl mx-auto mb-16">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-primary mb-2">
-                The Platform Flow
-              </h2>
-              <h3 className="text-3xl font-extrabold tracking-tight text-foreground">
+        <section id="how-it-works" className="py-24 px-4 sm:px-6 lg:px-8 border-t border-border/60 bg-gradient-to-b from-background via-card/10 to-background">
+          <div className="max-w-6xl mx-auto">
+            {/* Section Header */}
+            <div className="text-center max-w-3xl mx-auto mb-16">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-3 shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                THE PLATFORM FLOW · CORE EQUATIONS
+              </div>
+              <h3 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
                 From statement to decision in 3 simple steps.
               </h3>
-              <p className="text-sm text-muted-foreground mt-2">
-                Clean separation of ingestion, verification, and decision reporting.
+              <p className="text-sm text-muted-foreground mt-3 max-w-2xl mx-auto leading-relaxed">
+                Clean separation of ingestion, verification, and decision reporting — powered by 100% deterministic mathematical formulas. Zero LLM math calculations.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Step 1 */}
-              <div className="bg-card border border-border rounded-xl p-6 relative flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            {/* 3 Step Cards - Balanced High-Tech Design */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 items-stretch">
+              
+              {/* Step 1: Login & Ingestion */}
+              <div className="bg-card border border-border/80 hover:border-emerald-500/40 rounded-2xl p-6 relative flex flex-col justify-between shadow-xs transition-all duration-300 group">
                 <div>
-                  <span className="w-8 h-8 rounded-full bg-primary/20 text-primary font-bold text-xs flex items-center justify-center mb-4">
-                    01
-                  </span>
-                  <h4 className="text-base font-bold text-foreground">Login &amp; Ingestion</h4>
-                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                    Sign in with your local account and upload your bank statements (CSV or PDF from HDFC, SBI, ICICI, Axis).
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-xs font-mono flex items-center justify-center border border-emerald-500/20">
+                      01
+                    </span>
+                    <span className="text-[10px] font-mono font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      AIR-GAPPED · 0 EGRESS
+                    </span>
+                  </div>
+
+                  <h4 className="text-base font-bold text-foreground flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-emerald-500" />
+                    Statement Ingestion &amp; Dedup
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed min-h-[36px]">
+                    Parse statement PDFs and CSVs locally. Cryptographically hashes rows and pairs internal transfers to eliminate duplicate expenses.
                   </p>
+
+                  {/* Terminal Code Console */}
+                  <div className="mt-5 rounded-xl border border-border/80 bg-slate-950 p-3.5 text-slate-100 font-mono shadow-inner text-left">
+                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800 text-[10px] text-slate-400">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500/80" />
+                        <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                        <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+                        <span className="ml-1 text-slate-300 font-semibold">engine/dedupe.py</span>
+                      </div>
+                      <span className="text-emerald-400 font-bold">100% Local</span>
+                    </div>
+
+                    <div className="space-y-2 text-[11px] leading-relaxed">
+                      <div>
+                        <span className="text-slate-500">// SHA-256 Idempotent Hash</span>
+                        <div className="text-emerald-400 font-bold">
+                          fp = sha256(acc_id + date + paise + desc)
+                        </div>
+                      </div>
+                      <div className="pt-1 border-t border-slate-800/80">
+                        <span className="text-slate-500">// Internal Transfer Pairing (±₹25 fee)</span>
+                        <div className="text-sky-300 font-bold">
+                          pair = sgn(T₁) ≠ sgn(T₂) &amp;&amp; |Δt| ≤ 2d
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Key Parameter Pills */}
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                      Fee: ±₹25 (2,500p)
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                      Window: ≤ 2 Days
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
+                      Cloud Egress = 0
+                    </span>
+                  </div>
                 </div>
-                <div className="pt-4 border-t border-border mt-4 text-[11px] text-muted-foreground">
-                  <Link href="/login" className="text-primary font-semibold flex items-center gap-1 hover:underline">
+
+                <div className="pt-4 border-t border-border mt-5 text-xs text-muted-foreground flex items-center justify-between">
+                  <Link href="/login" className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 hover:underline">
                     Go to Login <ChevronRight className="w-3.5 h-3.5" />
                   </Link>
+                  <span className="text-[10px] font-mono text-muted-foreground">Local fdl.db</span>
                 </div>
               </div>
 
-              {/* Step 2 */}
-              <div className="bg-card border border-border rounded-xl p-6 relative flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+              {/* Step 2: Reconciliation Gate */}
+              <div className="bg-card border border-border/80 hover:border-emerald-500/40 rounded-2xl p-6 relative flex flex-col justify-between shadow-xs transition-all duration-300 group">
                 <div>
-                  <span className="w-8 h-8 rounded-full bg-primary/20 text-primary font-bold text-xs flex items-center justify-center mb-4">
-                    02
-                  </span>
-                  <h4 className="text-base font-bold text-foreground">Reconciliation Gate</h4>
-                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                    The deterministic parser verifies: <br />
-                    <code className="text-primary font-mono text-[11px]">Opening + ΣTx = Closing</code> and confirms data sufficiency (≥ 90 days).
-                  </p>
-                </div>
-                <div className="pt-4 border-t border-border mt-4 text-[11px] text-muted-foreground">
-                  <span className="text-muted-foreground font-medium flex items-center gap-1">
-                    Upload Screen (Next Step)
-                  </span>
-                </div>
-              </div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-xs font-mono flex items-center justify-center border border-emerald-500/20">
+                      02
+                    </span>
+                    <span className="text-[10px] font-mono font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      RECONCILIATION · Δ = 0
+                    </span>
+                  </div>
 
-              {/* Step 3 */}
-              <div className="bg-card border border-border rounded-xl p-6 relative flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-                <div>
-                  <span className="w-8 h-8 rounded-full bg-primary/20 text-primary font-bold text-xs flex items-center justify-center mb-4">
-                    03
-                  </span>
-                  <h4 className="text-base font-bold text-foreground">Analysis &amp; Decision Lab</h4>
-                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                    Review your executive liquidity report, cash-flow forecast, and simulate purchases with full mathematical proof.
+                  <h4 className="text-base font-bold text-foreground flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-500" />
+                    Balance Gate &amp; Sufficiency
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed min-h-[36px]">
+                    Strict mathematical verification before running calculations. Enforces exact balance anchors and checks 90-day history continuity.
                   </p>
+
+                  {/* Terminal Code Console */}
+                  <div className="mt-5 rounded-xl border border-border/80 bg-slate-950 p-3.5 text-slate-100 font-mono shadow-inner text-left ring-1 ring-emerald-500/20">
+                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800 text-[10px] text-slate-400">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500/80" />
+                        <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                        <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+                        <span className="ml-1 text-slate-300 font-semibold">engine/sufficiency.py</span>
+                      </div>
+                      <span className="text-emerald-400 font-bold">Δ = 0 Paise</span>
+                    </div>
+
+                    <div className="space-y-2 text-[11px] leading-relaxed">
+                      <div>
+                        <span className="text-slate-500">// Exact Balance Anchor Assertion</span>
+                        <div className="text-emerald-400 font-bold">
+                          Δ = (Opening + ∑ Tx) - Closing == 0
+                        </div>
+                      </div>
+                      <div className="pt-1 border-t border-slate-800/80">
+                        <span className="text-slate-500">// 4-Point Data Sufficiency Gate</span>
+                        <div className="text-amber-400 font-bold">
+                          assert days ≥ 90 &amp;&amp; gap ≤ 7d &amp;&amp; income ≥ 2
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Key Parameter Pills */}
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                      History: ≥ 90 Days
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                      Max Gap: ≤ 7 Days
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
+                      Outlier Z ≤ 3.5 MAD
+                    </span>
+                  </div>
                 </div>
-                <div className="pt-4 border-t border-border mt-4 text-[11px] text-muted-foreground">
-                  <Link href="/dashboard" className="text-primary font-semibold flex items-center gap-1 hover:underline">
-                    View Demo Report <ChevronRight className="w-3.5 h-3.5" />
+
+                <div className="pt-4 border-t border-border mt-5 text-xs text-muted-foreground flex items-center justify-between">
+                  <Link href="/upload" className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 hover:underline">
+                    Upload &amp; Reconcile <ChevronRight className="w-3.5 h-3.5" />
                   </Link>
+                  <span className="text-[10px] font-mono text-muted-foreground">0 Float Drift</span>
+                </div>
+              </div>
+
+              {/* Step 3: Analysis & Decision Lab */}
+              <div className="bg-card border border-border/80 hover:border-emerald-500/40 rounded-2xl p-6 relative flex flex-col justify-between shadow-xs transition-all duration-300 group">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-xs font-mono flex items-center justify-center border border-emerald-500/20">
+                      03
+                    </span>
+                    <span className="text-[10px] font-mono font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-md border border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                      SEED 42 · P10/P50/P90
+                    </span>
+                  </div>
+
+                  <h4 className="text-base font-bold text-foreground flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-500" />
+                    Monte Carlo Decision Lab
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed min-h-[36px]">
+                    Simulate 5,000 cash-flow paths under random shocks. Computes adaptive safety buffers and proves headroom in an 8-step audit ledger.
+                  </p>
+
+                  {/* Terminal Code Console */}
+                  <div className="mt-5 rounded-xl border border-border/80 bg-slate-950 p-3.5 text-slate-100 font-mono shadow-inner text-left">
+                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800 text-[10px] text-slate-400">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500/80" />
+                        <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                        <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+                        <span className="ml-1 text-slate-300 font-semibold">engine/affordability.py</span>
+                      </div>
+                      <span className="text-purple-400 font-bold">5,000 Paths</span>
+                    </div>
+
+                    <div className="space-y-2 text-[11px] leading-relaxed">
+                      <div>
+                        <span className="text-slate-500">// Cash-Flow Evolution (Horizon: 90d)</span>
+                        <div className="text-sky-300 font-bold">
+                          B(t) = B(t-1) + Income(t) - Commit(t) - Var(t)
+                        </div>
+                      </div>
+                      <div className="pt-1 border-t border-slate-800/80">
+                        <span className="text-slate-500">// Headroom Formula (P10 Conservative)</span>
+                        <div className="text-emerald-400 font-bold">
+                          Headroom_10 = B_min(P10) - Buffer - Price
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Key Parameter Pills */}
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                      Floor: ₹5,000
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                      Buffer k: 1.0x - 2.0x
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold">
+                      Regex Number Guard
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-border mt-5 text-xs text-muted-foreground flex items-center justify-between">
+                  <Link href="/lab" className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 hover:underline">
+                    Open Decision Lab <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                  <span className="text-[10px] font-mono text-muted-foreground">8-Step Proof</span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Platform Mathematical Domain Invariants Strip */}
+            <div className="mt-12 p-5 sm:p-6 rounded-2xl border border-border/80 bg-card/60 backdrop-blur-md">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-border/60">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold text-foreground font-mono uppercase tracking-wider">
+                    Domain Invariants &amp; Threshold Reference (Appendix B)
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-muted-foreground">
+                  Enforced deterministically in Python engine &amp; TypeScript contracts
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                  <div className="text-[9.5px] font-mono text-muted-foreground">MIN_HISTORY</div>
+                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">≥ 90 Days</div>
+                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">Full Confidence</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                  <div className="text-[9.5px] font-mono text-muted-foreground">MAX_GAP_DAYS</div>
+                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">≤ 7 Days</div>
+                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">Continuity Bound</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                  <div className="text-[9.5px] font-mono text-muted-foreground">MONTE_CARLO</div>
+                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">5,000 Runs</div>
+                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">Seed = 42</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                  <div className="text-[9.5px] font-mono text-muted-foreground">BUFFER_FLOOR</div>
+                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">₹5,000.00</div>
+                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">500,000 Paise</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                  <div className="text-[9.5px] font-mono text-muted-foreground">OUTLIER_MOD_Z</div>
+                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">&gt; 3.5 MAD</div>
+                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">Spike Filter</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                  <div className="text-[9.5px] font-mono text-muted-foreground">TRANSFER_TOL</div>
+                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">±₹25.00</div>
+                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">2,500 Paise Fee</div>
                 </div>
               </div>
             </div>
