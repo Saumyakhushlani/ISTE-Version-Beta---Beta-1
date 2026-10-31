@@ -241,7 +241,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4 }}
-                  className="mb-6 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-card text-xs text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.03)] hover:border-border/80 transition-colors"
+                  className="mb-4 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-card text-xs text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.03)] hover:border-border/80 transition-colors"
                 >
                   <span>Deterministic Math Engine 2.0 is live!</span>
                   <Link
@@ -269,7 +269,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.2 }}
-                  className="text-sm sm:text-base text-center max-w-2xl px-6 mt-4 mb-8 text-muted-foreground leading-relaxed"
+                  className="text-sm sm:text-base text-center max-w-2xl px-6 mt-3 mb-6 text-muted-foreground leading-relaxed"
                 >
                   The personal finance assistant that shows its work and proves every calculation.
                   Zero LLM hallucinations, 5,000 Monte Carlo runs, and dynamic safety buffers.
@@ -280,7 +280,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.3 }}
-                  className="flex items-center gap-3.5 relative z-10 mb-4"
+                  className="flex items-center gap-3.5 relative z-10 mb-2"
                 >
                   <Link
                     href="/login"
