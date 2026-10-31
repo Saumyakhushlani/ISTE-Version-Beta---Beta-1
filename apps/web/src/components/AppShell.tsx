@@ -58,7 +58,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isPublicPage =
     pathname === '/' ||
     pathname === '/login' ||
-    pathname === '/register';
+    pathname === '/register' ||
+    pathname === '/how-it-works';
 
   useEffect(() => {
     checkAuth().then((authOk) => {

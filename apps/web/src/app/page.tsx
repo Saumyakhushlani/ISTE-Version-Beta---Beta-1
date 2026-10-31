@@ -136,9 +136,9 @@ export default function HomePage() {
             <a href="#pillars" className="hover:text-foreground transition-colors whitespace-nowrap">
               Pillars &amp; Math
             </a>
-            <a href="#how-it-works" className="hover:text-foreground transition-colors whitespace-nowrap">
+            <Link href="/how-it-works" className="hover:text-foreground transition-colors whitespace-nowrap">
               How It Works
-            </a>
+            </Link>
             <Link href="/privacy" className="hover:text-foreground transition-colors whitespace-nowrap">
               Privacy &amp; Security
             </Link>
@@ -206,13 +206,13 @@ export default function HomePage() {
             >
               Pillars &amp; Math
             </a>
-            <a
-              href="#how-it-works"
+            <Link
+              href="/how-it-works"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-medium text-foreground py-1"
             >
               How It Works &amp; Formulas
-            </a>
+            </Link>
             <Link
               href="/privacy"
               onClick={() => setMobileMenuOpen(false)}
