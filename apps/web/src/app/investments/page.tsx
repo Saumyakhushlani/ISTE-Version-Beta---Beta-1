@@ -283,7 +283,7 @@ export default function InvestmentsPage() {
         </div>
 
         {/* 1-2 Default Starter Question Chips */}
-        <div className="px-5 py-2.5 bg-muted/15 border-b border-border/60 flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <div className="px-5 py-2.5 bg-muted/20 border-b border-border/60 flex items-center gap-2 overflow-x-auto no-scrollbar">
           <span className="text-[11px] font-semibold text-muted-foreground shrink-0 flex items-center gap-1">
             <HelpCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             Try asking:
@@ -293,7 +293,7 @@ export default function InvestmentsPage() {
               key={idx}
               onClick={() => handleSendMessage(q)}
               disabled={isSending}
-              className="text-xs px-3 py-1.5 rounded-full bg-neutral-900 border border-neutral-800 hover:border-emerald-500/40 hover:bg-neutral-850 text-neutral-200 transition shrink-0 whitespace-nowrap cursor-pointer shadow-2xs font-medium"
+              className="text-xs px-3 py-1.5 rounded-full bg-card hover:bg-muted border border-border hover:border-emerald-500/50 text-foreground transition shrink-0 whitespace-nowrap cursor-pointer shadow-2xs font-medium"
             >
               {q}
             </button>
@@ -388,8 +388,8 @@ export default function InvestmentsPage() {
         </div>
 
         {/* Investment Options Bar */}
-        <div className="px-5 py-2.5 bg-neutral-950 border-t border-neutral-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar">
-          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider shrink-0">
+        <div className="px-5 py-2.5 bg-card/90 border-t border-border flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">
             Options:
           </span>
           {INVESTMENT_OPTIONS.map((opt) => (
@@ -401,9 +401,9 @@ export default function InvestmentsPage() {
                 handleSendMessage(prompt);
               }}
               disabled={isSending}
-              className="text-[11px] px-2.5 py-1 rounded-lg bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-300 hover:text-white transition shrink-0 cursor-pointer"
+              className="text-[11px] px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted border border-border hover:border-emerald-500/40 text-foreground transition shrink-0 cursor-pointer"
             >
-              <span className="font-semibold text-neutral-200">{opt.name}</span>
+              <span className="font-semibold">{opt.name}</span>
             </button>
           ))}
         </div>
@@ -414,7 +414,7 @@ export default function InvestmentsPage() {
             e.preventDefault();
             handleSendMessage();
           }}
-          className="p-3.5 bg-neutral-950 border-t border-neutral-800 flex items-center gap-2"
+          className="p-3.5 bg-card border-t border-border flex items-center gap-2"
         >
           <input
             type="text"
@@ -422,12 +422,12 @@ export default function InvestmentsPage() {
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder="Ask anything (e.g. 'Can I invest ₹15,000 in Gold or SIP this month?')..."
             disabled={isSending}
-            className="flex-1 bg-black border border-neutral-800 rounded-xl px-4 py-2.5 text-xs md:text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 shadow-inner"
+            className="flex-1 bg-background border border-border rounded-xl px-4 py-2.5 text-xs md:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-xs"
           />
           <button
             type="submit"
             disabled={isSending || !inputMessage.trim()}
-            className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs md:text-sm inline-flex items-center gap-1.5 disabled:opacity-40 transition shadow-xs cursor-pointer shrink-0"
+            className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs md:text-sm inline-flex items-center gap-1.5 disabled:opacity-40 transition shadow-xs cursor-pointer shrink-0"
           >
             <span>Send</span>
             <Send className="w-3.5 h-3.5" />
