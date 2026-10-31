@@ -98,8 +98,8 @@ export default function CashHorizonChart({
             <span className="text-amber-600 dark:text-amber-400 font-semibold">P10 Conservative</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 border-t-2 border-dashed border-rose-500" />
-            <span className="text-rose-500 font-semibold">Buffer Floor ({formatINR(bufferPaise)})</span>
+            <span className="w-3 border-t-2 border-dashed border-red-500" />
+            <span className="text-red-500 dark:text-red-400 font-bold">Buffer Floor ({formatINR(bufferPaise)})</span>
           </div>
         </div>
       </div>
@@ -157,7 +157,7 @@ export default function CashHorizonChart({
                         <span className="text-muted-foreground font-sans">P10 (Conservative):</span>
                         <span className="font-bold">{formatINR(d.p10_paise)}</span>
                       </div>
-                      <div className="pt-1.5 border-t border-border flex items-center justify-between gap-4 text-rose-500">
+                      <div className="pt-1.5 border-t border-border flex items-center justify-between gap-4 text-red-500 dark:text-red-400">
                         <span className="text-muted-foreground font-sans">Buffer:</span>
                         <span className="font-bold">{formatINR(bufferPaise)}</span>
                       </div>
@@ -167,16 +167,16 @@ export default function CashHorizonChart({
               }}
             />
 
-            {/* Red Dashed Safety Buffer Floor Line */}
+            {/* Bright Red Dashed Safety Buffer Floor Line */}
             <ReferenceLine
               y={bufferRupees}
-              stroke="#ef4444"
+              stroke="#ff3b30"
               strokeDasharray="4 4"
               strokeWidth={1.5}
               label={{
                 value: `Buffer: ₹${bufferRupees.toLocaleString('en-IN')}`,
                 position: 'right',
-                fill: '#ef4444',
+                fill: '#ff3b30',
                 fontSize: 10,
                 fontWeight: 'bold',
                 fontFamily: 'monospace',
@@ -187,12 +187,12 @@ export default function CashHorizonChart({
             {yMin < 0 && (
               <ReferenceLine
                 y={0}
-                stroke="#dc2626"
+                stroke="#ff3b30"
                 strokeWidth={2}
                 label={{
                   value: 'Zero Balance (Overdraft)',
                   position: 'insideBottomLeft',
-                  fill: '#dc2626',
+                  fill: '#ff3b30',
                   fontSize: 10,
                   fontWeight: 'bold',
                 }}
@@ -270,7 +270,7 @@ export default function CashHorizonChart({
                   Maintains +{formatINR(lowestBalance.p50_minor - bufferPaise)} cushion
                 </span>
               ) : (
-                <span className="text-rose-500 dark:text-rose-400">
+                <span className="text-red-500 dark:text-red-400 font-bold">
                   Breaches buffer by {formatINR(bufferPaise - lowestBalance.p50_minor)}
                 </span>
               )}

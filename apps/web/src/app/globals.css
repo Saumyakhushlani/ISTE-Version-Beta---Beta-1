@@ -24,7 +24,7 @@
   --background: #fcfcfc;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --foreground: #171717;
-  --destructive: #ca3214;
+  --destructive: #ef4444;
   --shadow-blur: 3px;
   --shadow-color: #000000;
   --sidebar-ring: #059669;
@@ -66,7 +66,7 @@
   --secondary: #242424;
   --background: #121212;
   --foreground: #e2e8f0;
-  --destructive: #541c15;
+  --destructive: #f87171;
   --sidebar-ring: #4ade80;
   --sidebar-accent: #313131;
   --sidebar-border: #292929;
