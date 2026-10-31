@@ -32,6 +32,7 @@ import {
 import { ThemeToggle } from '@/components/theme-toggle';
 import InkOrbitFeatures from '@/components/ui/ink-orbit-features';
 import EnterpriseAIPipeline from '@/components/ui/ai-agent-pipeline';
+import FinancialPipelineBeam from '@/components/ui/financial-pipeline-beam';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
 
 const FDL_PILLARS: FeatureType[] = [
@@ -128,6 +129,9 @@ export default function HomePage() {
             <a href="#pipeline" className="hover:text-foreground transition-colors">
               Live Pipeline
             </a>
+            <a href="#data-cleaning" className="hover:text-foreground transition-colors">
+              Data Cleaning
+            </a>
             <a href="#engine-flow" className="hover:text-foreground transition-colors">
               Engine Flow
             </a>
@@ -189,6 +193,13 @@ export default function HomePage() {
               className="block text-sm font-medium text-foreground py-1"
             >
               Live Pipeline
+            </a>
+            <a
+              href="#data-cleaning"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-foreground py-1"
+            >
+              Data Cleaning
             </a>
             <a
               href="#engine-flow"
@@ -728,6 +739,26 @@ export default function HomePage() {
         ======================================================== */}
         <section id="engine-flow" className="w-full border-t border-border">
           <InkOrbitFeatures theme="auto" />
+        </section>
+
+        {/* ========================================================
+            2.7 COMPLETE DATA PIPELINE & CLEANING ENGINE (ANIMATED BEAMS)
+        ======================================================== */}
+        <section id="data-cleaning" className="py-24 px-4 sm:px-6 lg:px-8 border-t border-border bg-gradient-to-b from-background via-card/25 to-background">
+          <div className="max-w-4xl mx-auto text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              End-to-End Data Pipeline
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+              From Raw Statements to Verified Ledger: The Complete Data Cleaning Flow
+            </h2>
+            <p className="text-sm text-muted-foreground mt-3 max-w-2xl mx-auto leading-relaxed">
+              Discover how raw bank statements are parsed, UPI merchant strings sanitized, internal transfers paired, balances mathematically reconciled, and simulated across 5,000 Monte Carlo paths.
+            </p>
+          </div>
+
+          <FinancialPipelineBeam />
         </section>
 
         {/* ========================================================
