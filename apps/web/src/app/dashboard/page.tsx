@@ -707,7 +707,13 @@ export default function DashboardPage() {
       )}
 
       {/* ROW 3: SPENDING BY CATEGORY & MONTHLY INCOME VS EXPENSES */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <motion.div 
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.15 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="grid grid-cols-1 lg:grid-cols-12 gap-6"
+      >
         {/* Spending by Category */}
         <div className="lg:col-span-5 bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col justify-between">
           <div>
@@ -739,6 +745,10 @@ export default function DashboardPage() {
                         outerRadius={80}
                         paddingAngle={2}
                         stroke="none"
+                        isAnimationActive={true}
+                        animationBegin={150}
+                        animationDuration={1200}
+                        animationEasing="ease-out"
                       >
                         {categories.map((entry: any, index: number) => {
                           const palette = [
@@ -755,36 +765,53 @@ export default function DashboardPage() {
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                  <motion.div 
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    whileInView={{ scale: 1, opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.25, duration: 0.5, ease: 'easeOut' }}
+                    className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
+                  >
                     <span className="text-base font-extrabold text-foreground leading-tight font-mono">
                       {formatINR(totalSpendingPaise)}
                     </span>
                     <span className="text-[10px] text-muted-foreground font-medium">Total Spending</span>
                     <span className="text-[11px] font-semibold text-muted-foreground">100%</span>
-                  </div>
+                  </motion.div>
                 </div>
 
-                <div className="flex-1 w-full space-y-2">
-                  {categories.slice(0, 6).map((c: any) => {
+                <div className="flex-1 w-full space-y-2.5">
+                  {categories.slice(0, 6).map((c: any, index: number) => {
                     const pct = totalSpendingPaise > 0 
                       ? Math.round(((c.amount_paise || c.amount_minor || 0) / totalSpendingPaise) * 100) 
                       : 0;
                     return (
-                      <motion.div 
-                        whileHover={{ x: 3 }} 
-                        transition={{ duration: 0.15 }}
-                        key={c.id || c.category_id} 
-                        className="flex items-center justify-between text-xs py-0.5 rounded px-1 -mx-1 hover:bg-muted transition-colors"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color || 'var(--primary)' }}></span>
-                          <span className="text-foreground font-medium truncate">{c.category || c.name}</span>
+                      <div key={c.id || c.category_id || index} className="space-y-1">
+                        <motion.div 
+                          whileHover={{ x: 3 }} 
+                          transition={{ duration: 0.15 }}
+                          className="flex items-center justify-between text-xs py-0.5 rounded px-1 -mx-1 hover:bg-muted transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color || 'var(--primary)' }}></span>
+                            <span className="text-foreground font-medium truncate">{c.category || c.name}</span>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-semibold text-foreground font-mono">{formatINR(c.amount_paise || c.amount_minor || 0)}</span>
+                            <span className="text-muted-foreground w-7 text-right">{pct}%</span>
+                          </div>
+                        </motion.div>
+                        <div className="w-full bg-muted/60 h-1 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            whileInView={{ width: `${pct}%` }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.8, delay: 0.15 + index * 0.08, ease: 'easeOut' }}
+                            className="h-full rounded-full"
+                            style={{ backgroundColor: c.color || 'var(--primary)' }}
+                          />
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="font-semibold text-foreground font-mono">{formatINR(c.amount_paise || c.amount_minor || 0)}</span>
-                          <span className="text-muted-foreground w-7 text-right">{pct}%</span>
-                        </div>
-                      </motion.div>
+                      </div>
                     );
                   })}
                 </div>
@@ -844,9 +871,40 @@ export default function DashboardPage() {
                       formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, '']}
                       contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--card-foreground)', fontSize: '12px' }}
                     />
-                    <Bar dataKey="income" fill="var(--chart-1)" barSize={16} radius={[3, 3, 0, 0]} name="Income" />
-                    <Bar dataKey="expenses" fill="var(--chart-4)" barSize={16} radius={[3, 3, 0, 0]} name="Expenses" />
-                    <Line type="monotone" dataKey="net" stroke="var(--chart-2)" strokeWidth={2.5} dot={{ fill: 'var(--chart-2)', r: 4, stroke: 'var(--card)', strokeWidth: 2 }} name="Net Cash Flow" />
+                    <Bar 
+                      dataKey="income" 
+                      fill="var(--chart-1)" 
+                      barSize={16} 
+                      radius={[4, 4, 0, 0]} 
+                      name="Income"
+                      isAnimationActive={true}
+                      animationBegin={200}
+                      animationDuration={1000}
+                      animationEasing="ease-out"
+                    />
+                    <Bar 
+                      dataKey="expenses" 
+                      fill="var(--chart-4)" 
+                      barSize={16} 
+                      radius={[4, 4, 0, 0]} 
+                      name="Expenses"
+                      isAnimationActive={true}
+                      animationBegin={400}
+                      animationDuration={1000}
+                      animationEasing="ease-out"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="net" 
+                      stroke="var(--chart-2)" 
+                      strokeWidth={2.5} 
+                      dot={{ fill: 'var(--chart-2)', r: 4, stroke: 'var(--card)', strokeWidth: 2 }} 
+                      name="Net Cash Flow"
+                      isAnimationActive={true}
+                      animationBegin={650}
+                      animationDuration={1200}
+                      animationEasing="ease-out"
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -913,7 +971,13 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* ROW 4: FUTURE CASH-FLOW FORECAST & UPCOMING PAYMENTS */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <motion.div 
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.15 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="grid grid-cols-1 lg:grid-cols-12 gap-6"
+      >
         <div className="lg:col-span-8 bg-card border border-border rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
@@ -965,11 +1029,68 @@ export default function DashboardPage() {
                       formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, '']}
                       contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--card-foreground)', fontSize: '12px' }}
                     />
-                    <Area type="monotone" dataKey="p90" stroke="none" fill="var(--chart-1)" fillOpacity={0.15} />
-                    <Line type="monotone" dataKey="p90" stroke="var(--chart-2)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="P90 (Higher)" />
-                    <Line type="monotone" dataKey="p50" stroke="var(--chart-1)" strokeWidth={2.5} dot={false} name="P50 (Median)" />
-                    <Line type="monotone" dataKey="p10" stroke="var(--chart-3)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="P10 (Lower)" />
-                    <Line type="monotone" dataKey="buffer" stroke="var(--chart-4)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} name="Safety Buffer" />
+                    <Area 
+                      type="monotone" 
+                      dataKey="p90" 
+                      stroke="none" 
+                      fill="var(--chart-1)" 
+                      fillOpacity={0.15}
+                      isAnimationActive={true}
+                      animationBegin={150}
+                      animationDuration={1200}
+                      animationEasing="ease-out"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="p90" 
+                      stroke="var(--chart-2)" 
+                      strokeWidth={1.5} 
+                      strokeDasharray="4 4" 
+                      dot={false} 
+                      name="P90 (Higher)"
+                      isAnimationActive={true}
+                      animationBegin={300}
+                      animationDuration={1100}
+                      animationEasing="ease-out"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="p50" 
+                      stroke="var(--chart-1)" 
+                      strokeWidth={2.5} 
+                      dot={false} 
+                      name="P50 (Median)"
+                      isAnimationActive={true}
+                      animationBegin={450}
+                      animationDuration={1200}
+                      animationEasing="ease-out"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="p10" 
+                      stroke="var(--chart-3)" 
+                      strokeWidth={1.5} 
+                      strokeDasharray="4 4" 
+                      dot={false} 
+                      name="P10 (Lower)"
+                      isAnimationActive={true}
+                      animationBegin={600}
+                      animationDuration={1100}
+                      animationEasing="ease-out"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="buffer" 
+                      stroke="var(--chart-4)" 
+                      strokeWidth={1.5} 
+                      strokeDasharray="3 3" 
+                      dot={false} 
+                      name="Safety Buffer"
+                      isAnimationActive={true}
+                      animationBegin={750}
+                      animationDuration={1000}
+                      animationEasing="ease-out"
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>

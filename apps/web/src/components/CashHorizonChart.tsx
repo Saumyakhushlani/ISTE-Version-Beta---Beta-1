@@ -206,6 +206,10 @@ export default function CashHorizonChart({
               stroke="none"
               fill="url(#horizonConfidenceGrad)"
               fillOpacity={1}
+              isAnimationActive={true}
+              animationBegin={150}
+              animationDuration={1200}
+              animationEasing="ease-out"
             />
 
             {/* P90 Optimistic Line (Sky / Blue) */}
@@ -217,6 +221,10 @@ export default function CashHorizonChart({
               strokeDasharray="4 4"
               dot={false}
               name="P90 (Optimistic)"
+              isAnimationActive={true}
+              animationBegin={300}
+              animationDuration={1100}
+              animationEasing="ease-out"
             />
 
             {/* P50 Expected Trajectory Curve (Vibrant Theme Emerald) */}
@@ -228,6 +236,10 @@ export default function CashHorizonChart({
               dot={false}
               activeDot={{ r: 5, fill: 'var(--chart-1)', stroke: 'var(--card)', strokeWidth: 2 }}
               name="P50 (Expected)"
+              isAnimationActive={true}
+              animationBegin={450}
+              animationDuration={1300}
+              animationEasing="ease-out"
             />
 
             {/* P10 Conservative Line (Amber) */}
@@ -239,6 +251,10 @@ export default function CashHorizonChart({
               strokeDasharray="4 4"
               dot={false}
               name="P10 (Conservative)"
+              isAnimationActive={true}
+              animationBegin={600}
+              animationDuration={1100}
+              animationEasing="ease-out"
             />
           </ComposedChart>
         </ResponsiveContainer>
