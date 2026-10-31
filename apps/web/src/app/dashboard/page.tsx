@@ -91,6 +91,7 @@ export default function DashboardPage() {
   const [nlQuery, setNlQuery] = useState('');
   const [nlLoading, setNlLoading] = useState(false);
   const [nlResult, setNlResult] = useState<any>(null);
+  const [hoveredCategoryIndex, setHoveredCategoryIndex] = useState<number | null>(null);
 
   useEffect(() => {
     fetchDashboard(activeAccount, activeTimeRange, selectedFileIds);
@@ -735,6 +736,33 @@ export default function DashboardPage() {
                 <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload || !payload.length) return null;
+                          const d = payload[0].payload;
+                          const amt = d.amount_paise || d.amount_minor || d.value || 0;
+                          const pct = totalSpendingPaise > 0 ? Math.round((amt / totalSpendingPaise) * 100) : 0;
+                          return (
+                            <div className="bg-popover border border-border px-3 py-2 rounded-xl shadow-xl text-xs space-y-1 z-50 pointer-events-none">
+                              <div className="flex items-center gap-1.5 font-bold text-foreground">
+                                <span 
+                                  className="w-2.5 h-2.5 rounded-full shrink-0" 
+                                  style={{ backgroundColor: d.fill || d.color || 'var(--primary)' }} 
+                                />
+                                <span>{d.category || d.name}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-4 font-mono text-[11px]">
+                                <span className="text-muted-foreground font-sans">Amount:</span>
+                                <span className="font-bold text-foreground">{formatINR(amt)}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-4 font-mono text-[11px]">
+                                <span className="text-muted-foreground font-sans">Share:</span>
+                                <span className="font-bold text-primary">{pct}%</span>
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
                       <Pie
                         data={categories}
                         dataKey="amount_paise"
@@ -749,6 +777,8 @@ export default function DashboardPage() {
                         animationBegin={150}
                         animationDuration={1200}
                         animationEasing="ease-out"
+                        onMouseEnter={(_, index) => setHoveredCategoryIndex(index)}
+                        onMouseLeave={() => setHoveredCategoryIndex(null)}
                       >
                         {categories.map((entry: any, index: number) => {
                           const palette = [
@@ -760,24 +790,49 @@ export default function DashboardPage() {
                             '#64748B'
                           ];
                           const fill = entry.color || palette[index % palette.length];
-                          return <Cell key={`cell-${index}`} fill={fill} />;
+                          const isHovered = hoveredCategoryIndex === index;
+                          return (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={fill} 
+                              className="cursor-pointer transition-all duration-200 outline-none"
+                              style={{
+                                filter: hoveredCategoryIndex === null || isHovered ? 'none' : 'opacity(0.4)',
+                                transform: isHovered ? 'scale(1.04)' : 'scale(1)',
+                                transformOrigin: 'center center',
+                              }}
+                            />
+                          );
                         })}
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
-                  <motion.div 
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    whileInView={{ scale: 1, opacity: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.25, duration: 0.5, ease: 'easeOut' }}
-                    className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
-                  >
-                    <span className="text-base font-extrabold text-foreground leading-tight font-mono">
-                      {formatINR(totalSpendingPaise)}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-medium">Total Spending</span>
-                    <span className="text-[11px] font-semibold text-muted-foreground">100%</span>
-                  </motion.div>
+                  {(() => {
+                    const activeCategory = hoveredCategoryIndex !== null ? categories[hoveredCategoryIndex] : null;
+                    const activeAmt = activeCategory ? (activeCategory.amount_paise || activeCategory.amount_minor || 0) : totalSpendingPaise;
+                    const activePct = totalSpendingPaise > 0 ? Math.round((activeAmt / totalSpendingPaise) * 100) : 100;
+                    const activeLabel = activeCategory ? (activeCategory.category || activeCategory.name) : 'Total Spending';
+
+                    return (
+                      <motion.div 
+                        key={hoveredCategoryIndex !== null ? `cat-${hoveredCategoryIndex}` : 'total'}
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                        className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2"
+                      >
+                        <span className="text-base font-extrabold text-foreground leading-tight font-mono truncate max-w-[110px]">
+                          {formatINR(activeAmt)}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[110px]">
+                          {activeLabel}
+                        </span>
+                        <span className="text-[11px] font-semibold text-primary">
+                          {activePct}%
+                        </span>
+                      </motion.div>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex-1 w-full space-y-2.5">
@@ -785,12 +840,20 @@ export default function DashboardPage() {
                     const pct = totalSpendingPaise > 0 
                       ? Math.round(((c.amount_paise || c.amount_minor || 0) / totalSpendingPaise) * 100) 
                       : 0;
+                    const isHovered = hoveredCategoryIndex === index;
                     return (
-                      <div key={c.id || c.category_id || index} className="space-y-1">
+                      <div 
+                        key={c.id || c.category_id || index} 
+                        className="space-y-1"
+                        onMouseEnter={() => setHoveredCategoryIndex(index)}
+                        onMouseLeave={() => setHoveredCategoryIndex(null)}
+                      >
                         <motion.div 
                           whileHover={{ x: 3 }} 
                           transition={{ duration: 0.15 }}
-                          className="flex items-center justify-between text-xs py-0.5 rounded px-1 -mx-1 hover:bg-muted transition-colors"
+                          className={`flex items-center justify-between text-xs py-0.5 rounded px-1.5 -mx-1.5 transition-colors cursor-pointer ${
+                            isHovered ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted'
+                          }`}
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color || 'var(--primary)' }}></span>
