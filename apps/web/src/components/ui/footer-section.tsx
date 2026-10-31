@@ -96,10 +96,10 @@ export function FooterSection({ currentPath = "home" }: FooterSectionProps) {
             <div className="absolute -right-4 top-0 h-24 w-24 rounded-full bg-primary/10 blur-2xl pointer-events-none" />
           </div>
 
-          {/* Column 2: Navigation & Product */}
+          {/* Column 2: Public Navigation & Sections */}
           <div>
             <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
-              Product &amp; Lab
+              Quick Links
             </h3>
             <nav className="space-y-2.5 text-xs">
               <Link 
@@ -114,20 +114,29 @@ export function FooterSection({ currentPath = "home" }: FooterSectionProps) {
               >
                 How It Works &amp; Architecture
               </Link>
-              <Link href="/dashboard" className="block text-muted-foreground transition-colors hover:text-primary">
-                Executive Dashboard
+              <Link 
+                href="/#ingestion" 
+                className="block text-muted-foreground transition-colors hover:text-primary"
+              >
+                Universal Bank Ingestion
               </Link>
-              <Link href="/lab" className="block text-muted-foreground transition-colors hover:text-primary">
-                Affordability &amp; What-If Lab
+              <Link 
+                href="/#pillars" 
+                className="block text-muted-foreground transition-colors hover:text-primary"
+              >
+                Engineering Invariants
               </Link>
-              <Link href="/upload" className="block text-muted-foreground transition-colors hover:text-primary">
-                Bank Statement Ingestion
+              <Link 
+                href="/#faq" 
+                className="block text-muted-foreground transition-colors hover:text-primary"
+              >
+                Frequently Asked Questions
               </Link>
-              <Link href="/transactions" className="block text-muted-foreground transition-colors hover:text-primary">
-                Categorized Transactions
-              </Link>
-              <Link href="/recurring" className="block text-muted-foreground transition-colors hover:text-primary">
-                Subscriptions &amp; Bills
+              <Link 
+                href="/privacy" 
+                className="block text-muted-foreground transition-colors hover:text-primary"
+              >
+                Privacy &amp; Air-Gap Audit
               </Link>
             </nav>
           </div>
@@ -283,8 +292,8 @@ export function FooterSection({ currentPath = "home" }: FooterSectionProps) {
             <Link href="/how-it-works" className="transition-colors hover:text-foreground">
               Architecture &amp; Formulas
             </Link>
-            <Link href="/dashboard" className="transition-colors hover:text-foreground">
-              Live Demo
+            <Link href="/register" className="transition-colors hover:text-foreground">
+              Sign Up
             </Link>
             <Link href="/login" className="transition-colors hover:text-foreground">
               Sign In
