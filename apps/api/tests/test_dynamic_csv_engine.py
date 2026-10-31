@@ -1,3 +1,5 @@
+from db.database import SessionLocal
+from db.models import Transaction
 """
 Comprehensive Automated Pytest Suite for Dynamic CSV Support in Financial Decision Lab (FDL).
 Tests:
@@ -332,6 +334,10 @@ def test_api_preview_with_dynamic_csv():
 
 
 def test_api_preview_and_commit_with_mapping_override():
+    db = SessionLocal()
+    db.query(Transaction).filter(Transaction.raw_description.in_(["Unique Bonus Credit", "Unique Office Rent"])).delete(synchronize_session=False)
+    db.commit()
+    db.close()
     client = TestClient(app)
     csv_bytes = b"D,N,W,D,B\n2024-08-10,Unique Bonus Credit,,50000.00,80000.00\n2024-08-11,Unique Office Rent,15000.00,,65000.00\n"
     custom_mapping = json.dumps({"date": 0, "description": 1, "withdrawal": 2, "deposit": 3, "balance": 4})

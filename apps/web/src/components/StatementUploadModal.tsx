@@ -122,7 +122,12 @@ export default function StatementUploadModal({
         setShowMappingEditor(true);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to preview statement. Please verify file format.');
+      if (err.isPasswordRequired || err.isPasswordIncorrect || err.message?.includes('PASSWORD_')) {
+        setPasswordIncorrect(Boolean(err.isPasswordIncorrect || err.message?.includes('PASSWORD_INCORRECT')));
+        setPasswordModalOpen(true);
+      } else {
+        setError(err?.message || 'Failed to preview statement. Please verify file format.');
+      }
     } finally {
       setLoading(false);
     }
@@ -634,6 +639,25 @@ export default function StatementUploadModal({
           )}
         </div>
       </motion.div>
+
+      <StatementPasswordModal
+        isOpen={passwordModalOpen}
+        fileName={file?.name || 'Statement'}
+        fileType={
+          file?.name.toLowerCase().endsWith('.pdf')
+            ? 'PDF'
+            : file?.name.toLowerCase().endsWith('.xlsx') || file?.name.toLowerCase().endsWith('.xls')
+            ? 'Excel'
+            : 'Statement'
+        }
+        isIncorrect={passwordIncorrect}
+        isSubmitting={isUnlocking}
+        onSubmit={handlePasswordSubmit}
+        onClose={() => {
+          setPasswordModalOpen(false);
+          setPasswordIncorrect(false);
+        }}
+      />
     </div>
   );
 }

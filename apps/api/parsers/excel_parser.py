@@ -1,11 +1,12 @@
 """
 Bank Statement Excel Parser (.xlsx and .xls)
 Extracts tabular transactions from digital bank Excel exports (HDFC, SBI, ICICI, Axis, Kotak).
-Includes password decryption via msoffcrypto-tool and automatic column mapping & reconciliation.
+Includes password decryption via msoffcrypto-tool and ZIP extraction, automatic column mapping & reconciliation.
 """
 
 import io
 import re
+import zipfile
 from datetime import datetime, date
 from typing import Dict, Any, List, Optional
 import openpyxl
@@ -16,7 +17,8 @@ import msoffcrypto.exceptions
 from parsers.csv_parser import (
     parse_indian_amount_to_paise,
     parse_date_to_iso,
-    find_header_and_mapping
+    find_header_and_mapping,
+    parse_csv_statement
 )
 from parsers.normalizer import normalize_transaction_description
 from parsers.reconciliation import verify_balance_reconciliation
@@ -24,47 +26,134 @@ from parsers.bank_detector import detect_bank_and_account
 
 
 def is_excel_encrypted(file_bytes: bytes) -> bool:
-    """Checks whether the Excel file stream is password-encrypted using msoffcrypto."""
+    """
+    Checks whether the Excel file stream is password-encrypted.
+    Supports:
+    1. Microsoft Office OLE2 Agile/Standard/BIFF encryption (msoffcrypto)
+    2. Password-protected ZIP archives containing Excel sheets
+    3. Compound OLE documents starting with \xd0\xcf\x11\xe0
+    """
+    # 1. Check msoffcrypto Office encryption
     try:
         office_file = msoffcrypto.OfficeFile(io.BytesIO(file_bytes))
-        return office_file.is_encrypted()
+        if office_file.is_encrypted():
+            return True
     except Exception:
-        # Standard unencrypted Zip (.xlsx) or non-OLE file will raise an exception in OfficeFile
-        return False
+        pass
+
+    # 2. Check if it is a ZIP package with encrypted entries
+    if file_bytes.startswith(b"PK\x03\x04"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+                for info in zf.infolist():
+                    if (info.flag_bits & 0x1) != 0:
+                        return True
+        except Exception:
+            pass
+
+    # 3. Check OLE header signature
+    if file_bytes.startswith(b"\xd0\xcf\x11\xe0"):
+        try:
+            office_file = msoffcrypto.OfficeFile(io.BytesIO(file_bytes))
+            return office_file.is_encrypted()
+        except Exception:
+            pass
+
+    return False
 
 
 def decrypt_excel(file_bytes: bytes, password: str) -> io.BytesIO:
     """
-    Decrypts an encrypted Office Excel workbook using the provided password.
+    Decrypts an encrypted Office Excel workbook (.xlsx or .xls) using the provided password.
+    Supports both msoffcrypto (Agile / Standard / BIFF8) and ZIP-encrypted packages.
     Raises ValueError with PASSWORD_INCORRECT if password fails.
     """
+    clean_pwd = password.strip() if password else ""
+    if not clean_pwd:
+        raise ValueError("PASSWORD_REQUIRED: This Excel bank statement is password-protected. Please enter your password.")
+
+    # 1. Try msoffcrypto for OLE2 Office encryption (OOXML / Agile / Standard / BIFF8)
     try:
         office_file = msoffcrypto.OfficeFile(io.BytesIO(file_bytes))
-        office_file.load_key(password=password)
-        decrypted_stream = io.BytesIO()
-        office_file.decrypt(decrypted_stream)
-        decrypted_stream.seek(0)
-        return decrypted_stream
-    except msoffcrypto.exceptions.InvalidPasswordError:
+        if office_file.is_encrypted():
+            try:
+                office_file.load_key(password=clean_pwd, verify_password=True)
+            except TypeError:
+                office_file.load_key(password=clean_pwd)
+            decrypted_stream = io.BytesIO()
+            office_file.decrypt(decrypted_stream)
+            decrypted_stream.seek(0)
+            return decrypted_stream
+    except (msoffcrypto.exceptions.InvalidKeyError, msoffcrypto.exceptions.DecryptionError):
         raise ValueError("PASSWORD_INCORRECT: The password provided for this Excel statement is incorrect.")
     except Exception as e:
         err_str = str(e).lower()
         if "password" in err_str or "key" in err_str:
             raise ValueError("PASSWORD_INCORRECT: The password provided for this Excel statement is incorrect.")
-        raise ValueError(f"Failed to decrypt Excel statement: {e}")
+        # If msoffcrypto fails with unsupported file format, fall through to ZIP decryption
+
+    # 2. Try standard ZIP decryption if the file is a password-protected zip
+    if file_bytes.startswith(b"PK\x03\x04"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+                has_encrypted_entry = any((info.flag_bits & 0x1) != 0 for info in zf.infolist())
+                if has_encrypted_entry:
+                    enc_info = next(info for info in zf.infolist() if (info.flag_bits & 0x1) != 0)
+                    try:
+                        zf.read(enc_info.filename, pwd=clean_pwd.encode("utf-8"))
+                    except (RuntimeError, zipfile.BadZipFile):
+                        raise ValueError("PASSWORD_INCORRECT: The password provided for this Excel statement is incorrect.")
+
+                    names = zf.namelist()
+                    inner_excel = next((n for n in names if n.lower().endswith((".xlsx", ".xls")) and not n.startswith("__MACOSX")), None)
+                    if inner_excel:
+                        inner_bytes = zf.read(inner_excel, pwd=clean_pwd.encode("utf-8"))
+                        if is_excel_encrypted(inner_bytes):
+                            return decrypt_excel(inner_bytes, clean_pwd)
+                        dec_stream = io.BytesIO(inner_bytes)
+                        dec_stream.seek(0)
+                        return dec_stream
+
+                    # Otherwise decrypt all entries and recreate an unencrypted in-memory zip
+                    decrypted_zip_stream = io.BytesIO()
+                    with zipfile.ZipFile(decrypted_zip_stream, "w", compression=zipfile.ZIP_DEFLATED) as new_zf:
+                        for info in zf.infolist():
+                            if info.is_dir():
+                                continue
+                            if (info.flag_bits & 0x1) != 0:
+                                data = zf.read(info.filename, pwd=clean_pwd.encode("utf-8"))
+                            else:
+                                data = zf.read(info.filename)
+                            new_zf.writestr(info.filename, data)
+                    decrypted_zip_stream.seek(0)
+                    return decrypted_zip_stream
+        except ValueError:
+            raise
+        except Exception as e:
+            err_str = str(e).lower()
+            if "password" in err_str or "bad password" in err_str or "crc" in err_str:
+                raise ValueError("PASSWORD_INCORRECT: The password provided for this Excel statement is incorrect.")
+            raise ValueError(f"Failed to decrypt compressed Excel statement: {e}")
+
+    raise ValueError("Unable to decrypt this Excel file. Unsupported encryption format.")
 
 
 def _extract_rows_from_xlsx(stream: io.BytesIO) -> List[List[str]]:
     """Extracts raw text grid from an OpenXML .xlsx workbook."""
-    wb = openpyxl.load_workbook(stream, data_only=True)
-    # Pick sheet with the most rows
+    try:
+        wb = openpyxl.load_workbook(stream, data_only=True, keep_links=False)
+    except Exception:
+        stream.seek(0)
+        wb = openpyxl.load_workbook(stream, data_only=False, keep_links=False)
+
     best_sheet = wb.active
-    max_rows = best_sheet.max_row if best_sheet else 0
+    max_rows = (best_sheet.max_row or 0) if best_sheet else 0
     for sheet_name in wb.sheetnames:
         sheet = wb[sheet_name]
-        if sheet.max_row > max_rows:
+        cur_rows = sheet.max_row or 0
+        if cur_rows > max_rows:
             best_sheet = sheet
-            max_rows = sheet.max_row
+            max_rows = cur_rows
 
     raw_rows: List[List[str]] = []
     if not best_sheet:
@@ -78,7 +167,6 @@ def _extract_rows_from_xlsx(stream: io.BytesIO) -> List[List[str]]:
             elif isinstance(cell, (datetime, date)):
                 clean_row.append(cell.strftime("%Y-%m-%d"))
             elif isinstance(cell, float):
-                # If it's a whole number, format without .0
                 if cell.is_integer():
                     clean_row.append(str(int(cell)))
                 else:
@@ -124,6 +212,33 @@ def _extract_rows_from_xls(file_bytes: bytes) -> List[List[str]]:
     return raw_rows
 
 
+def _extract_rows_from_html_or_csv(file_bytes: bytes) -> List[List[str]]:
+    """
+    Fallback extractor for banks (e.g. SBI, HDFC) that export HTML tables
+    or plain CSV/TSV disguised with an .xls / .xlsx extension.
+    """
+    try:
+        text = file_bytes.decode("utf-8", errors="replace")
+        if "<table" in text.lower() or "<tr" in text.lower():
+            rows: List[List[str]] = []
+            for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", text, re.DOTALL | re.IGNORECASE):
+                cells = [
+                    re.sub(r"<[^>]+>", "", td).strip()
+                    for td in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.DOTALL | re.IGNORECASE)
+                ]
+                if any(cells):
+                    rows.append(cells)
+            if rows:
+                return rows
+        # If plain delimited text
+        lines = [line.strip().split(",") for line in text.splitlines() if line.strip()]
+        if len(lines) > 2 and len(lines[0]) > 2:
+            return lines
+    except Exception:
+        pass
+    return []
+
+
 def parse_excel_statement(
     excel_bytes: bytes,
     password: Optional[str] = None,
@@ -143,7 +258,7 @@ def parse_excel_statement(
     else:
         processed_bytes = excel_bytes
 
-    # 2. Extract rows based on OpenXML vs BIFF format
+    # 2. Extract rows based on OpenXML, BIFF, or HTML-disguised format
     raw_rows: List[List[str]] = []
     try:
         if processed_bytes.startswith(b"PK\x03\x04"):
@@ -152,18 +267,24 @@ def parse_excel_statement(
             try:
                 raw_rows = _extract_rows_from_xls(processed_bytes)
             except Exception:
-                raw_rows = _extract_rows_from_xlsx(io.BytesIO(processed_bytes))
+                try:
+                    raw_rows = _extract_rows_from_xlsx(io.BytesIO(processed_bytes))
+                except Exception:
+                    raw_rows = _extract_rows_from_html_or_csv(processed_bytes)
     except Exception as e:
         err_text = str(e).lower()
         if "password" in err_text or "encrypted" in err_text:
-            if not password:
-                raise ValueError("PASSWORD_REQUIRED: This Excel workbook is password-protected. Please enter your password.")
+            if not password or not password.strip():
+                raise ValueError("PASSWORD_REQUIRED: This Excel bank statement is password-protected. Please enter your password.")
             else:
                 raise ValueError("PASSWORD_INCORRECT: The password provided for this Excel statement is incorrect.")
         raise ValueError(f"Failed to read Excel workbook: {e}")
 
     if not raw_rows:
-        raise ValueError("Excel file is empty or contains no readable sheets.")
+        # One last try with HTML / CSV fallback
+        raw_rows = _extract_rows_from_html_or_csv(processed_bytes)
+        if not raw_rows:
+            raise ValueError("Excel file is empty or contains no readable sheets.")
 
     # 3. Detect bank and account from header rows
     sample_text = "\n".join(["\t".join(r) for r in raw_rows[:25]])
@@ -201,7 +322,6 @@ def parse_excel_statement(
         posted_date = None
         if "date" in col_map and col_map["date"] < len(row):
             raw_date_str = row[col_map["date"]].strip()
-            # If date format is YYYY-MM-DD from excel conversion
             if re.match(r"^\d{4}-\d{2}-\d{2}$", raw_date_str):
                 posted_date = raw_date_str
             else:

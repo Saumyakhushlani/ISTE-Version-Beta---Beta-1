@@ -3,23 +3,26 @@ Comprehensive tests for Excel statement uploads (.xlsx, .xls) and interactive pa
 Tests:
   1. Plain Excel statement parsing, column mapping, and balance reconciliation
   2. Encrypted Excel statement detection and PASSWORD_REQUIRED rejection
-  3. Encrypted Excel statement rejection with PASSWORD_INCORRECT on invalid password
-  4. Encrypted PDF statement password validation
-  5. API endpoint POST /api/imports/preview with Excel upload and password parameter
+  3. Real msoffcrypto encrypted Excel statement rejection with PASSWORD_INCORRECT on invalid password
+  4. Real msoffcrypto encrypted Excel statement decryption with correct password
+  5. API endpoint POST /api/imports/preview with real encrypted Excel upload (without pass, wrong pass, correct pass)
+  6. API endpoint POST /api/imports/commit for decrypted Excel statement
 """
 
 import io
 import pytest
 import openpyxl
+import msoffcrypto
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from main import app
 from parsers.excel_parser import (
     parse_excel_statement,
-    is_excel_encrypted
+    is_excel_encrypted,
+    decrypt_excel
 )
 from db.database import SessionLocal
-from db.models import User
+from db.models import User, Account, Transaction
 from auth import create_access_token
 
 client = TestClient(app)
@@ -56,6 +59,15 @@ def create_synthetic_xlsx_bytes() -> bytes:
     return buf.getvalue()
 
 
+def create_encrypted_xlsx_bytes(password: str = "Hdfc@2026") -> bytes:
+    """Generates a genuinely password-encrypted .xlsx workbook using msoffcrypto."""
+    plain_bytes = create_synthetic_xlsx_bytes()
+    enc_stream = io.BytesIO()
+    office_file = msoffcrypto.OfficeFile(io.BytesIO(plain_bytes))
+    office_file.encrypt(password, enc_stream)
+    return enc_stream.getvalue()
+
+
 def test_unencrypted_xlsx_parsing():
     """Verifies that an unencrypted Excel statement parses rows into integer paise with zero-delta math."""
     xlsx_bytes = create_synthetic_xlsx_bytes()
@@ -84,74 +96,99 @@ def test_unencrypted_xlsx_parsing():
     assert parsed["reconciliation_discrepancy_minor"] == 0
 
 
-def test_excel_encryption_detection_and_rejection():
-    """Verifies that encrypted Excel files without password raise PASSWORD_REQUIRED."""
-    xlsx_bytes = create_synthetic_xlsx_bytes()
-    assert is_excel_encrypted(xlsx_bytes) is False
+def test_real_encrypted_xlsx_detection_and_rejection():
+    """Verifies that a real encrypted Excel file triggers PASSWORD_REQUIRED and PASSWORD_INCORRECT accurately."""
+    enc_bytes = create_encrypted_xlsx_bytes("Hdfc@2026")
+    assert is_excel_encrypted(enc_bytes) is True
 
-    # Simulate an encrypted Excel workbook requiring password
-    with patch("parsers.excel_parser.is_excel_encrypted", return_value=True):
-        with pytest.raises(ValueError) as excinfo:
-            parse_excel_statement(xlsx_bytes, password=None)
-        assert "PASSWORD_REQUIRED" in str(excinfo.value)
+    # 1. Parse without password -> PASSWORD_REQUIRED
+    with pytest.raises(ValueError) as excinfo:
+        parse_excel_statement(enc_bytes, password=None)
+    assert "PASSWORD_REQUIRED" in str(excinfo.value)
 
-        # Simulate incorrect password
-        with patch("parsers.excel_parser.decrypt_excel", side_effect=ValueError("PASSWORD_INCORRECT")):
-            with pytest.raises(ValueError) as excinfo2:
-                parse_excel_statement(xlsx_bytes, password="wrongpassword")
-            assert "PASSWORD_INCORRECT" in str(excinfo2.value)
+    # 2. Parse with wrong password -> PASSWORD_INCORRECT
+    with pytest.raises(ValueError) as excinfo2:
+        parse_excel_statement(enc_bytes, password="WrongPassword999")
+    assert "PASSWORD_INCORRECT" in str(excinfo2.value)
+
+    # 3. Parse with correct password -> Success
+    parsed = parse_excel_statement(enc_bytes, password="Hdfc@2026")
+    assert parsed["rows_detected"] == 4
+    assert "HDFC" in parsed["bank_detected"]
+    assert parsed["reconciliation_status"] == "PASSED"
 
 
-def test_api_preview_excel_statement():
-    """Verifies POST /api/imports/preview handles Excel uploads seamlessly."""
-    xlsx_bytes = create_synthetic_xlsx_bytes()
+def test_api_preview_real_encrypted_excel_workflow():
+    """Verifies end-to-end API preview workflow for password protected Excel."""
+    enc_bytes = create_encrypted_xlsx_bytes("Hdfc@2026")
 
     db = SessionLocal()
-    user = db.query(User).filter(User.email == "test_excel@fdl.local").first()
+    user = db.query(User).filter(User.email == "test_excel_enc@fdl.local").first()
     if not user:
         user = User(
-            id="usr_test_excel",
-            email="test_excel@fdl.local",
+            id="usr_test_excel_enc",
+            email="test_excel_enc@fdl.local",
             password_hash="fakehash"
         )
         db.add(user)
         db.commit()
+
+    # Clean up prior test accounts/transactions for clean run
+    acct_ids = [a.id for a in db.query(Account).filter_by(user_id=user.id).all()]
+    if acct_ids:
+        db.query(Transaction).filter(Transaction.account_id.in_(acct_ids)).delete(synchronize_session=False)
+        db.query(Account).filter(Account.user_id == user.id).delete(synchronize_session=False)
+        db.commit()
     db.close()
 
-    token = create_access_token(user_id="usr_test_excel", email="test_excel@fdl.local")
+    token = create_access_token(user_id="usr_test_excel_enc", email="test_excel_enc@fdl.local")
     headers = {"Authorization": f"Bearer {token}"}
 
-    files = {
-        "file": ("hdfc_august_statement.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    }
-    data = {
-        "bank_hint": "HDFC"
-    }
+    # 1. Upload without password -> 400 PASSWORD_REQUIRED
+    resp1 = client.post(
+        "/api/imports/preview",
+        files={"file": ("hdfc_secure.xlsx", enc_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        headers=headers
+    )
+    assert resp1.status_code == 400
+    detail1 = resp1.json()["detail"]
+    assert detail1["error"] == "PASSWORD_REQUIRED"
+    assert detail1["file_type"] == "Excel"
+    assert "password" in detail1["message"].lower()
 
-    resp = client.post("/api/imports/preview", files=files, data=data, headers=headers)
-    assert resp.status_code == 200
-    res_data = resp.json()
+    # 2. Upload with incorrect password -> 400 PASSWORD_INCORRECT
+    resp2 = client.post(
+        "/api/imports/preview",
+        files={"file": ("hdfc_secure.xlsx", enc_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        data={"password": "WrongPassword999"},
+        headers=headers
+    )
+    assert resp2.status_code == 400
+    detail2 = resp2.json()["detail"]
+    assert detail2["error"] == "PASSWORD_INCORRECT"
+    assert detail2["file_type"] == "Excel"
 
-    assert "HDFC" in res_data["bank_detected"]
-    assert res_data["rows_detected"] == 4
-    assert res_data["reconciliation_status"] == "PASSED"
-    assert "staging_id" in res_data
+    # 3. Upload with correct password -> 200 OK
+    resp3 = client.post(
+        "/api/imports/preview",
+        files={"file": ("hdfc_secure.xlsx", enc_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        data={"password": "Hdfc@2026"},
+        headers=headers
+    )
+    assert resp3.status_code == 200
+    res3 = resp3.json()
+    assert res3["rows_detected"] == 4
+    assert "HDFC" in res3["bank_detected"]
+    assert res3["reconciliation_status"] == "PASSED"
+    staging_id = res3["staging_id"]
 
-
-def test_api_preview_encrypted_rejection_format():
-    """Verifies that when an encrypted file is uploaded without password, API returns structured 400 error."""
-    token = create_access_token(user_id="usr_test_excel", email="test_excel@fdl.local")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    xlsx_bytes = create_synthetic_xlsx_bytes()
-    files = {
-        "file": ("protected_statement.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    }
-
-    with patch("parsers.excel_parser.is_excel_encrypted", return_value=True):
-        resp = client.post("/api/imports/preview", files=files, headers=headers)
-        assert resp.status_code == 400
-        detail = resp.json()["detail"]
-        assert detail["error"] == "PASSWORD_REQUIRED"
-        assert detail["file_type"] == "Excel"
-        assert "password" in detail["message"].lower()
+    # 4. Commit decrypted statement into database
+    resp4 = client.post(
+        "/api/imports/commit",
+        data={"file_id": staging_id},
+        headers=headers
+    )
+    assert resp4.status_code == 200
+    commit_res = resp4.json()
+    assert commit_res["inserted"] == 4
+    assert "account_id" in commit_res

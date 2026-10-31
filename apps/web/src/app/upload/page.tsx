@@ -800,6 +800,25 @@ export default function UploadPage() {
           handlePreview();
         }}
       />
+
+      <StatementPasswordModal
+        isOpen={passwordModalOpen}
+        fileName={file?.name || 'Statement'}
+        fileType={
+          file?.name.toLowerCase().endsWith('.pdf')
+            ? 'PDF'
+            : file?.name.toLowerCase().endsWith('.xlsx') || file?.name.toLowerCase().endsWith('.xls')
+            ? 'Excel'
+            : 'Statement'
+        }
+        isIncorrect={passwordIncorrect}
+        isSubmitting={isUnlocking}
+        onSubmit={handlePasswordSubmit}
+        onClose={() => {
+          setPasswordModalOpen(false);
+          setPasswordIncorrect(false);
+        }}
+      />
     </div>
   );
 }

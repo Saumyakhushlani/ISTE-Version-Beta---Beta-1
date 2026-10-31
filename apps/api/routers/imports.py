@@ -385,14 +385,16 @@ async def preview_statement(
     )
 
     file_id = f"stg_{uuid.uuid4().hex[:12]}"
+    staged_kind = "pdf" if lower_fn.endswith(".pdf") else ("excel" if lower_fn.endswith((".xlsx", ".xls")) else ("zip" if lower_fn.endswith(".zip") else "csv"))
     staged_data = {
         "filename": filename,
         "contents": contents,
-        "kind": "pdf" if filename.lower().endswith(".pdf") else "csv",
+        "kind": staged_kind,
         "sha256": sha256_hash,
         "bank_detected": bank_detected,
         "masked_last4": masked_last4,
-        "parsed": parsed
+        "parsed": parsed,
+        "password": password
     }
     save_staged_file(file_id, staged_data)
 
@@ -507,15 +509,24 @@ async def commit_statement(
     if not staged:
         raise HTTPException(status_code=404, detail="Staged file preview expired or not found. Please re-upload.")
 
-    # Re-parse if column_mapping_override is provided and file is CSV
-    if column_mapping_override and staged.get("kind") == "csv" and staged.get("contents"):
+    # Re-parse if column_mapping_override is provided
+    if column_mapping_override and staged.get("contents"):
         try:
             col_map_dict = json.loads(column_mapping_override) if isinstance(column_mapping_override, str) else column_mapping_override
-            re_parsed = parse_csv_statement(
-                csv_content=staged["contents"],
-                column_mapping=col_map_dict
-            )
-            staged["parsed"] = re_parsed
+            if staged.get("kind") == "csv":
+                re_parsed = parse_csv_statement(
+                    csv_content=staged["contents"],
+                    column_mapping=col_map_dict
+                )
+                staged["parsed"] = re_parsed
+            elif staged.get("kind") == "excel":
+                from parsers.excel_parser import parse_excel_statement
+                re_parsed = parse_excel_statement(
+                    excel_bytes=staged["contents"],
+                    password=staged.get("password"),
+                    column_mapping=col_map_dict
+                )
+                staged["parsed"] = re_parsed
         except Exception:
             pass
 

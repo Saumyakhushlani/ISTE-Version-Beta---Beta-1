@@ -90,14 +90,16 @@ def _process_parse_job(
         # Save to staging store
         file_id = f"stg_{uuid.uuid4().hex[:12]}"
         from routers.imports import _STAGING_FILES
+        staged_kind = "pdf" if lower_name.endswith(".pdf") else ("excel" if lower_name.endswith((".xlsx", ".xls")) else ("zip" if lower_name.endswith(".zip") else "csv"))
         _STAGING_FILES[file_id] = {
             "filename": filename,
             "contents": contents,
-            "kind": "pdf" if filename.lower().endswith(".pdf") else "csv",
+            "kind": staged_kind,
             "sha256": sha256_hash,
             "bank_detected": bank_detected,
             "masked_last4": masked_last4,
-            "parsed": parsed
+            "parsed": parsed,
+            "password": password
         }
 
         job["status"] = "COMPLETED"
