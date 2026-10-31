@@ -109,66 +109,60 @@ export default function HomePage() {
           1. NAVIGATION BAR
       ======================================================== */}
       <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/90 backdrop-blur-md transition-colors">
-        <nav className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
             <div className="flex items-end gap-1 h-5">
-              <span className="w-1.5 h-3 bg-primary rounded-sm shadow-sm" />
-              <span className="w-1.5 h-5 bg-primary rounded-sm shadow-sm" />
-              <span className="w-1.5 h-4 bg-primary rounded-sm shadow-sm" />
+              <span className="w-1.5 h-3 bg-primary rounded-sm shadow-sm transition-transform group-hover:scale-y-110" />
+              <span className="w-1.5 h-5 bg-primary rounded-sm shadow-sm transition-transform group-hover:scale-y-110" />
+              <span className="w-1.5 h-4 bg-primary rounded-sm shadow-sm transition-transform group-hover:scale-y-110" />
             </div>
-            <span className="font-bold text-foreground text-lg tracking-tight">
+            <span className="font-bold text-foreground text-base sm:text-lg tracking-tight whitespace-nowrap">
               Financial Decision Lab
             </span>
           </Link>
 
-          {/* Centered Navigation Links */}
-          <div className="hidden md:flex items-center justify-center gap-8 text-sm font-medium text-muted-foreground">
-            <a href="#overview" className="hover:text-foreground transition-colors">
-              Getting started
+          {/* Centered Navigation Links - Never wraps, clean spacing */}
+          <div className="hidden lg:flex items-center justify-center gap-6 xl:gap-8 text-sm font-medium text-muted-foreground shrink-0">
+            <a href="#overview" className="hover:text-foreground transition-colors whitespace-nowrap">
+              Overview
             </a>
-            <a href="#pipeline" className="hover:text-foreground transition-colors">
-              Live Pipeline
+            <a href="#integrations" className="hover:text-foreground transition-colors whitespace-nowrap">
+              Pipeline Flow
             </a>
-            <a href="#data-cleaning" className="hover:text-foreground transition-colors">
+            <a href="#data-cleaning" className="hover:text-foreground transition-colors whitespace-nowrap">
               Data Cleaning
             </a>
-            <a href="#integrations" className="hover:text-foreground transition-colors">
-              Supported Banks
-            </a>
-            <a href="#engine-flow" className="hover:text-foreground transition-colors">
-              Engine Flow
-            </a>
-            <a href="#pillars" className="hover:text-foreground transition-colors">
+            <a href="#pillars" className="hover:text-foreground transition-colors whitespace-nowrap">
               Pillars &amp; Math
             </a>
-            <a href="#how-it-works" className="hover:text-foreground transition-colors">
+            <a href="#how-it-works" className="hover:text-foreground transition-colors whitespace-nowrap">
               How It Works
             </a>
-            <Link href="/privacy" className="hover:text-foreground transition-colors">
+            <Link href="/privacy" className="hover:text-foreground transition-colors whitespace-nowrap">
               Privacy &amp; Security
             </Link>
           </div>
 
           {/* Action Buttons */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-3 shrink-0">
             <ThemeToggle />
             <Link
               href="/login"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 transition-colors"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 transition-colors whitespace-nowrap"
             >
               Sign in
             </Link>
             <Link
               href="/login"
-              className="px-5 py-2 text-sm font-semibold rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.08)] active:scale-95 flex items-center gap-1.5 border border-neutral-800 dark:border-white/20"
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 transition-all shadow-xs active:scale-95 flex items-center gap-1.5 whitespace-nowrap"
             >
               Sign Up
             </Link>
           </div>
 
-          {/* Mobile Menu Button */}
-          <div className="flex md:hidden items-center gap-2">
+          {/* Mobile / Tablet Menu Button (shown on < lg screens) */}
+          <div className="flex lg:hidden items-center gap-2">
             <ThemeToggle />
             <button
               type="button"
@@ -183,41 +177,27 @@ export default function HomePage() {
 
         {/* Mobile Dropdown */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-b border-border bg-background/95 backdrop-blur-md px-6 py-4 space-y-3">
+          <div className="lg:hidden border-b border-border bg-background/95 backdrop-blur-md px-6 py-4 space-y-3">
             <a
               href="#overview"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-medium text-foreground py-1"
             >
-              Getting started
-            </a>
-            <a
-              href="#pipeline"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              Live Pipeline
-            </a>
-            <a
-              href="#data-cleaning"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              Data Cleaning
+              Overview
             </a>
             <a
               href="#integrations"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-medium text-foreground py-1"
             >
-              Supported Banks
+              Pipeline Flow
             </a>
             <a
-              href="#engine-flow"
+              href="#data-cleaning"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-medium text-foreground py-1"
             >
-              Engine Flow
+              Data Cleaning &amp; Gate
             </a>
             <a
               href="#pillars"
@@ -231,8 +211,15 @@ export default function HomePage() {
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-medium text-foreground py-1"
             >
-              How It Works
+              How It Works &amp; Formulas
             </a>
+            <Link
+              href="/privacy"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-foreground py-1"
+            >
+              Privacy &amp; Security
+            </Link>
             <div className="pt-2 border-t border-border flex flex-col gap-2">
               <Link
                 href="/login"
@@ -831,242 +818,314 @@ export default function HomePage() {
         {/* ========================================================
             4. HOW THE PLATFORM WORKS (3-STEP JOURNEY & CORE EQUATIONS)
         ======================================================== */}
-        <section id="how-it-works" className="py-24 px-4 sm:px-6 lg:px-8 border-t border-border/60 bg-gradient-to-b from-background via-card/10 to-background">
-          <div className="max-w-6xl mx-auto">
-            {/* Section Header */}
-            <div className="text-center max-w-3xl mx-auto mb-16">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-3 shadow-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                THE PLATFORM FLOW · CORE EQUATIONS
+        <section id="how-it-works" className="py-24 px-4 sm:px-6 lg:px-8 border-t border-border/60 bg-gradient-to-b from-background via-card/15 to-background">
+          <div className="max-w-6xl mx-auto space-y-20">
+            {/* ========================================================
+                PART 1: 3-STEP PLATFORM FLOW (CLEAN MINIMAL DESIGN)
+            ======================================================== */}
+            <div>
+              {/* Section Header */}
+              <div className="text-center max-w-3xl mx-auto mb-14">
+                <div className="text-xs font-bold uppercase tracking-widest text-emerald-500 mb-2 font-mono">
+                  THE PLATFORM FLOW
+                </div>
+                <h3 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+                  From statement to decision in 3 simple steps.
+                </h3>
+                <p className="text-base text-muted-foreground mt-3 max-w-2xl mx-auto leading-relaxed">
+                  Clean separation of ingestion, verification, and decision reporting.
+                </p>
               </div>
-              <h3 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
-                From statement to decision in 3 simple steps.
-              </h3>
-              <p className="text-sm text-muted-foreground mt-3 max-w-2xl mx-auto leading-relaxed">
-                Clean separation of ingestion, verification, and decision reporting — powered by 100% deterministic mathematical formulas. Zero LLM math calculations.
-              </p>
-            </div>
 
-            {/* 3 Step Cards - Balanced High-Tech Design */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 items-stretch">
-              
-              {/* Step 1: Login & Ingestion */}
-              <div className="bg-card border border-border/80 hover:border-emerald-500/40 rounded-2xl p-6 relative flex flex-col justify-between shadow-xs transition-all duration-300 group">
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-xs font-mono flex items-center justify-center border border-emerald-500/20">
+              {/* 3 Step Cards - Following Clean Design */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+                {/* Step 01 */}
+                <div className="bg-card/70 border border-border/80 rounded-2xl p-7 flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs group">
+                  <div>
+                    <span className="text-emerald-500 font-mono font-bold text-sm mb-4 block">
                       01
                     </span>
-                    <span className="text-[10px] font-mono font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                      AIR-GAPPED · 0 EGRESS
-                    </span>
+                    <h4 className="text-lg font-bold text-foreground mb-3">
+                      Login &amp; Ingestion
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Sign in with your local account and upload your bank statements (CSV or PDF from HDFC, SBI, ICICI, Axis).
+                    </p>
                   </div>
-
-                  <h4 className="text-base font-bold text-foreground flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-emerald-500" />
-                    Statement Ingestion &amp; Dedup
-                  </h4>
-                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed min-h-[36px]">
-                    Parse statement PDFs and CSVs locally. Cryptographically hashes rows and pairs internal transfers to eliminate duplicate expenses.
-                  </p>
-
-                  {/* Terminal Code Console */}
-                  <div className="mt-5 rounded-xl border border-border/80 bg-slate-950 p-3.5 text-slate-100 font-mono shadow-inner text-left">
-                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800 text-[10px] text-slate-400">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-rose-500/80" />
-                        <span className="w-2 h-2 rounded-full bg-amber-500/80" />
-                        <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
-                        <span className="ml-1 text-slate-300 font-semibold">engine/dedupe.py</span>
-                      </div>
-                      <span className="text-emerald-400 font-bold">100% Local</span>
-                    </div>
-
-                    <div className="space-y-2 text-[11px] leading-relaxed">
-                      <div>
-                        <span className="text-slate-500">// SHA-256 Idempotent Hash</span>
-                        <div className="text-emerald-400 font-bold">
-                          fp = sha256(acc_id + date + paise + desc)
-                        </div>
-                      </div>
-                      <div className="pt-1 border-t border-slate-800/80">
-                        <span className="text-slate-500">// Internal Transfer Pairing (±₹25 fee)</span>
-                        <div className="text-sky-300 font-bold">
-                          pair = sgn(T₁) ≠ sgn(T₂) &amp;&amp; |Δt| ≤ 2d
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Key Parameter Pills */}
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                      Fee: ±₹25 (2,500p)
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                      Window: ≤ 2 Days
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
-                      Cloud Egress = 0
-                    </span>
+                  <div className="pt-6 mt-6 border-t border-border/50">
+                    <Link
+                      href="/login"
+                      className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 hover:underline group-hover:translate-x-0.5 transition-transform"
+                    >
+                      Go to Login <ChevronRight className="w-4 h-4" />
+                    </Link>
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-border mt-5 text-xs text-muted-foreground flex items-center justify-between">
-                  <Link href="/login" className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 hover:underline">
-                    Go to Login <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
-                  <span className="text-[10px] font-mono text-muted-foreground">Local fdl.db</span>
-                </div>
-              </div>
-
-              {/* Step 2: Reconciliation Gate */}
-              <div className="bg-card border border-border/80 hover:border-emerald-500/40 rounded-2xl p-6 relative flex flex-col justify-between shadow-xs transition-all duration-300 group">
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-xs font-mono flex items-center justify-center border border-emerald-500/20">
+                {/* Step 02 */}
+                <div className="bg-card/70 border border-border/80 rounded-2xl p-7 flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs group">
+                  <div>
+                    <span className="text-emerald-500 font-mono font-bold text-sm mb-4 block">
                       02
                     </span>
-                    <span className="text-[10px] font-mono font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                      RECONCILIATION · Δ = 0
-                    </span>
+                    <h4 className="text-lg font-bold text-foreground mb-3">
+                      Reconciliation Gate
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      The deterministic parser verifies:{" "}
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                        Opening + &Sigma;Tx = Closing
+                      </span>{" "}
+                      and confirms data sufficiency (&ge; 90 days).
+                    </p>
                   </div>
-
-                  <h4 className="text-base font-bold text-foreground flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-emerald-500" />
-                    Balance Gate &amp; Sufficiency
-                  </h4>
-                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed min-h-[36px]">
-                    Strict mathematical verification before running calculations. Enforces exact balance anchors and checks 90-day history continuity.
-                  </p>
-
-                  {/* Terminal Code Console */}
-                  <div className="mt-5 rounded-xl border border-border/80 bg-slate-950 p-3.5 text-slate-100 font-mono shadow-inner text-left ring-1 ring-emerald-500/20">
-                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800 text-[10px] text-slate-400">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-rose-500/80" />
-                        <span className="w-2 h-2 rounded-full bg-amber-500/80" />
-                        <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
-                        <span className="ml-1 text-slate-300 font-semibold">engine/sufficiency.py</span>
-                      </div>
-                      <span className="text-emerald-400 font-bold">Δ = 0 Paise</span>
-                    </div>
-
-                    <div className="space-y-2 text-[11px] leading-relaxed">
-                      <div>
-                        <span className="text-slate-500">// Exact Balance Anchor Assertion</span>
-                        <div className="text-emerald-400 font-bold">
-                          Δ = (Opening + ∑ Tx) - Closing == 0
-                        </div>
-                      </div>
-                      <div className="pt-1 border-t border-slate-800/80">
-                        <span className="text-slate-500">// 4-Point Data Sufficiency Gate</span>
-                        <div className="text-amber-400 font-bold">
-                          assert days ≥ 90 &amp;&amp; gap ≤ 7d &amp;&amp; income ≥ 2
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Key Parameter Pills */}
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                      History: ≥ 90 Days
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                      Max Gap: ≤ 7 Days
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
-                      Outlier Z ≤ 3.5 MAD
-                    </span>
+                  <div className="pt-6 mt-6 border-t border-border/50">
+                    <Link
+                      href="/upload"
+                      className="text-sm font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors group-hover:translate-x-0.5 transition-transform"
+                    >
+                      Upload Screen (Next Step) <ChevronRight className="w-4 h-4" />
+                    </Link>
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-border mt-5 text-xs text-muted-foreground flex items-center justify-between">
-                  <Link href="/upload" className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 hover:underline">
-                    Upload &amp; Reconcile <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
-                  <span className="text-[10px] font-mono text-muted-foreground">0 Float Drift</span>
-                </div>
-              </div>
-
-              {/* Step 3: Analysis & Decision Lab */}
-              <div className="bg-card border border-border/80 hover:border-emerald-500/40 rounded-2xl p-6 relative flex flex-col justify-between shadow-xs transition-all duration-300 group">
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-xs font-mono flex items-center justify-center border border-emerald-500/20">
+                {/* Step 03 */}
+                <div className="bg-card/70 border border-border/80 rounded-2xl p-7 flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs group">
+                  <div>
+                    <span className="text-emerald-500 font-mono font-bold text-sm mb-4 block">
                       03
                     </span>
-                    <span className="text-[10px] font-mono font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-md border border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                      SEED 42 · P10/P50/P90
-                    </span>
+                    <h4 className="text-lg font-bold text-foreground mb-3">
+                      Analysis &amp; Decision Lab
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Review your executive liquidity report, cash-flow forecast, and simulate purchases with full mathematical proof.
+                    </p>
                   </div>
-
-                  <h4 className="text-base font-bold text-foreground flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-emerald-500" />
-                    Monte Carlo Decision Lab
-                  </h4>
-                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed min-h-[36px]">
-                    Simulate 5,000 cash-flow paths under random shocks. Computes adaptive safety buffers and proves headroom in an 8-step audit ledger.
-                  </p>
-
-                  {/* Terminal Code Console */}
-                  <div className="mt-5 rounded-xl border border-border/80 bg-slate-950 p-3.5 text-slate-100 font-mono shadow-inner text-left">
-                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800 text-[10px] text-slate-400">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-rose-500/80" />
-                        <span className="w-2 h-2 rounded-full bg-amber-500/80" />
-                        <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
-                        <span className="ml-1 text-slate-300 font-semibold">engine/affordability.py</span>
-                      </div>
-                      <span className="text-purple-400 font-bold">5,000 Paths</span>
-                    </div>
-
-                    <div className="space-y-2 text-[11px] leading-relaxed">
-                      <div>
-                        <span className="text-slate-500">// Cash-Flow Evolution (Horizon: 90d)</span>
-                        <div className="text-sky-300 font-bold">
-                          B(t) = B(t-1) + Income(t) - Commit(t) - Var(t)
-                        </div>
-                      </div>
-                      <div className="pt-1 border-t border-slate-800/80">
-                        <span className="text-slate-500">// Headroom Formula (P10 Conservative)</span>
-                        <div className="text-emerald-400 font-bold">
-                          Headroom_10 = B_min(P10) - Buffer - Price
-                        </div>
-                      </div>
-                    </div>
+                  <div className="pt-6 mt-6 border-t border-border/50">
+                    <Link
+                      href="/dashboard"
+                      className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 hover:underline group-hover:translate-x-0.5 transition-transform"
+                    >
+                      View Demo Report <ChevronRight className="w-4 h-4" />
+                    </Link>
                   </div>
-
-                  {/* Key Parameter Pills */}
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                      Floor: ₹5,000
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                      Buffer k: 1.0x - 2.0x
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold">
-                      Regex Number Guard
-                    </span>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-border mt-5 text-xs text-muted-foreground flex items-center justify-between">
-                  <Link href="/lab" className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 hover:underline">
-                    Open Decision Lab <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
-                  <span className="text-[10px] font-mono text-muted-foreground">8-Step Proof</span>
                 </div>
               </div>
-
             </div>
 
-            {/* Platform Mathematical Domain Invariants Strip */}
-            <div className="mt-12 p-5 sm:p-6 rounded-2xl border border-border/80 bg-card/60 backdrop-blur-md">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-border/60">
+            {/* ========================================================
+                PART 2: CORE MATHEMATICAL EQUATIONS & FORMULAS
+            ======================================================== */}
+            <div className="pt-8 border-t border-border/60">
+              <div className="text-center max-w-3xl mx-auto mb-12">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/25 bg-primary/10 text-xs text-primary font-medium mb-3 shadow-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  DETERMINISTIC FINANCIAL MATH ? ZERO LLM GUESSWORK
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+                  The Core Equations Powering Every Verdict
+                </h3>
+                <p className="text-sm text-muted-foreground mt-2 max-w-2xl mx-auto leading-relaxed">
+                  Every calculation is computed in integer paise with zero floating-point drift. Here are the 8 fundamental mathematical invariants enforced by our deterministic engine.
+                </p>
+              </div>
+
+              {/* 8 Equations Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Equation 1 */}
+                <div className="p-4 sm:p-5 rounded-xl border border-border bg-card/60 backdrop-blur-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs">
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400">
+                        INGESTION ? DEDUP
+                      </span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                        0 Duplicates
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-bold text-foreground mb-2">
+                      SHA-256 Idempotent Hash
+                    </h5>
+                    <div className="p-2.5 rounded-lg bg-muted/60 border border-border/70 font-mono text-[10.5px] text-foreground font-semibold leading-relaxed mb-3">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">Fingerprint</span> = SHA256(acc_id || date || paise || desc)
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Guarantees duplicate files or overlapping statement date ranges are never double-counted into ledger history.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Equation 2 */}
+                <div className="p-4 sm:p-5 rounded-xl border border-border bg-card/60 backdrop-blur-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs">
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400">
+                        INTERNAL TRANSFERS
+                      </span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                        ??25 Tolerance
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-bold text-foreground mb-2">
+                      Transfer Cancellation
+                    </h5>
+                    <div className="p-2.5 rounded-lg bg-muted/60 border border-border/70 font-mono text-[10.5px] text-foreground font-semibold leading-relaxed mb-3">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">sgn(T?)</span> ? sgn(T?) ? |?t| ? 2d ? |T? + T?| ? Fee
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Pairs intra-account transfers between savings accounts so funds shifted to secondary accounts are not treated as expenses.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Equation 3 */}
+                <div className="p-4 sm:p-5 rounded-xl border border-border bg-card/60 backdrop-blur-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs">
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400">
+                        BALANCE CONTINUITY
+                      </span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                        ? = 0 Paise
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-bold text-foreground mb-2">
+                      Balance Anchor Equation
+                    </h5>
+                    <div className="p-2.5 rounded-lg bg-muted/60 border border-border/70 font-mono text-[10.5px] text-foreground font-semibold leading-relaxed mb-3">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">Opening</span> + &Sigma; Tx = Closing Balance
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Any minor arithmetic mismatch (? &gt; 0) instantly halts calculation and flags a discrepancy in the statement table.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Equation 4 */}
+                <div className="p-4 sm:p-5 rounded-xl border border-border bg-card/60 backdrop-blur-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs">
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400">
+                        DATA SUFFICIENCY
+                      </span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                        ? 90 Days
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-bold text-foreground mb-2">
+                      4-Point Sufficiency Gate
+                    </h5>
+                    <div className="p-2.5 rounded-lg bg-muted/60 border border-border/70 font-mono text-[10.5px] text-foreground font-semibold leading-relaxed mb-3">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">Span</span> ? 90d ? MaxGap ? 7d ? Inflows ? 2
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Refuses to calculate on blind data; requires continuous transaction history with verified recurring income anchors.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Equation 5 */}
+                <div className="p-4 sm:p-5 rounded-xl border border-border bg-card/60 backdrop-blur-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs">
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400">
+                        OUTLIER DETECTION
+                      </span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                        M ? 3.5 MAD
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-bold text-foreground mb-2">
+                      Modified Z-Score (MAD)
+                    </h5>
+                    <div className="p-2.5 rounded-lg bg-muted/60 border border-border/70 font-mono text-[10.5px] text-foreground font-semibold leading-relaxed mb-3">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">M_i</span> = 0.6745 ? |x_i - x?| / MAD(x)
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Detects abnormal one-off spikes without distorting recurring monthly subscription and utility obligations.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Equation 6 */}
+                <div className="p-4 sm:p-5 rounded-xl border border-border bg-card/60 backdrop-blur-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs">
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400">
+                        DAILY SIMULATION
+                      </span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                        Seed = 42
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-bold text-foreground mb-2">
+                      Monte Carlo Evolution
+                    </h5>
+                    <div className="p-2.5 rounded-lg bg-muted/60 border border-border/70 font-mono text-[10.5px] text-foreground font-semibold leading-relaxed mb-3">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">B(t)</span> = B(t-1) + Inc(t) - Fix(t) - Var(t)
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Simulates 5,000 daily spend trajectories under random shocks to find conservative P10, median P50, and P90 percentiles.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Equation 7 */}
+                <div className="p-4 sm:p-5 rounded-xl border border-border bg-card/60 backdrop-blur-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs">
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400">
+                        SAFETY RESERVE
+                      </span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                        k ? [1.0x, 2.0x]
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-bold text-foreground mb-2">
+                      Dynamic Volatility Buffer
+                    </h5>
+                    <div className="p-2.5 rounded-lg bg-muted/60 border border-border/70 font-mono text-[10.5px] text-foreground font-semibold leading-relaxed mb-3">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">Buffer</span> = Max(?5k, k ? Essentials, Var)
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Multiplied by income volatility CV: 1.0x for salaried workers, scaling up to 2.0x for volatile freelancers.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Equation 8 */}
+                <div className="p-4 sm:p-5 rounded-xl border border-border bg-card/60 backdrop-blur-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all shadow-xs">
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400">
+                        FINAL VERDICT
+                      </span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                        P10 Conservative
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-bold text-foreground mb-2">
+                      Headroom Proof Formula
+                    </h5>
+                    <div className="p-2.5 rounded-lg bg-muted/60 border border-border/70 font-mono text-[10.5px] text-foreground font-semibold leading-relaxed mb-3">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">Headroom_X</span> = B_min,X - Buffer - Price
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      AFFORDABLE if Headroom?? ? 0; TIGHT if Headroom?? ? 0; else NOT ADVISABLE. Zero LLM hallucinations.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ========================================================
+                PART 3: DOMAIN INVARIANTS REFERENCE (APPENDIX B)
+            ======================================================== */}
+            <div className="p-5 sm:p-6 rounded-2xl border border-border bg-card/60 backdrop-blur-md">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-border">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                   <span className="text-xs font-bold text-foreground font-mono uppercase tracking-wider">
                     Domain Invariants &amp; Threshold Reference (Appendix B)
                   </span>
@@ -1077,35 +1136,35 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border">
                   <div className="text-[9.5px] font-mono text-muted-foreground">MIN_HISTORY</div>
-                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">≥ 90 Days</div>
-                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">Full Confidence</div>
+                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">? 90 Days</div>
+                  <div className="text-[9px] text-primary font-mono mt-0.5">Full Confidence</div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border">
                   <div className="text-[9.5px] font-mono text-muted-foreground">MAX_GAP_DAYS</div>
-                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">≤ 7 Days</div>
-                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">Continuity Bound</div>
+                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">? 7 Days</div>
+                  <div className="text-[9px] text-primary font-mono mt-0.5">Continuity Bound</div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border">
                   <div className="text-[9.5px] font-mono text-muted-foreground">MONTE_CARLO</div>
                   <div className="text-xs font-bold text-foreground font-mono mt-0.5">5,000 Runs</div>
-                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">Seed = 42</div>
+                  <div className="text-[9px] text-primary font-mono mt-0.5">Seed = 42</div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border">
                   <div className="text-[9.5px] font-mono text-muted-foreground">BUFFER_FLOOR</div>
-                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">₹5,000.00</div>
-                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">500,000 Paise</div>
+                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">?5,000.00</div>
+                  <div className="text-[9px] text-primary font-mono mt-0.5">500,000 Paise</div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border">
                   <div className="text-[9.5px] font-mono text-muted-foreground">OUTLIER_MOD_Z</div>
                   <div className="text-xs font-bold text-foreground font-mono mt-0.5">&gt; 3.5 MAD</div>
-                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">Spike Filter</div>
+                  <div className="text-[9px] text-primary font-mono mt-0.5">Spike Filter</div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-background/70 border border-border/60">
+                <div className="p-2.5 rounded-xl bg-background/70 border border-border">
                   <div className="text-[9.5px] font-mono text-muted-foreground">TRANSFER_TOL</div>
-                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">±₹25.00</div>
-                  <div className="text-[9px] text-emerald-500 font-mono mt-0.5">2,500 Paise Fee</div>
+                  <div className="text-xs font-bold text-foreground font-mono mt-0.5">??25.00</div>
+                  <div className="text-[9px] text-primary font-mono mt-0.5">2,500 Paise Fee</div>
                 </div>
               </div>
             </div>

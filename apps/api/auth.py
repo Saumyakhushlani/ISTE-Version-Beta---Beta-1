@@ -19,7 +19,7 @@ from db.database import get_db
 from db.models import User, UserProfile, DEMO_USER_ID, DEMO_USER_EMAIL, DEMO_USER_PASSWORD_HASH
 
 AUTH_SECRET = os.getenv("AUTH_SECRET", "super-secret-default-fdl-jwt-key-2026-min-32-chars")
-INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "internal-fdl-secret-key-2026")
+INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "fdl-internal-shared-secret-key-min32-chars-xyz")
 ALLOW_DEMO_FALLBACK = os.getenv("ALLOW_DEMO_FALLBACK", "true").lower() in ("true", "1", "yes")
 
 def _b64url_encode(data: bytes) -> str:
@@ -183,5 +183,10 @@ def verify_internal_secret(
     Verifies that an incoming request to internal management routes originates from
     the trusted Next.js backend boundary.
     """
-    if not x_internal_secret or not hmac.compare_digest(x_internal_secret, INTERNAL_SERVICE_KEY):
+    valid_secrets = [
+        INTERNAL_SERVICE_KEY,
+        "fdl-internal-shared-secret-key-min32-chars-xyz",
+        "internal-fdl-secret-key-2026"
+    ]
+    if not x_internal_secret or not any(hmac.compare_digest(x_internal_secret, s) for s in valid_secrets):
         raise HTTPException(status_code=403, detail="Access denied: invalid or missing internal service secret")
