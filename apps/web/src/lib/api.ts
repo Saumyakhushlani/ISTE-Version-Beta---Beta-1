@@ -173,9 +173,35 @@ export const api = {
     search?: string;
     min_amount_paise?: number;
     max_amount_paise?: number;
+    status_filter?: string;
+    user_status_filter?: string;
     limit?: number;
     offset?: number;
   }) => fetchFromApi(`/api/recurring${toQueryString(params)}`),
+
+  updateRecurringItem: (
+    itemId: string,
+    payload: {
+      user_status?: 'confirmed' | 'rejected' | 'auto';
+      typical_amount_minor?: number;
+      next_expected_date?: string;
+      merchant?: string;
+      type?: string;
+      cadence?: string;
+    }
+  ) =>
+    fetchFromApi(`/api/recurring/${itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
+  batchConfirmRecurring: (itemIds?: string[]) =>
+    fetchFromApi('/api/recurring/batch-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_ids: itemIds }),
+    }),
 
   getUpcomingSchedule: (
     daysOrParams: number | {

@@ -212,11 +212,15 @@ def _run_post_import_pipeline(
         key = (r["merchant"], r["cadence"])
         existing_rec = rec_lookup.get(key)
         if existing_rec:
-            existing_rec.typical_amount_minor = r["typical_amount_minor"]
-            existing_rec.last_paid_date = r["last_paid_date"]
-            existing_rec.next_expected_date = r["next_expected_date"]
-            existing_rec.occurrences = r["occurrences"]
-            existing_rec.confidence = r["confidence"]
+            # If user rejected this item, do not reactivate or unpause it
+            if existing_rec.user_status != "rejected":
+                # Only update typical amount if user has not manually customized it
+                if not getattr(existing_rec, "is_manual", False):
+                    existing_rec.typical_amount_minor = r["typical_amount_minor"]
+                existing_rec.last_paid_date = r["last_paid_date"]
+                existing_rec.next_expected_date = r["next_expected_date"]
+                existing_rec.occurrences = r["occurrences"]
+                existing_rec.confidence = r["confidence"]
         else:
             new_rec = RecurringItem(
                 user_id=current_user.id,
