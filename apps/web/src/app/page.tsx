@@ -33,6 +33,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import InkOrbitFeatures from '@/components/ui/ink-orbit-features';
 import EnterpriseAIPipeline from '@/components/ui/ai-agent-pipeline';
 import FinancialPipelineBeam from '@/components/ui/financial-pipeline-beam';
+import Integrations from '@/components/ui/integrations-4';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
 
 const FDL_PILLARS: FeatureType[] = [
@@ -132,6 +133,9 @@ export default function HomePage() {
             <a href="#data-cleaning" className="hover:text-foreground transition-colors">
               Data Cleaning
             </a>
+            <a href="#integrations" className="hover:text-foreground transition-colors">
+              Supported Banks
+            </a>
             <a href="#engine-flow" className="hover:text-foreground transition-colors">
               Engine Flow
             </a>
@@ -200,6 +204,13 @@ export default function HomePage() {
               className="block text-sm font-medium text-foreground py-1"
             >
               Data Cleaning
+            </a>
+            <a
+              href="#integrations"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-foreground py-1"
+            >
+              Supported Banks
             </a>
             <a
               href="#engine-flow"
@@ -759,6 +770,13 @@ export default function HomePage() {
           </div>
 
           <FinancialPipelineBeam />
+        </section>
+
+        {/* ========================================================
+            2.8 UNIVERSAL BANK & PAYMENT INTEGRATIONS
+        ======================================================== */}
+        <section id="integrations" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/20">
+          <Integrations />
         </section>
 
         {/* ========================================================
