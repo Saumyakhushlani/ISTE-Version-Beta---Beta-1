@@ -142,6 +142,30 @@ export const api = {
     return fetchFromApi(`/api/transactions${toQueryString(limitOrParams)}`);
   },
 
+  updateTransactionCategory: (
+    txnId: string,
+    payload: {
+      category_id: string;
+      scope: 'this_txn' | 'same_merchant';
+      dry_run?: boolean;
+    }
+  ) =>
+    fetchFromApi(`/api/transactions/${txnId}/category`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
+  undoCategoryCorrection: (logId?: string) =>
+    fetchFromApi('/api/transactions/undo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ log_id: logId }),
+    }),
+
+  getCorrectionHistory: (params?: { limit?: number; offset?: number }) =>
+    fetchFromApi(`/api/transactions/corrections${toQueryString(params)}`),
+
   // Recurring & Upcoming
   getRecurringItems: (params?: {
     type_filter?: string;
