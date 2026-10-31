@@ -21,9 +21,12 @@ pip-delete-this-directory.txt
 
 # Databases & local state
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 *.sqlite
 fdl.db
+.staging/
 
 # Real personal bank statements (local-first privacy)
 data/original/

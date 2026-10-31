@@ -4,10 +4,12 @@ import { verifyToken } from '@/lib/auth/jwt';
 
 export const dynamic = 'force-dynamic';
 
-const FASTAPI_INTERNAL_URL =
+const rawFastApiUrl =
   process.env.FASTAPI_INTERNAL_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   'http://127.0.0.1:8000';
+// Force IPv4 loopback to avoid Windows Node.js 18+ undici ECONNREFUSED ::1:8000 mismatch
+const FASTAPI_INTERNAL_URL = rawFastApiUrl.replace('://localhost', '://127.0.0.1');
 
 async function handleProxy(req: NextRequest, { params }: { params: { path: string[] } }) {
   let targetPath = '/' + (params.path || []).join('/');
@@ -51,9 +53,13 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
       const contentType = req.headers.get('content-type') || '';
       if (contentType.includes('multipart/form-data')) {
         // Forward as ArrayBuffer for binary/multi-part uploads
-        body = await req.arrayBuffer();
+        const arrayBuf = await req.arrayBuffer();
+        body = arrayBuf;
+        outgoingHeaders['content-length'] = arrayBuf.byteLength.toString();
       } else {
-        body = await req.text();
+        const textBody = await req.text();
+        body = textBody;
+        outgoingHeaders['content-length'] = Buffer.byteLength(textBody, 'utf-8').toString();
       }
     }
 
@@ -62,6 +68,7 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
       headers: outgoingHeaders,
       body,
       cache: 'no-store',
+      signal: AbortSignal.timeout(60000), // 60s timeout guard
     };
 
     // Node 18+ undici requirement for request body streaming/buffers

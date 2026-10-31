@@ -100,32 +100,48 @@ def detect_internal_transfers(
     - Date diff <= 2 days
     - Amount diff <= ₹25.00 (fee tolerance)
     Tags both as is_transfer = True and links via transfer_pair_id.
+    Optimized with date-window bucketing O(N) instead of quadratic scan.
     """
     debits = [t for t in all_transactions if t.get("amount_minor", 0) < 0 and not t.get("is_transfer")]
     credits = [t for t in all_transactions if t.get("amount_minor", 0) > 0 and not t.get("is_transfer")]
+
+    # Index credits by day ordinal
+    credits_by_day: Dict[int, List[Dict[str, Any]]] = {}
+    for c in credits:
+        try:
+            day_ordinal = parse_iso_date(c["posted_date"]).toordinal()
+            credits_by_day.setdefault(day_ordinal, []).append(c)
+        except Exception:
+            continue
 
     paired_count = 0
     used_credit_ids = set()
 
     for debit in debits:
-        debit_date = parse_iso_date(debit["posted_date"])
+        try:
+            debit_dt = parse_iso_date(debit["posted_date"])
+            debit_day = debit_dt.toordinal()
+        except Exception:
+            continue
+
         debit_amt = abs(debit["amount_minor"])
         best_credit = None
         min_date_diff = 999
 
-        for credit in credits:
-            credit_id = credit.get("id") or str(id(credit))
-            if credit_id in used_credit_ids:
-                continue
-            if credit.get("account_id") == debit.get("account_id"):
-                continue  # Must be different accounts
+        # Search credits only within ±TRANSFER_DATE_TOLERANCE_DAYS
+        for d in range(debit_day - TRANSFER_DATE_TOLERANCE_DAYS, debit_day + TRANSFER_DATE_TOLERANCE_DAYS + 1):
+            day_credits = credits_by_day.get(d, [])
+            for credit in day_credits:
+                credit_id = credit.get("id") or str(id(credit))
+                if credit_id in used_credit_ids:
+                    continue
+                if credit.get("account_id") == debit.get("account_id"):
+                    continue  # Must be different accounts
 
-            credit_date = parse_iso_date(credit["posted_date"])
-            date_diff = abs((debit_date - credit_date).days)
-            if date_diff <= TRANSFER_DATE_TOLERANCE_DAYS:
                 credit_amt = credit["amount_minor"]
                 amt_diff = abs(debit_amt - credit_amt)
                 if amt_diff <= TRANSFER_FEE_TOLERANCE_PAISE:
+                    date_diff = abs(debit_day - d)
                     if date_diff < min_date_diff:
                         min_date_diff = date_diff
                         best_credit = credit

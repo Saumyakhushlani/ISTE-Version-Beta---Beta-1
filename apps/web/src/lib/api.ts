@@ -1,12 +1,12 @@
 /**
  * API Client for Financial Decision Lab (FDL).
- * Connects frontend UI to FastAPI backend on http://localhost:8000
+ * Connects frontend UI to FastAPI backend on http://127.0.0.1:8000
  */
 
 const API_BASE =
   typeof window !== 'undefined'
     ? '/api/proxy'
-    : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+    : (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000');
 
 function toQueryString(params?: Record<string, any>): string {
   if (!params) return "";
@@ -106,6 +106,16 @@ export const api = {
   },
 
   getUploadedFiles: () => fetchFromApi("/api/imports/files"),
+
+  deleteUploadedFile: (fileId: string) =>
+    fetchFromApi(`/api/imports/files/${fileId}`, {
+      method: "DELETE",
+    }),
+
+  deleteAllUploadedFiles: () =>
+    fetchFromApi("/api/imports/files", {
+      method: "DELETE",
+    }),
 
   // Transactions
   getTransactions: (

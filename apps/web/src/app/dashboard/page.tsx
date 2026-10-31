@@ -25,6 +25,8 @@ import {
   RefreshCw,
   Building2,
   UploadCloud,
+  Trash2,
+  X,
   FileSpreadsheet,
   FileCheck,
   PieChart as PieChartIcon,
@@ -64,6 +66,22 @@ export default function DashboardPage() {
   const [activeAccount, setActiveAccount] = useState('all');
   const [activeTimeRange, setActiveTimeRange] = useState('all');
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+  const [fileToDelete, setFileToDelete] = useState<any | null>(null);
+  const [isDeletingFile, setIsDeletingFile] = useState(false);
+
+  const handleDeleteStatement = async () => {
+    if (!fileToDelete) return;
+    setIsDeletingFile(true);
+    try {
+      await api.deleteUploadedFile(fileToDelete.id);
+      setFileToDelete(null);
+      await fetchDashboard();
+    } catch (e: any) {
+      console.error('Failed to delete statement:', e);
+    } finally {
+      setIsDeletingFile(false);
+    }
+  };
   const [hasInitializedFiles, setHasInitializedFiles] = useState(false);
 
   // Natural Language query state
@@ -417,13 +435,26 @@ export default function DashboardPage() {
                       <p className={`text-xs font-bold truncate ${isIncluded ? 'text-foreground' : 'text-muted-foreground line-through'}`}>
                         {sf.filename}
                       </p>
-                      <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border shrink-0 ${
-                        isIncluded 
-                          ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
-                          : 'text-muted-foreground bg-muted border-border'
-                      }`}>
-                        {isIncluded ? 'INCLUDED' : 'EXCLUDED'}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border ${
+                          isIncluded 
+                            ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
+                            : 'text-muted-foreground bg-muted border-border'
+                        }`}>
+                          {isIncluded ? 'INCLUDED' : 'EXCLUDED'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFileToDelete(sf);
+                          }}
+                          className="p-1 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          title="Delete statement from ledger"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
@@ -1231,6 +1262,84 @@ export default function DashboardPage() {
           </div>
         </div>
       </motion.div>
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {fileToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-xl space-y-4 text-foreground"
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFileToDelete(null)}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div>
+                <h3 className="text-base font-bold text-foreground">Delete Uploaded Statement?</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Are you sure you want to delete <span className="font-semibold text-foreground">{fileToDelete.filename}</span>?
+                </p>
+              </div>
+
+              <div className="p-3 bg-muted/50 rounded-xl border border-border/80 text-xs space-y-1.5 font-mono">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Bank Account:</span>
+                  <span className="font-semibold text-foreground">{fileToDelete.bank}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Transactions:</span>
+                  <span className="font-semibold text-rose-500">{fileToDelete.transaction_count} to be removed</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Deleting this file will remove its transactions, unpair linked internal transfers, and recalculate balances, recurring bills, and forecasts immediately.
+              </p>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeletingFile}
+                  onClick={() => setFileToDelete(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingFile}
+                  onClick={handleDeleteStatement}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                >
+                  {isDeletingFile ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Statement</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 }

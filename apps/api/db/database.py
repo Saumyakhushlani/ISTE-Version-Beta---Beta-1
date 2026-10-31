@@ -10,15 +10,20 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB}")
 # connect_args={"check_same_thread": False} is required for SQLite with FastAPI
 engine = create_engine(
     DATABASE_URL, 
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    connect_args={
+        "check_same_thread": False,
+        "timeout": 30.0
+    } if "sqlite" in DATABASE_URL else {}
 )
 
-# Enable SQLite foreign key constraint enforcement
+# Enable SQLite foreign key constraint enforcement, WAL mode, and busy timeout
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     if "sqlite" in DATABASE_URL:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
         cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
