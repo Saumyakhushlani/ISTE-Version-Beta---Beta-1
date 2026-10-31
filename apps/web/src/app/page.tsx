@@ -35,6 +35,7 @@ import { FaqSection } from '@/components/ui/faq-section';
 import { FooterSection } from '@/components/ui/footer-section';
 import SplitText from '@/components/ui/split-text';
 import Integrations from '@/components/ui/integrations-4';
+import RuixenBentoCards from '@/components/ui/ruixen-bento-cards';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
 
 const FDL_PILLARS: FeatureType[] = [
@@ -155,6 +156,7 @@ export default function HomePage() {
             <a href="#overview" className="hover:text-foreground transition-colors whitespace-nowrap">
               Overview
             </a>
+            <a href="#how-it-helps" className="hover:text-foreground transition-colors whitespace-nowrap">How It Helps</a>
             <a href="#ingestion" className="hover:text-foreground transition-colors whitespace-nowrap">
               Bank Ingestion
             </a>
@@ -728,6 +730,11 @@ export default function HomePage() {
             </div>
           </ContainerScroll>
         </section>
+
+        {/* ========================================================
+            2.3 SIMPLE CUSTOMER VALUE BENTO GRID (HOW IT HELPS)
+        ======================================================== */}
+        <RuixenBentoCards />
 
         {/* ========================================================
             2.5 UNIVERSAL BANK & PAYMENT INGESTION
