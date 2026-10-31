@@ -12,12 +12,8 @@ import {
   FileText, 
   Settings, 
   ChevronDown, 
-  ArrowRight,
-  ShieldCheck,
   User,
   LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
   Menu,
   X
 } from 'lucide-react';
@@ -30,31 +26,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const { user, checkAuth, logout } = useAuthStore();
-
-  // Load persisted collapse state
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('fdl_sidebar_collapsed');
-      if (saved !== null) {
-        setIsCollapsed(saved === 'true');
-      }
-    } catch {}
-  }, []);
-
-  const toggleSidebar = () => {
-    setIsCollapsed(prev => {
-      const next = !prev;
-      try {
-        localStorage.setItem('fdl_sidebar_collapsed', String(next));
-      } catch {}
-      return next;
-    });
-  };
 
   const isPublicPage =
     pathname === '/' ||
@@ -119,17 +94,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden w-full bg-background text-foreground antialiased font-sans">
-      {/* Desktop Collapsible Sidebar */}
-      <aside 
-        className={`hidden md:flex flex-col justify-between shrink-0 select-none z-20 bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out ${
-          isCollapsed ? 'w-20' : 'w-64'
-        }`}
-      >
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex flex-col justify-between shrink-0 select-none z-20 bg-sidebar text-sidebar-foreground border-r border-sidebar-border w-64">
         <div>
-          {/* Logo & Toggle Header */}
-          <div className={`h-16 border-b border-sidebar-border flex items-center transition-all duration-300 ${
-            isCollapsed ? 'justify-center px-2' : 'justify-between px-5'
-          }`}>
+          {/* Logo Header */}
+          <div className="h-16 border-b border-sidebar-border flex items-center px-5">
             <Link 
               href="/dashboard" 
               className="flex items-center gap-3 overflow-hidden"
@@ -140,38 +109,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <span className="w-1.5 h-5 bg-primary rounded-sm shadow-sm" />
                 <span className="w-1.5 h-4 bg-primary rounded-sm shadow-sm" />
               </div>
-              {!isCollapsed && (
-                <span className="font-bold text-foreground text-base tracking-tight truncate whitespace-nowrap">
-                  Financial Decision Lab
-                </span>
-              )}
+              <span className="font-bold text-foreground text-base tracking-tight truncate whitespace-nowrap">
+                Financial Decision Lab
+              </span>
             </Link>
-
-            {!isCollapsed && (
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                title="Collapse sidebar"
-                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent rounded-lg transition"
-              >
-                <PanelLeftClose className="w-4 h-4" />
-              </button>
-            )}
           </div>
-
-          {/* Collapsed expand toggle button */}
-          {isCollapsed && (
-            <div className="pt-2 px-3 flex justify-center">
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                title="Expand sidebar"
-                className="w-10 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-sidebar-accent rounded-lg transition"
-              >
-                <PanelLeftOpen className="w-4 h-4" />
-              </button>
-            </div>
-          )}
 
           {/* Navigation links */}
           <nav className="p-3 space-y-1">
@@ -182,10 +124,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.name}
                   href={item.href}
-                  title={isCollapsed ? item.name : undefined}
-                  className={`relative flex items-center rounded-lg text-sm font-medium transition-colors ${
-                    isCollapsed ? 'justify-center px-0 py-2.5 w-full' : 'px-3.5 py-2.5 gap-3'
-                  } ${
+                  className={`relative flex items-center rounded-lg text-sm font-medium transition-colors px-3.5 py-2.5 gap-3 ${
                     isActive
                       ? 'text-foreground font-semibold'
                       : 'text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent'
@@ -194,57 +133,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   {isActive && (
                     <motion.div
                       layoutId="sidebarActivePill"
-                      className={`absolute inset-0 bg-primary/20 dark:bg-primary/25 border-primary rounded-lg -z-0 ${
-                        isCollapsed ? 'border-2' : 'border-l-2'
-                      }`}
+                      className="absolute inset-0 bg-primary/20 dark:bg-primary/25 border-primary rounded-lg -z-0 border-l-2"
                       transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                     />
                   )}
                   <Icon className={`w-4 h-4 relative z-10 shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-                  {!isCollapsed && (
-                    <span className="relative z-10 truncate whitespace-nowrap">{item.name}</span>
-                  )}
+                  <span className="relative z-10 truncate whitespace-nowrap">{item.name}</span>
                 </Link>
               );
             })}
           </nav>
-        </div>
-
-        {/* Sidebar Bottom: Data Health Mini-Card */}
-        <div className={`border-t border-sidebar-border transition-all duration-300 ${
-          isCollapsed ? 'p-3 flex flex-col items-center' : 'p-4'
-        }`}>
-          {!isCollapsed ? (
-            <Link 
-              href="/privacy"
-              className="block bg-card hover:bg-muted/70 border border-border rounded-xl p-3.5 transition group shadow-xs"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-foreground">Data Health</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-foreground">96%</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-                </div>
-              </div>
-              <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden my-2">
-                <motion.div 
-                  className="h-full bg-primary rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: '96%' }}
-                  transition={{ duration: 0.8, ease: 'easeOut' }}
-                />
-              </div>
-              <p className="text-[11px] text-muted-foreground">Transactions categorized</p>
-            </Link>
-          ) : (
-            <Link
-              href="/privacy"
-              title="Data Health: 96% Transactions Categorized"
-              className="w-10 h-10 rounded-xl bg-card hover:bg-muted/70 border border-border flex items-center justify-center text-primary group transition shadow-xs"
-            >
-              <ShieldCheck className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            </Link>
-          )}
         </div>
       </aside>
 
@@ -328,16 +226,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               className="p-1.5 md:hidden text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
             >
               <Menu className="w-5 h-5" />
-            </button>
-
-            {/* Desktop Collapse Toggle Shortcut in Header */}
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              className="hidden md:flex p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
-            >
-              {isCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
             </button>
 
             <div className="flex items-center gap-2">
