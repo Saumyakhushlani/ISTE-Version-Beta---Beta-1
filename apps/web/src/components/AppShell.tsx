@@ -14,8 +14,6 @@ import {
   ChevronDown, 
   ArrowRight,
   ShieldCheck,
-  Upload,
-  UploadCloud,
   User,
   LogOut,
   Building2,
@@ -91,7 +89,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const navLinks = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Upload Statement', href: '/upload', icon: UploadCloud },
     { name: 'Transactions', href: '/transactions', icon: CreditCard },
     { name: 'Recurring Payments', href: '/recurring', icon: Clock },
     { name: 'Decision Lab', href: '/lab', icon: Scale },
@@ -216,21 +213,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        {/* Sidebar Bottom: Upload Button & Data Health Mini-Card */}
+        {/* Sidebar Bottom: Data Health Mini-Card */}
         <div className={`border-t border-sidebar-border transition-all duration-300 ${
-          isCollapsed ? 'p-3 space-y-3 flex flex-col items-center' : 'p-4 space-y-3'
+          isCollapsed ? 'p-3 flex flex-col items-center' : 'p-4'
         }`}>
-          <button
-            onClick={() => setIsUploadOpen(true)}
-            title={isCollapsed ? "Upload Statement" : undefined}
-            className={`bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center justify-center shadow-sm transition ${
-              isCollapsed ? 'w-10 h-10 rounded-xl' : 'w-full py-2.5 px-3 rounded-xl text-xs gap-2'
-            }`}
-          >
-            <Upload className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span>Upload Statement</span>}
-          </button>
-
           {!isCollapsed ? (
             <Link 
               href="/privacy"
@@ -328,19 +314,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   })}
                 </nav>
               </div>
-
-              <div className="p-4 border-t border-sidebar-border space-y-3">
-                <button
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    setIsUploadOpen(true);
-                  }}
-                  className="w-full py-2.5 px-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Upload Statement</span>
-                </button>
-              </div>
             </motion.div>
           </div>
         )}
@@ -380,17 +353,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Statement Upload Button */}
-            <button
-              onClick={() => setIsUploadOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg text-xs font-semibold shadow-xs transition"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Import Statement</span>
-            </button>
-
             {/* Data Ready Badge */}
-            <div className="hidden sm:flex items-center gap-2 border-l border-border pl-3">
+            <div className="hidden sm:flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <div>
                 <p className="text-xs font-semibold text-foreground leading-none">Data Ready</p>

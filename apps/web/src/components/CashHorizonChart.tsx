@@ -3,16 +3,17 @@
 import React from 'react';
 import {
   ResponsiveContainer,
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
   ReferenceLine,
   CartesianGrid,
 } from 'recharts';
-import { formatINR, paiseToRupees } from '@fdl/shared';
-import { TrendingDown, ShieldAlert, Sparkles, Calendar } from 'lucide-react';
+import { formatINR } from '@fdl/shared';
+import { TrendingDown, ShieldAlert, Calendar } from 'lucide-react';
 
 interface TimelinePoint {
   date: string;
@@ -81,16 +82,24 @@ export default function CashHorizonChart({
         {/* Legend Badges */}
         <div className="flex items-center gap-3 text-[11px] font-mono flex-wrap">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-xs bg-primary/20 border border-primary/50" />
-            <span className="text-muted-foreground">P10-P90 Confidence Band</span>
+            <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500/20 border border-emerald-500/40" />
+            <span className="text-muted-foreground">Confidence Band</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-0.5 bg-primary" />
-            <span className="text-foreground font-semibold">P50 Expected Curve</span>
+            <span className="w-3 border-t-2 border-dashed border-sky-500" />
+            <span className="text-sky-600 dark:text-sky-400 font-semibold">P90 Optimistic</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-0.5 bg-destructive border-b border-dashed border-destructive" />
-            <span className="text-destructive font-semibold">Buffer Floor ({formatINR(bufferPaise)})</span>
+            <span className="w-3 border-t-2 border-emerald-500" />
+            <span className="text-foreground font-semibold">P50 Expected</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 border-t-2 border-dashed border-amber-500" />
+            <span className="text-amber-600 dark:text-amber-400 font-semibold">P10 Conservative</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 border-t-2 border-dashed border-rose-500" />
+            <span className="text-rose-500 font-semibold">Buffer Floor ({formatINR(bufferPaise)})</span>
           </div>
         </div>
       </div>
@@ -98,30 +107,28 @@ export default function CashHorizonChart({
       {/* Chart Canvas */}
       <div className="w-full h-64 sm:h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <ComposedChart data={chartData} margin={{ top: 15, right: 15, left: -5, bottom: 0 }}>
             <defs>
-              <linearGradient id="confidenceArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
+              <linearGradient id="horizonConfidenceGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.22} />
+                <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
               </linearGradient>
             </defs>
 
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} vertical={false} />
 
             <XAxis
               dataKey="date"
-              stroke="hsl(var(--muted-foreground))"
-              fontSize={11}
+              tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
               tickLine={false}
-              axisLine={{ stroke: 'hsl(var(--border))' }}
+              axisLine={{ stroke: 'var(--border)' }}
             />
 
             <YAxis
-              stroke="hsl(var(--muted-foreground))"
-              fontSize={11}
+              tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
               tickLine={false}
-              axisLine={{ stroke: 'hsl(var(--border))' }}
-              tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+              axisLine={{ stroke: 'var(--border)' }}
+              tickFormatter={(v) => `₹${v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${(v / 1000).toFixed(0)}k`}`}
               domain={[yMin, yMax]}
             />
 
@@ -130,24 +137,30 @@ export default function CashHorizonChart({
                 if (!active || !payload || !payload.length) return null;
                 const d = payload[0].payload;
                 return (
-                  <div className="bg-popover border border-border p-3 rounded-xl shadow-lg font-mono text-xs space-y-1.5">
-                    <p className="text-foreground font-bold font-sans text-xs flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-primary" />
-                      {d.fullDate}
-                    </p>
-                    <div className="pt-1 border-t border-border space-y-1">
-                      <p className="text-emerald-500 flex justify-between gap-4">
+                  <div className="bg-popover border border-border p-3.5 rounded-xl shadow-xl font-mono text-xs space-y-2 min-w-[210px]">
+                    <div className="flex items-center justify-between border-b border-border pb-1.5">
+                      <span className="text-foreground font-bold font-sans text-xs flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-primary" />
+                        {d.fullDate}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-4 text-sky-600 dark:text-sky-400">
                         <span className="text-muted-foreground font-sans">P90 (Optimistic):</span>
                         <span className="font-bold">{formatINR(d.p90_paise)}</span>
-                      </p>
-                      <p className="text-primary flex justify-between gap-4">
+                      </div>
+                      <div className="flex items-center justify-between gap-4 text-emerald-600 dark:text-emerald-400">
                         <span className="text-muted-foreground font-sans">P50 (Expected):</span>
                         <span className="font-bold">{formatINR(d.p50_paise)}</span>
-                      </p>
-                      <p className="text-amber-500 flex justify-between gap-4">
+                      </div>
+                      <div className="flex items-center justify-between gap-4 text-amber-600 dark:text-amber-400">
                         <span className="text-muted-foreground font-sans">P10 (Conservative):</span>
                         <span className="font-bold">{formatINR(d.p10_paise)}</span>
-                      </p>
+                      </div>
+                      <div className="pt-1.5 border-t border-border flex items-center justify-between gap-4 text-rose-500">
+                        <span className="text-muted-foreground font-sans">Buffer:</span>
+                        <span className="font-bold">{formatINR(bufferPaise)}</span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -157,13 +170,13 @@ export default function CashHorizonChart({
             {/* Red Dashed Safety Buffer Floor Line */}
             <ReferenceLine
               y={bufferRupees}
-              stroke="hsl(var(--destructive))"
+              stroke="#ef4444"
               strokeDasharray="4 4"
               strokeWidth={1.5}
               label={{
-                value: `Buffer: ₹${bufferRupees.toLocaleString()}`,
+                value: `Buffer: ₹${bufferRupees.toLocaleString('en-IN')}`,
                 position: 'right',
-                fill: 'hsl(var(--destructive))',
+                fill: '#ef4444',
                 fontSize: 10,
                 fontWeight: 'bold',
                 fontFamily: 'monospace',
@@ -174,44 +187,60 @@ export default function CashHorizonChart({
             {yMin < 0 && (
               <ReferenceLine
                 y={0}
-                stroke="hsl(var(--destructive))"
+                stroke="#dc2626"
                 strokeWidth={2}
                 label={{
                   value: 'Zero Balance (Overdraft)',
                   position: 'insideBottomLeft',
-                  fill: 'hsl(var(--destructive))',
+                  fill: '#dc2626',
                   fontSize: 10,
+                  fontWeight: 'bold',
                 }}
               />
             )}
 
-            {/* Confidence Band (P10 to P90) */}
+            {/* Confidence Band Area under P90 curve */}
             <Area
               type="monotone"
               dataKey="p90"
-              stroke="transparent"
-              fill="url(#confidenceArea)"
-              fillOpacity={1}
-            />
-            <Area
-              type="monotone"
-              dataKey="p10"
-              stroke="transparent"
-              fill="hsl(var(--card))"
+              stroke="none"
+              fill="url(#horizonConfidenceGrad)"
               fillOpacity={1}
             />
 
-            {/* Expected Trajectory Line (P50) */}
-            <Area
+            {/* P90 Optimistic Line (Sky / Blue) */}
+            <Line
+              type="monotone"
+              dataKey="p90"
+              stroke="var(--chart-2)"
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
+              dot={false}
+              name="P90 (Optimistic)"
+            />
+
+            {/* P50 Expected Trajectory Curve (Vibrant Theme Emerald) */}
+            <Line
               type="monotone"
               dataKey="p50"
-              stroke="hsl(var(--primary))"
+              stroke="var(--chart-1)"
               strokeWidth={2.5}
-              fill="transparent"
               dot={false}
-              activeDot={{ r: 5, fill: 'hsl(var(--primary))' }}
+              activeDot={{ r: 5, fill: 'var(--chart-1)', stroke: 'var(--card)', strokeWidth: 2 }}
+              name="P50 (Expected)"
             />
-          </AreaChart>
+
+            {/* P10 Conservative Line (Amber) */}
+            <Line
+              type="monotone"
+              dataKey="p10"
+              stroke="var(--chart-4)"
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
+              dot={false}
+              name="P10 (Conservative)"
+            />
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 
@@ -224,7 +253,7 @@ export default function CashHorizonChart({
               Maximum Drawdown Date
             </span>
             <span className="font-mono font-bold text-foreground">
-              {lowestBalance.date} (Projected ₹{lowestRupees.toLocaleString()})
+              {lowestBalance.date} (Projected ₹{lowestRupees.toLocaleString('en-IN')})
             </span>
           </div>
         </div>
@@ -241,7 +270,7 @@ export default function CashHorizonChart({
                   Maintains +{formatINR(lowestBalance.p50_minor - bufferPaise)} cushion
                 </span>
               ) : (
-                <span className="text-destructive">
+                <span className="text-rose-500 dark:text-rose-400">
                   Breaches buffer by {formatINR(bufferPaise - lowestBalance.p50_minor)}
                 </span>
               )}
