@@ -1,0 +1,16 @@
+@keyframes beam-dash {
+  to {
+    stroke-dashoffset: var(--beam-travel);
+  }
+}
+
+:root {
+  --color-line-strong: rgba(0, 0, 0, 0.12);
+  --color-accent-strong: #10b981;
+  --radius-card: 1rem;
+}
+
+.dark {
+  --color-line-strong: rgba(255, 255, 255, 0.15);
+  --color-accent-strong: #34d399;
+}
