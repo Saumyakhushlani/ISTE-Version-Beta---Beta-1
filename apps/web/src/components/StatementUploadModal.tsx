@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { formatINR } from '@fdl/shared';
 import { api } from '@/lib/api';
+import StatementPasswordModal from './StatementPasswordModal';
 
 interface StatementUploadModalProps {
   isOpen: boolean;
@@ -45,6 +46,11 @@ export default function StatementUploadModal({
 
   // Commit result state
   const [commitResult, setCommitResult] = useState<any>(null);
+
+  // Password prompt state
+  const [passwordModalOpen, setPasswordModalOpen] = useState<boolean>(false);
+  const [passwordIncorrect, setPasswordIncorrect] = useState<boolean>(false);
+  const [isUnlocking, setIsUnlocking] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,7 +97,7 @@ export default function StatementUploadModal({
 
   async function handlePreview(overrideMapping?: Record<string, number>) {
     if (!file) {
-      setError('Please select a CSV or PDF file to upload.');
+      setError('Please select a CSV, Excel (.xlsx, .xls), or PDF file to upload.');
       return;
     }
 
@@ -119,6 +125,34 @@ export default function StatementUploadModal({
       setError(err?.message || 'Failed to preview statement. Please verify file format.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handlePasswordSubmit(enteredPassword: string) {
+    if (!file) return;
+    setIsUnlocking(true);
+    setPasswordIncorrect(false);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (bankHint) formData.append('bank_hint', bankHint);
+      formData.append('password', enteredPassword);
+
+      const res = await api.previewStatement(formData);
+      setPassword(enteredPassword);
+      setPreviewData(res);
+      setColumnMapping(res.column_mapping || {});
+      setPasswordModalOpen(false);
+      setError(null);
+    } catch (err: any) {
+      if (err.isPasswordIncorrect || err.message?.includes('PASSWORD_INCORRECT') || err.message?.includes('PASSWORD_REQUIRED')) {
+        setPasswordIncorrect(true);
+      } else {
+        setError(err?.message || 'Failed to unlock statement.');
+        setPasswordModalOpen(false);
+      }
+    } finally {
+      setIsUnlocking(false);
     }
   }
 
@@ -243,7 +277,7 @@ export default function StatementUploadModal({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv,.pdf,text/csv,application/pdf"
+                  accept=".csv,.pdf,.xlsx,.xls,.zip,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                   onChange={handleFileSelect}
                   className="hidden"
                 />
@@ -263,7 +297,7 @@ export default function StatementUploadModal({
                       Drag & drop statement file here, or <span className="text-blue-600">browse</span>
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
-                      Supports CSV (HDFC, SBI, ICICI, Axis, Kotak, TSV, Semicolon) & digital PDF
+                      Supports CSV, Excel (.xlsx, .xls), & digital PDF (HDFC, SBI, ICICI, Axis, Kotak)
                     </p>
                   </div>
                 )}

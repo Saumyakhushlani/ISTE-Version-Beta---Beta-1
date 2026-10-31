@@ -23,6 +23,7 @@ from db.models import Account, SourceFile, Transaction, RecurringItem, Anomaly, 
 from auth import get_current_user
 from parsers.csv_parser import parse_csv_statement
 from parsers.pdf_parser import parse_pdf_statement
+from parsers.excel_parser import parse_excel_statement
 from parsers.bank_detector import detect_bank_and_account
 from engine.dedupe import deduplicate_transactions, detect_internal_transfers
 from ml.categorizer import categorize_transaction
@@ -292,10 +293,51 @@ async def preview_statement(
     filename = file.filename or "statement.csv"
     sha256_hash = hashlib.sha256(contents).hexdigest()
 
+    lower_fn = filename.lower()
+    file_type_label = "PDF" if lower_fn.endswith(".pdf") else ("Excel" if lower_fn.endswith((".xlsx", ".xls")) else ("Zip Archive" if lower_fn.endswith(".zip") else "CSV"))
+
     try:
-        if filename.lower().endswith(".pdf"):
+        if lower_fn.endswith(".pdf"):
             parsed = parse_pdf_statement(contents, password=password)
             raw_sample_text = str(contents[:4000])
+        elif lower_fn.endswith((".xlsx", ".xls")):
+            col_map_dict = None
+            if column_mapping:
+                try:
+                    col_map_dict = json.loads(column_mapping) if isinstance(column_mapping, str) else column_mapping
+                except Exception:
+                    pass
+            parsed = parse_excel_statement(
+                excel_bytes=contents,
+                password=password,
+                column_mapping=col_map_dict
+            )
+            raw_sample_text = "\n".join(["\t".join(str(cell) for cell in r) for r in parsed.get("headers", []) + [r.get("raw_description", "") for r in parsed.get("sample_rows", [])]])
+        elif lower_fn.endswith(".zip"):
+            import zipfile
+            with zipfile.ZipFile(io.BytesIO(contents)) as zf:
+                names = zf.namelist()
+                target_m = next((m for m in names if m.lower().endswith((".csv", ".xlsx", ".xls", ".txt"))), None) or (names[0] if names else None)
+                if not target_m:
+                    raise ValueError("ZIP archive contains no statement files.")
+                
+                info = zf.getinfo(target_m)
+                if (info.flag_bits & 0x1) != 0:
+                    if not password or not password.strip():
+                        raise ValueError("PASSWORD_REQUIRED: This compressed statement is password-protected. Please enter your password.")
+                    try:
+                        inner_data = zf.read(target_m, pwd=password.strip().encode("utf-8"))
+                    except Exception:
+                        raise ValueError("PASSWORD_INCORRECT: Incorrect password for this compressed statement.")
+                else:
+                    inner_data = zf.read(target_m)
+
+                if target_m.lower().endswith((".xlsx", ".xls")):
+                    parsed = parse_excel_statement(inner_data, password=password)
+                    raw_sample_text = "\n".join(["\t".join(str(cell) for cell in r) for r in parsed.get("headers", []) + [r.get("raw_description", "") for r in parsed.get("sample_rows", [])]])
+                else:
+                    parsed = parse_csv_statement(inner_data)
+                    raw_sample_text = inner_data[:4000].decode("utf-8", errors="replace")
         else:
             col_map_dict = None
             if column_mapping:
@@ -314,9 +356,25 @@ async def preview_statement(
     except Exception as e:
         err_msg = str(e)
         if "PASSWORD_REQUIRED" in err_msg:
-            raise HTTPException(status_code=400, detail={"error": "PASSWORD_REQUIRED", "message": "This statement is password-protected. Please enter your PDF password."})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "PASSWORD_REQUIRED",
+                    "file_name": filename,
+                    "file_type": file_type_label,
+                    "message": f"This {file_type_label} statement is password-protected. Please enter the password to unlock it."
+                }
+            )
         elif "PASSWORD_INCORRECT" in err_msg:
-            raise HTTPException(status_code=400, detail={"error": "PASSWORD_INCORRECT", "message": "Incorrect PDF password. Please verify and try again."})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "PASSWORD_INCORRECT",
+                    "file_name": filename,
+                    "file_type": file_type_label,
+                    "message": f"Incorrect password for this {file_type_label} statement. Please verify and try again."
+                }
+            )
         raise HTTPException(status_code=400, detail=f"Failed to parse statement: {err_msg}")
 
     # Auto-detect bank and account number

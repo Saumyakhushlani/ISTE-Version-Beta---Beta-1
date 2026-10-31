@@ -28,6 +28,7 @@ import { formatINR } from '@fdl/shared';
 import { api } from '@/lib/api';
 import { DataStreamCanvas } from '@/components/ui/data-stream-canvas';
 import StatementUploadModal from '@/components/StatementUploadModal';
+import StatementPasswordModal from '@/components/StatementPasswordModal';
 
 export default function UploadPage() {
   const router = useRouter();
@@ -49,6 +50,11 @@ export default function UploadPage() {
   const [clearAllModalOpen, setClearAllModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteSuccessMsg, setDeleteSuccessMsg] = useState<string | null>(null);
+
+  // Password prompt modal state
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordIncorrect, setPasswordIncorrect] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
   useEffect(() => {
     loadFiles();
@@ -129,7 +135,7 @@ export default function UploadPage() {
     if (e) e.preventDefault();
 
     if (!file) {
-      setError('Please select a CSV or PDF file to upload, or click one of the quick demo buttons above.');
+      setError('Please select a CSV, Excel (.xlsx, .xls), or PDF file to upload, or click one of the quick demo buttons above.');
       return;
     }
 
@@ -150,9 +156,44 @@ export default function UploadPage() {
         }
         setPreview(res);
       } catch (err: any) {
-        setError(err.message || 'Error parsing statement file. Please verify delimiter and headers.');
+        if (err.isPasswordRequired || err.isPasswordIncorrect || err.message?.includes('PASSWORD_')) {
+          setPasswordIncorrect(Boolean(err.isPasswordIncorrect || err.message?.includes('PASSWORD_INCORRECT')));
+          setPasswordModalOpen(true);
+        } else {
+          setError(err.message || 'Error parsing statement file. Please verify delimiter and headers.');
+        }
       }
     });
+  };
+
+  const handlePasswordSubmit = async (enteredPassword: string) => {
+    if (!file) return;
+    setIsUnlocking(true);
+    setPasswordIncorrect(false);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (bankHint && bankHint !== 'auto') formData.append('bank_hint', bankHint);
+      formData.append('password', enteredPassword);
+
+      const res = await api.previewStatement(formData);
+      if (!res || res.error) {
+        throw new Error(res?.message || 'Failed to parse statement.');
+      }
+      setPassword(enteredPassword);
+      setPreview(res);
+      setPasswordModalOpen(false);
+      setError(null);
+    } catch (err: any) {
+      if (err.isPasswordIncorrect || err.message?.includes('PASSWORD_INCORRECT') || err.message?.includes('PASSWORD_REQUIRED')) {
+        setPasswordIncorrect(true);
+      } else {
+        setError(err.message || 'Failed to unlock statement.');
+        setPasswordModalOpen(false);
+      }
+    } finally {
+      setIsUnlocking(false);
+    }
   };
 
   const handleCommit = async () => {
@@ -318,11 +359,11 @@ export default function UploadPage() {
 
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1.5 font-mono uppercase tracking-wider text-[11px]">
-                Choose File (.csv, .pdf)
+                Choose File (.csv, .xlsx, .xls, .pdf)
               </label>
               <input
                 type="file"
-                accept=".csv,.pdf"
+                accept=".csv,.pdf,.xlsx,.xls,.zip,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                 onChange={handleFileChange}
                 className="block w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border file:border-border file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
               />

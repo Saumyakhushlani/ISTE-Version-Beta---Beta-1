@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from parsers.csv_parser import parse_csv_statement
 from parsers.pdf_parser import parse_pdf_statement
+from parsers.excel_parser import parse_excel_statement
 from parsers.bank_detector import detect_bank_and_account
 
 _EXECUTOR = ThreadPoolExecutor(max_workers=2)
@@ -42,10 +43,21 @@ def _process_parse_job(
     try:
         sha256_hash = hashlib.sha256(contents).hexdigest()
 
-        if filename.lower().endswith(".pdf"):
+        lower_name = filename.lower()
+        if lower_name.endswith(".pdf"):
             job["progress_pct"] = 35
             parsed = parse_pdf_statement(contents, password=password)
             raw_sample_text = str(contents[:4000])
+        elif lower_name.endswith((".xlsx", ".xls")):
+            job["progress_pct"] = 35
+            col_map_dict = None
+            if column_mapping:
+                try:
+                    col_map_dict = json.loads(column_mapping) if isinstance(column_mapping, str) else column_mapping
+                except Exception:
+                    pass
+            parsed = parse_excel_statement(contents, password=password, column_mapping=col_map_dict)
+            raw_sample_text = "\n".join(["\t".join(str(c) for c in r) for r in parsed.get("headers", [])])
         else:
             job["progress_pct"] = 35
             col_map_dict = None

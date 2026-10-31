@@ -39,12 +39,25 @@ export async function fetchFromApi<T = any>(endpoint: string, options?: RequestI
     });
 
     if (!res.ok) {
-      let errDetail = res.statusText;
+      let errDetail: any = res.statusText;
+      let errJson: any = null;
       try {
-        const errJson = await res.json();
-        errDetail = errJson.detail || JSON.stringify(errJson);
+        errJson = await res.json();
+        errDetail = errJson.detail || errJson;
       } catch {}
-      throw new Error(`API Error [${res.status}]: ${errDetail}`);
+
+      const message = typeof errDetail === "object" && errDetail !== null
+        ? errDetail.message || JSON.stringify(errDetail)
+        : String(errDetail);
+
+      const error: any = new Error(message);
+      error.status = res.status;
+      error.detail = errDetail;
+      error.isPasswordRequired = errDetail?.error === "PASSWORD_REQUIRED" || message.includes("PASSWORD_REQUIRED");
+      error.isPasswordIncorrect = errDetail?.error === "PASSWORD_INCORRECT" || message.includes("PASSWORD_INCORRECT");
+      error.fileName = errDetail?.file_name;
+      error.fileType = errDetail?.file_type;
+      throw error;
     }
 
     return await res.json();
