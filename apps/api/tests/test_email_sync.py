@@ -153,4 +153,8 @@ HDFC Bank
             assert dupe_data["transactions_added"] == 0
 
     finally:
+        db.query(OAuthAccount).filter_by(user_id=DEMO_USER_ID, provider="google").delete()
+        db.query(EmailSyncAudit).filter_by(google_message_id="msg_hdfc_001").delete()
+        db.query(Transaction).filter_by(amount_minor=-34000).delete()
+        db.commit()
         db.close()
