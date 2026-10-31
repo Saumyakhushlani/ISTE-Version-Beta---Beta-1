@@ -34,7 +34,8 @@ from routers import (
     recurring,
     anomalies,
     privacy,
-    internal_auth
+    internal_auth,
+    email_sync
 )
 
 @asynccontextmanager
@@ -70,6 +71,7 @@ app.include_router(recurring.router, prefix="/api/recurring", tags=["Recurring C
 app.include_router(anomalies.router, prefix="/api/anomalies", tags=["Anomaly Detection"])
 app.include_router(privacy.router, prefix="/api/privacy", tags=["Privacy & Egress"])
 app.include_router(internal_auth.router, prefix="/api", tags=["Internal User Persistence"])
+app.include_router(email_sync.router, prefix="/api/email-sync", tags=["Email Sync & OAuth"])
 
 @app.get("/health", tags=["Health"])
 def health_check():
