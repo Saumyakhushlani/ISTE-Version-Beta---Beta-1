@@ -252,10 +252,10 @@ export default function InvestmentsPage() {
         </div>
       )}
 
-      {/* 4. CONVERSATIONAL GROQ NLP CHAT INTERFACE */}
-      <div className="rounded-2xl border border-border bg-card flex flex-col h-[600px] overflow-hidden shadow-lg">
+      {/* 3. CONVERSATIONAL NLP CHAT INTERFACE (Open, seamless, borderless layout) */}
+      <div className="flex flex-col h-[680px] overflow-hidden">
         {/* Chat Header */}
-        <div className="px-5 py-3.5 border-b border-border bg-muted/30 flex items-center justify-between">
+        <div className="py-3 border-b border-border/50 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
               <Sparkles className="w-4 h-4" />
@@ -283,7 +283,7 @@ export default function InvestmentsPage() {
         </div>
 
         {/* 1-2 Default Starter Question Chips */}
-        <div className="px-5 py-2.5 bg-muted/20 border-b border-border/60 flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <div className="py-2.5 border-b border-border/40 flex items-center gap-2 overflow-x-auto no-scrollbar">
           <span className="text-[11px] font-semibold text-muted-foreground shrink-0 flex items-center gap-1">
             <HelpCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             Try asking:
@@ -301,7 +301,7 @@ export default function InvestmentsPage() {
         </div>
 
         {/* Chat Messages Thread */}
-        <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div ref={chatScrollRef} className="flex-1 overflow-y-auto py-5 px-1 space-y-4">
           {messages.map((m) => (
             <div
               key={m.id}
@@ -388,7 +388,7 @@ export default function InvestmentsPage() {
         </div>
 
         {/* Investment Options Bar */}
-        <div className="px-5 py-2.5 bg-card/90 border-t border-border flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <div className="py-2.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">
             Options:
           </span>
@@ -401,7 +401,7 @@ export default function InvestmentsPage() {
                 handleSendMessage(prompt);
               }}
               disabled={isSending}
-              className="text-[11px] px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted border border-border hover:border-emerald-500/40 text-foreground transition shrink-0 cursor-pointer"
+              className="text-[11px] px-2.5 py-1 rounded-lg bg-card hover:bg-muted border border-border hover:border-emerald-500/40 text-foreground transition shrink-0 cursor-pointer shadow-2xs"
             >
               <span className="font-semibold">{opt.name}</span>
             </button>
@@ -414,7 +414,7 @@ export default function InvestmentsPage() {
             e.preventDefault();
             handleSendMessage();
           }}
-          className="p-3.5 bg-card border-t border-border flex items-center gap-2"
+          className="pt-2 pb-1 flex items-center gap-2"
         >
           <input
             type="text"
@@ -422,12 +422,12 @@ export default function InvestmentsPage() {
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder="Ask anything (e.g. 'Can I invest ₹15,000 in Gold or SIP this month?')..."
             disabled={isSending}
-            className="flex-1 bg-background border border-border rounded-xl px-4 py-2.5 text-xs md:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-xs"
+            className="flex-1 bg-card border border-border rounded-xl px-4 py-3 text-xs md:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-xs"
           />
           <button
             type="submit"
             disabled={isSending || !inputMessage.trim()}
-            className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs md:text-sm inline-flex items-center gap-1.5 disabled:opacity-40 transition shadow-xs cursor-pointer shrink-0"
+            className="h-11 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs md:text-sm inline-flex items-center gap-1.5 disabled:opacity-40 transition shadow-xs cursor-pointer shrink-0"
           >
             <span>Send</span>
             <Send className="w-3.5 h-3.5" />
