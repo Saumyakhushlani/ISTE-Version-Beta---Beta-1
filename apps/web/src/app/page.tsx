@@ -30,9 +30,9 @@ import {
   X
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ContainerScroll } from '@/components/ui/container-scroll-animation';
 import Integrations from '@/components/ui/integrations-4';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
-import PerspectiveHero from '@/components/ui/perspective-hero';
 
 const FDL_PILLARS: FeatureType[] = [
   {
@@ -230,9 +230,454 @@ export default function HomePage() {
 
       <main className="flex-1">
         {/* ========================================================
-            2. HERO SECTION (ISOMETRIC 3D PERSPECTIVE SHOWCASE)
+            2. HERO SECTION WITH CLEAN SHADOWS & DASHBOARD MOCKUP
         ======================================================== */}
-        <PerspectiveHero />
+        <section id="overview" className="relative z-10 w-full overflow-hidden">
+          <ContainerScroll
+            titleComponent={
+              <div className="flex flex-col items-center">
+                {/* Top Pill Announcement Badge */}
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="mb-6 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-card text-xs text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.03)] hover:border-border/80 transition-colors"
+                >
+                  <span>Deterministic Math Engine 2.0 is live!</span>
+                  <Link
+                    href="/how-it-works"
+                    className="flex items-center gap-1 font-semibold text-foreground hover:text-primary transition-colors"
+                  >
+                    Read more
+                    <ArrowRight size={12} />
+                  </Link>
+                </motion.div>
+
+                {/* Master Headline */}
+                <motion.h1
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.1 }}
+                  className="text-4xl sm:text-5xl lg:text-6xl font-bold text-center max-w-4xl px-4 leading-[1.12] tracking-tight text-foreground"
+                >
+                  Can I afford this next month? <br className="hidden sm:inline" />
+                  <span className="text-primary">Proven step-by-step.</span>
+                </motion.h1>
+
+                {/* Subtitle */}
+                <motion.p
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                  className="text-sm sm:text-base text-center max-w-2xl px-6 mt-4 mb-8 text-muted-foreground leading-relaxed"
+                >
+                  The personal finance assistant that shows its work and proves every calculation.
+                  Zero LLM hallucinations, 5,000 Monte Carlo runs, and dynamic safety buffers.
+                </motion.p>
+
+                {/* CTA Action Buttons */}
+                <motion.div
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.3 }}
+                  className="flex items-center gap-3.5 relative z-10 mb-4"
+                >
+                  <Link
+                    href="/login"
+                    className="px-7 py-3 rounded-lg text-sm font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_14px_rgba(0,0,0,0.14)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2 border border-neutral-800 dark:border-white/20"
+                  >
+                    Get started
+                    <ArrowRight size={15} />
+                  </Link>
+                  <Link
+                    href="/dashboard"
+                    className="px-6 py-3 rounded-lg text-sm font-semibold bg-card border border-border text-foreground hover:bg-muted shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-sm transition-all"
+                  >
+                    Live Demo
+                  </Link>
+                </motion.div>
+              </div>
+            }
+          >
+            <div className="h-full w-full overflow-y-auto">
+              <div className="flex flex-col lg:flex-row min-h-[580px]">
+                {/* ----------------- Mini-Sidebar ----------------- */}
+                <div className="w-full lg:w-56 bg-sidebar border-r border-sidebar-border p-4 flex flex-col justify-between shrink-0">
+                  <div className="space-y-6">
+                    {/* Brand */}
+                    <div className="flex items-center gap-2.5 px-2 py-1">
+                      <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
+                        <span className="w-2 h-2 rounded-full bg-primary" />
+                      </div>
+                      <span className="text-sm font-bold text-foreground tracking-tight">
+                        FDL Studio
+                      </span>
+                    </div>
+
+                    {/* Nav Items */}
+                    <div className="space-y-1 text-xs">
+                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-sidebar-accent text-foreground font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                        <LayoutDashboard className="w-4 h-4 text-primary" />
+                        <span>Dashboard</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sidebar-foreground hover:text-foreground transition-colors cursor-pointer">
+                        <UploadCloud className="w-4 h-4" />
+                        <span>Upload CSV</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sidebar-foreground hover:text-foreground transition-colors cursor-pointer">
+                        <CreditCard className="w-4 h-4" />
+                        <span>Transactions</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sidebar-foreground hover:text-foreground transition-colors cursor-pointer">
+                        <Clock className="w-4 h-4" />
+                        <span>Recurring</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sidebar-foreground hover:text-foreground transition-colors cursor-pointer">
+                        <Scale className="w-4 h-4" />
+                        <span>Decision Lab</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sidebar-foreground hover:text-foreground transition-colors cursor-pointer">
+                        <Settings className="w-4 h-4" />
+                        <span>Settings</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom User Pill */}
+                  <div className="pt-4 border-t border-sidebar-border flex items-center gap-2.5 px-2">
+                    <div className="w-8 h-8 rounded-full bg-primary/25 border border-primary/40 text-foreground font-bold text-xs flex items-center justify-center">
+                      AK
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-foreground truncate">Aarav Kumar</p>
+                      <p className="text-[10px] text-muted-foreground truncate">Salaried Engineer</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ----------------- Main Dashboard Body ----------------- */}
+                <div className="flex-1 p-5 sm:p-6 space-y-5 bg-background">
+                  {/* Top Bar inside mockup */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground">Dashboard</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Welcome back, Aarav! Here&apos;s your verified cash-flow headroom.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          readOnly
+                          placeholder="Search transactions..."
+                          className="bg-card border border-border text-xs rounded-lg pl-8 pr-3 py-1.5 w-44 text-muted-foreground focus:outline-none shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+                        />
+                      </div>
+                      <div className="p-2 rounded-lg border border-border bg-card relative shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                        <Bell className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="w-1.5 h-1.5 bg-primary rounded-full absolute top-1.5 right-1.5" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4 Metric KPI Cards with clean subtle shadow */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Card 1 */}
+                    <div className="bg-card border border-border rounded-xl p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+                      <div className="flex items-start justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Total Liquid Funds</span>
+                        <div className="w-7 h-7 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
+                          <Wallet className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-xl font-bold font-mono text-foreground">₹1,85,000</p>
+                        <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          +12% from last month
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card 2 */}
+                    <div className="bg-card border border-border rounded-xl p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+                      <div className="flex items-start justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Affordability Headroom</span>
+                        <div className="w-7 h-7 rounded-lg bg-chart-1/15 text-chart-1 flex items-center justify-center">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-xl font-bold font-mono text-foreground">+₹42,000</p>
+                        <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          P50 Median verified
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card 3 */}
+                    <div className="bg-card border border-border rounded-xl p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+                      <div className="flex items-start justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Safety Buffer</span>
+                        <div className="w-7 h-7 rounded-lg bg-chart-4/15 text-chart-4 flex items-center justify-center">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-xl font-bold font-mono text-foreground">₹58,000</p>
+                        <p className="text-[10px] font-semibold text-muted-foreground mt-0.5">
+                          Floor + Essentials × 1.2k
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card 4 */}
+                    <div className="bg-card border border-border rounded-xl p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+                      <div className="flex items-start justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Data Gate Status</span>
+                        <div className="w-7 h-7 rounded-lg bg-chart-2/15 text-chart-2 flex items-center justify-center">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-xl font-bold font-mono text-foreground">100%</p>
+                        <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          4/4 Checks passed
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Middle Row: Area Chart + Donut Chart */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
+                    {/* Left: 90-Day Cash Flow Forecast Area Chart */}
+                    <div className="lg:col-span-7 bg-card border border-border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="text-xs font-bold text-foreground">Revenue &amp; Cash-Flow Trajectory</h4>
+                          <p className="text-[11px] text-muted-foreground">5,000 Monte Carlo paths vs Buffer Floor</p>
+                        </div>
+                        <span className="text-[10px] font-medium text-muted-foreground border border-border px-2 py-0.5 rounded shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                          Last 6 months
+                        </span>
+                      </div>
+
+                      {/* SVG Line & Area Graphic */}
+                      <div className="w-full h-40 pt-2 relative">
+                        <svg className="w-full h-full overflow-visible" viewBox="0 0 400 120" preserveAspectRatio="none">
+                          <defs>
+                            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="var(--ring)" stopOpacity="0.4" />
+                              <stop offset="100%" stopColor="var(--ring)" stopOpacity="0.0" />
+                            </linearGradient>
+                          </defs>
+
+                          {/* Grid Lines */}
+                          <line x1="0" y1="20" x2="400" y2="20" stroke="var(--border)" strokeDasharray="3 3" opacity="0.6" />
+                          <line x1="0" y1="60" x2="400" y2="60" stroke="var(--border)" strokeDasharray="3 3" opacity="0.6" />
+                          <line x1="0" y1="100" x2="400" y2="100" stroke="var(--border)" strokeDasharray="3 3" opacity="0.6" />
+
+                          {/* Emergency Buffer Floor Line */}
+                          <line x1="0" y1="90" x2="400" y2="90" stroke="var(--destructive)" strokeWidth="1.5" strokeDasharray="4 4" />
+
+                          {/* Shaded Area under Curve */}
+                          <path
+                            d="M 0,75 Q 70,55 130,62 T 260,40 T 400,20 L 400,120 L 0,120 Z"
+                            fill="url(#chartGradient)"
+                          />
+
+                          {/* Trajectory Main Line */}
+                          <path
+                            d="M 0,75 Q 70,55 130,62 T 260,40 T 400,20"
+                            fill="none"
+                            stroke="var(--ring)"
+                            strokeWidth="2.5"
+                          />
+
+                          {/* Glowing Data Dots */}
+                          <circle cx="0" cy="75" r="3" fill="var(--foreground)" />
+                          <circle cx="80" cy="58" r="3" fill="var(--foreground)" />
+                          <circle cx="160" cy="62" r="3" fill="var(--foreground)" />
+                          <circle cx="240" cy="45" r="3" fill="var(--foreground)" />
+                          <circle cx="320" cy="32" r="3" fill="var(--foreground)" />
+                          <circle cx="400" cy="20" r="4" fill="var(--ring)" stroke="var(--card)" strokeWidth="2" />
+                        </svg>
+
+                        {/* Chart Footnote Labels */}
+                        <div className="flex justify-between text-[9px] text-muted-foreground mt-2 px-1">
+                          <span>Jan</span>
+                          <span>Feb</span>
+                          <span>Mar</span>
+                          <span>Apr</span>
+                          <span>May</span>
+                          <span>Jun</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Spend & Headroom Donut Breakdown */}
+                    <div className="lg:col-span-5 bg-card border border-border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-bold text-foreground">Allocation Pipeline</h4>
+                        <span className="text-[10px] text-muted-foreground">View All</span>
+                      </div>
+
+                      <div className="flex items-center justify-center py-2">
+                        {/* Segmented Ring Graphic */}
+                        <div className="relative w-28 h-28 flex items-center justify-center">
+                          <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                            {/* Segment 1: Fixed Obligations (45%) */}
+                            <circle
+                              cx="18"
+                              cy="18"
+                              r="14"
+                              fill="none"
+                              stroke="var(--ring)"
+                              strokeWidth="4.5"
+                              strokeDasharray="45 55"
+                              strokeDashoffset="0"
+                            />
+                            {/* Segment 2: Variable Spend (25%) */}
+                            <circle
+                              cx="18"
+                              cy="18"
+                              r="14"
+                              fill="none"
+                              stroke="var(--chart-4)"
+                              strokeWidth="4.5"
+                              strokeDasharray="25 75"
+                              strokeDashoffset="-45"
+                            />
+                            {/* Segment 3: Safety Buffer (20%) */}
+                            <circle
+                              cx="18"
+                              cy="18"
+                              r="14"
+                              fill="none"
+                              stroke="var(--destructive)"
+                              strokeWidth="4.5"
+                              strokeDasharray="20 80"
+                              strokeDashoffset="-70"
+                            />
+                            {/* Segment 4: Headroom (10%) */}
+                            <circle
+                              cx="18"
+                              cy="18"
+                              r="14"
+                              fill="none"
+                              stroke="var(--chart-2)"
+                              strokeWidth="4.5"
+                              strokeDasharray="10 90"
+                              strokeDashoffset="-90"
+                            />
+                          </svg>
+                          <div className="absolute text-center">
+                            <span className="text-xs font-bold font-mono text-foreground leading-none block">₹1.85L</span>
+                            <span className="text-[8px] text-muted-foreground leading-none">Net Total</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Legend Items */}
+                      <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-border">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-ring" />
+                          <span className="text-muted-foreground">Fixed: 45.0%</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-chart-4" />
+                          <span className="text-muted-foreground">Variable: 25.0%</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-destructive" />
+                          <span className="text-muted-foreground">Buffer: 20.0%</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-chart-2" />
+                          <span className="text-muted-foreground">Headroom: 10.0%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Row: Upcoming Debits & Audited Verifications */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+                    {/* Left: Scheduled Obligations */}
+                    <div className="bg-card border border-border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-bold text-foreground">Upcoming Scheduled Debits</h4>
+                        <span className="text-[10px] text-muted-foreground">View All</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/80">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-6 h-6 rounded-md bg-primary/20 text-primary flex items-center justify-center font-bold text-[10px]">
+                              SIP
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">Zerodha Mutual Fund SIP</p>
+                              <p className="text-[10px] text-muted-foreground">Due 5th of next month</p>
+                            </div>
+                          </div>
+                          <span className="text-xs font-mono font-bold text-foreground">₹25,000</span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/80">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-6 h-6 rounded-md bg-chart-2/20 text-chart-2 flex items-center justify-center font-bold text-[10px]">
+                              RENT
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">Apartment Rental Transfer</p>
+                              <p className="text-[10px] text-muted-foreground">Due 1st of next month</p>
+                            </div>
+                          </div>
+                          <span className="text-xs font-mono font-bold text-foreground">₹32,000</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Audited Ledger Verifications */}
+                    <div className="bg-card border border-border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-bold text-foreground">Recent Ledger Verifications</h4>
+                        <span className="text-[10px] text-muted-foreground">View All</span>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/80">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <div>
+                              <p className="font-semibold text-foreground">Query: iPhone 16 (₹80,000 next month)</p>
+                              <p className="text-[10px] text-muted-foreground">Verdict: AFFORDABLE · Ledger Verified</p>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                            Passed
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/80">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <div>
+                              <p className="font-semibold text-foreground">Query: Goa Trip (₹35,000 this month)</p>
+                              <p className="text-[10px] text-muted-foreground">Verdict: AFFORDABLE · Headroom +₹42k</p>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                            Passed
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ContainerScroll>
+        </section>
 
         {/* ========================================================
             2.5 UNIVERSAL BANK & PAYMENT INGESTION
