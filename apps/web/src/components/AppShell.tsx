@@ -16,7 +16,6 @@ import {
   ShieldCheck,
   User,
   LogOut,
-  Building2,
   PanelLeftClose,
   PanelLeftOpen,
   Menu,
@@ -60,8 +59,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isPublicPage =
     pathname === '/' ||
     pathname === '/login' ||
-    pathname === '/register' ||
-    pathname === '/onboarding';
+    pathname === '/register';
 
   useEffect(() => {
     checkAuth().then((authOk) => {
@@ -400,15 +398,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   >
                     <User className="w-3.5 h-3.5 text-muted-foreground" />
                     <span>Profile & Settings</span>
-                  </Link>
-
-                  <Link
-                    href="/onboarding"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted transition"
-                  >
-                    <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span>Onboarding Wizard</span>
                   </Link>
 
                   <div className="my-1 border-t border-border" />
