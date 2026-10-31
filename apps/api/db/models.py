@@ -30,6 +30,8 @@ class User(Base):
     recurring_items = relationship("RecurringItem", back_populates="user", cascade="all, delete-orphan")
     forecast_snapshots = relationship("ForecastSnapshot", back_populates="user", cascade="all, delete-orphan")
     scenarios = relationship("Scenario", back_populates="user", cascade="all, delete-orphan")
+    oauth_accounts = relationship("OAuthAccount", back_populates="user", cascade="all, delete-orphan")
+    email_sync_audits = relationship("EmailSyncAudit", back_populates="user", cascade="all, delete-orphan")
 
 class UserProfile(Base):
     __tablename__ = "user_profiles"
@@ -223,3 +225,40 @@ class EgressLog(Base):
     payload_json = Column(Text, nullable=False)
     mode = Column(String, default="local")
     destination = Column(String, default="none")
+
+class OAuthAccount(Base):
+    __tablename__ = "oauth_accounts"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String, nullable=False, default="google")  # google
+    email_address = Column(String, nullable=False, index=True)
+    encrypted_access_token = Column(Text, nullable=False)
+    encrypted_refresh_token = Column(Text, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    scopes = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    last_synced_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="oauth_accounts")
+
+class EmailSyncAudit(Base):
+    __tablename__ = "email_sync_audits"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    google_message_id = Column(String, nullable=False, index=True)
+    sender = Column(String, nullable=True)
+    subject = Column(String, nullable=True)
+    received_at = Column(DateTime, nullable=True)
+    status = Column(String, default="parsed")  # parsed, skipped_non_financial, duplicate, error
+    transactions_extracted = Column(Integer, default=0)
+    error_details = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="email_sync_audits")
+    __table_args__ = (
+        Index("ix_email_sync_user_msg", "user_id", "google_message_id", unique=True),
+    )

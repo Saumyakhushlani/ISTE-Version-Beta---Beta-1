@@ -29,6 +29,7 @@ import { api } from '@/lib/api';
 import { DataStreamCanvas } from '@/components/ui/data-stream-canvas';
 import StatementUploadModal from '@/components/StatementUploadModal';
 import StatementPasswordModal from '@/components/StatementPasswordModal';
+import GoogleMailSyncCard from '@/components/GoogleMailSyncCard';
 
 export default function UploadPage() {
   const router = useRouter();
@@ -334,6 +335,9 @@ export default function UploadPage() {
           </button>
         </div>
       </div>
+
+      {/* Google Mail 24-Hour Automated Ingestion Card */}
+      <GoogleMailSyncCard onSyncSuccess={loadFiles} />
 
       {/* Main Upload Conduit Box */}
       <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">

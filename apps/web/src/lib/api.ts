@@ -425,4 +425,20 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     }),
+
+  getEmailSyncStatus: () => fetchFromApi("/api/email-sync/status"),
+
+  getEmailAuthorizeUrl: () => fetchFromApi("/api/email-sync/oauth/authorize"),
+
+  syncEmails24h: () =>
+    fetchFromApi("/api/email-sync/sync-24h", {
+      method: "POST",
+    }),
+
+  disconnectEmailSync: () =>
+    fetchFromApi("/api/email-sync/disconnect", {
+      method: "DELETE",
+    }),
+
+  getEmailSyncLogs: () => fetchFromApi("/api/email-sync/logs"),
 };
