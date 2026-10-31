@@ -149,6 +149,13 @@ def test_investment_advice_sourcing():
     assert len(advice["accounts_surplus_breakdown"]) == 2
     assert "advice_text" in advice
 
+    # Test invalid amount <= 0 rejected with 400
+    bad_res = client.post(
+        "/api/dashboard/investment-advice",
+        json={"target_amount_paise": 0, "investment_label": "Fixed Deposit"}
+    )
+    assert bad_res.status_code == 400
+
 def test_anomalies_api_endpoint():
     """
     Verifies that the /api/anomalies endpoint returns rich mathematical cards

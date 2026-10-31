@@ -60,11 +60,14 @@ export const api = {
   getDashboardSummary: (params?: { account_id?: string; months?: number; start_date?: string; end_date?: string }) =>
     fetchFromApi(`/api/dashboard${toQueryString(params)}`),
 
-  getLiquidityAdvice: (target_paise: number) =>
+  getLiquidityAdvice: (target_paise: number, investment_label?: string) =>
     fetchFromApi("/api/dashboard/investment-advice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target_amount_paise: target_paise }),
+      body: JSON.stringify({
+        target_amount_paise: target_paise,
+        investment_label: investment_label || "Investment",
+      }),
     }),
 
   // Statement Ingestion

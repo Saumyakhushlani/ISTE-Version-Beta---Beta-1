@@ -522,6 +522,9 @@ def get_investment_advice(
     for large one-off capital deployments (FDs, mutual fund lumpsums, big purchases).
     Enforces user isolation via current_user.id.
     """
+    if req.target_amount_paise <= 0:
+        raise HTTPException(status_code=400, detail="target_amount_paise must be a positive integer in paise.")
+
     plan = recommend_investment_sourcing(
         target_amount_paise=req.target_amount_paise,
         db=db,

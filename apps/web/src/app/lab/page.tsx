@@ -14,8 +14,10 @@ import {
   Calendar,
   ChevronRight,
   TrendingDown,
-  Info
+  Info,
+  Coins
 } from 'lucide-react';
+import LiquidityAdvisorModal from '@/components/LiquidityAdvisorModal';
 import { formatINR, rupeesToPaise } from '@fdl/shared';
 import { api } from '@/lib/api';
 
@@ -50,6 +52,7 @@ export default function DecisionLabPage() {
   const [decision, setDecision] = useState<any>(null);
   const [whatIfResults, setWhatIfResults] = useState<any>(null);
   const [simulatingWhatIf, setSimulatingWhatIf] = useState(false);
+  const [isLiquidityModalOpen, setIsLiquidityModalOpen] = useState(false);
 
   useEffect(() => {
     runEvaluation();
@@ -302,6 +305,22 @@ export default function DecisionLabPage() {
                   </p>
                 </div>
 
+                {verdict.code !== 'INSUFFICIENT_DATA' && (
+                  <div className="pt-3 border-t border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      Need to fund this across multiple bank accounts without missing scheduled bills?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsLiquidityModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-border text-foreground hover:bg-muted text-xs font-semibold shadow-xs transition cursor-pointer self-start sm:self-auto"
+                    >
+                      <Coins className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Plan Account Sourcing for {label}</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Data Sufficiency 4-Point Checklist on Refusal */}
                 {gate && verdict.code === 'INSUFFICIENT_DATA' && (
                   <div className="mt-4 pt-4 border-t border-border/60 space-y-3">
@@ -508,6 +527,14 @@ export default function DecisionLabPage() {
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* Liquidity & Sourcing Advisor Modal */}
+      <LiquidityAdvisorModal
+        isOpen={isLiquidityModalOpen}
+        onClose={() => setIsLiquidityModalOpen(false)}
+        initialAmountRs={purchaseRs}
+        initialLabel={label}
+      />
     </motion.div>
   );
 }
