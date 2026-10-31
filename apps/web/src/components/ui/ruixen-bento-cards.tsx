@@ -1,7 +1,6 @@
 "use client"
 
 import React from "react"
-import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { 
   CheckCircle2, 
@@ -9,7 +8,6 @@ import {
   ShieldCheck, 
   FileSpreadsheet, 
   Sparkles,
-  ArrowRight,
   Lock,
   CalendarCheck
 } from "lucide-react"
@@ -184,33 +182,6 @@ export function RuixenBentoCards() {
             {...customerBentoCards[4]} 
             className="lg:col-span-6 lg:row-span-1" 
           />
-        </div>
-
-        {/* Action Callout */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 rounded-2xl border border-dashed border-border bg-card/60 backdrop-blur-xs">
-          <div className="space-y-1 text-center sm:text-left">
-            <h4 className="text-sm font-bold text-foreground">
-              Ready to see your safe spending limit?
-            </h4>
-            <p className="text-xs text-muted-foreground">
-              Try the interactive Decision Lab demo or upload your first statement.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <Link
-              href="/dashboard"
-              className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition shadow-xs flex items-center gap-1.5"
-            >
-              Try Live Demo
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-            <Link
-              href="/how-it-works"
-              className="px-4 py-2.5 rounded-lg border border-border bg-background text-foreground text-xs font-semibold hover:bg-muted transition"
-            >
-              How It Works
-            </Link>
-          </div>
         </div>
       </div>
     </section>

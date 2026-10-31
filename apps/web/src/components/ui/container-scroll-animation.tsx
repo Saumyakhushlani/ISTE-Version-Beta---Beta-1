@@ -1,6 +1,7 @@
 "use client";
 import React, { useRef, useState, useEffect } from "react";
 import { useScroll, useTransform, motion, MotionValue } from "framer-motion";
+import { useTheme } from "@/components/theme-context";
 
 export const ContainerScroll = ({
   titleComponent,
@@ -78,15 +79,18 @@ export const Card = ({
   translate: MotionValue<number>;
   children: React.ReactNode;
 }) => {
+  const { isDark } = useTheme();
+
   return (
     <motion.div
       style={{
         rotateX: rotate,
         scale,
-        boxShadow:
-          "0 0 #0000004d, 0 9px 20px #0000004a, 0 37px 37px #00000042, 0 84px 50px #00000026, 0 149px 60px #0000000a, 0 233px 65px #00000003",
+        boxShadow: isDark
+          ? "0 0 #0000004d, 0 9px 20px #0000004a, 0 37px 37px #00000042, 0 84px 50px #00000026, 0 149px 60px #0000000a, 0 233px 65px #00000003"
+          : "0 2px 8px rgba(0, 0, 0, 0.03), 0 8px 20px rgba(0, 0, 0, 0.03), 0 20px 40px -15px rgba(0, 0, 0, 0.02)",
       }}
-      className="max-w-6xl mt-4 sm:mt-8 mx-auto h-[36rem] sm:h-[42rem] md:h-[48rem] w-full border-2 sm:border-4 border-border/80 dark:border-white/10 p-2 sm:p-4 bg-card/95 dark:bg-zinc-950/90 rounded-[24px] sm:rounded-[32px] shadow-2xl transition-colors"
+      className="max-w-6xl mt-4 sm:mt-8 mx-auto h-[36rem] sm:h-[42rem] md:h-[48rem] w-full border-2 sm:border-4 border-border/80 dark:border-white/10 p-2 sm:p-4 bg-card/95 dark:bg-zinc-950/90 rounded-[24px] sm:rounded-[32px] shadow-sm dark:shadow-2xl transition-all"
     >
       <div className="h-full w-full overflow-hidden rounded-xl sm:rounded-2xl bg-card border border-border/60 text-card-foreground">
         {children}

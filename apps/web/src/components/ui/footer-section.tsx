@@ -4,12 +4,8 @@ import * as React from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { 
-  Moon, 
   Send, 
-  Sun, 
   ShieldCheck, 
   Cpu, 
   Lock,
@@ -17,14 +13,12 @@ import {
   Layers,
   ArrowRight
 } from "lucide-react"
-import { useTheme } from "@/components/theme-context"
 
 interface FooterSectionProps {
   currentPath?: "home" | "how-it-works"
 }
 
 export function FooterSection({ currentPath = "home" }: FooterSectionProps) {
-  const { isDark, toggleTheme } = useTheme()
   const [subscribed, setSubscribed] = React.useState(false)
   const [email, setEmail] = React.useState("")
 
@@ -71,7 +65,7 @@ export function FooterSection({ currentPath = "home" }: FooterSectionProps) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="pr-12 text-xs h-9 bg-background/80 border-border focus-visible:ring-primary"
+                    className="pr-12 text-xs h-9 bg-card border-border text-foreground placeholder:text-muted-foreground dark:bg-black dark:border-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 focus-visible:ring-primary shadow-xs"
                   />
                   <Button
                     type="submit"
@@ -166,31 +160,15 @@ export function FooterSection({ currentPath = "home" }: FooterSectionProps) {
             </ul>
           </div>
 
-          {/* Column 4: Local Air-Gap & Theme Mode */}
+          {/* Column 4: Local Air-Gap & Privacy */}
           <div className="relative space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
-              Privacy &amp; Mode
+              Privacy &amp; Security
             </h3>
             
             <p className="text-xs text-muted-foreground leading-relaxed">
               Statements, transactions, and balances remain strictly on your device in SQLite (<code className="font-mono text-foreground">fdl.db</code>). Zero cloud telemetry.
             </p>
-
-            {/* Dark Mode Switcher */}
-            <div className="pt-2">
-              <div className="inline-flex items-center space-x-2.5 px-3 py-1.5 rounded-lg border border-border bg-background/60">
-                <Sun className={`h-3.5 w-3.5 transition-colors ${!isDark ? 'text-amber-500' : 'text-muted-foreground'}`} />
-                <Switch
-                  id="footer-dark-mode"
-                  checked={isDark}
-                  onCheckedChange={toggleTheme}
-                />
-                <Moon className={`h-3.5 w-3.5 transition-colors ${isDark ? 'text-primary' : 'text-muted-foreground'}`} />
-                <Label htmlFor="footer-dark-mode" className="text-xs text-muted-foreground cursor-pointer select-none">
-                  {isDark ? "Dark theme" : "Light theme"}
-                </Label>
-              </div>
-            </div>
           </div>
         </div>
 
