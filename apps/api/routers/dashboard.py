@@ -337,11 +337,12 @@ def get_dashboard_summary(
     for idx, up in enumerate(upcoming_schedule):
         up["user_tag"] = "Auto" if idx % 2 == 0 else "User"
 
-    # Top anomalies preview belonging strictly to this user's transactions
+    # Top anomalies preview belonging strictly to this user's transactions (unresolved alerts first)
     recent_anomalies = (
         db.query(Anomaly)
         .join(Transaction)
         .filter(Transaction.account_id.in_(user_account_ids))
+        .filter((Anomaly.user_feedback == "none") | (Anomaly.user_feedback == None))
         .order_by(Anomaly.created_at.desc())
         .limit(5)
         .all()
@@ -450,7 +451,15 @@ def get_dashboard_summary(
     # Financial Data Health Metrics - 100% computed from real data
     categorized_count = sum(1 for t in txns if t.category_id != "cat_uncategorized")
     categorized_pct = round((categorized_count / len(txns)) * 100) if txns else 0
-    needing_review_count = len(recent_anomalies) + sum(1 for t in txns if t.category_id == "cat_uncategorized")
+    # Only count anomalies that have not been dismissed or marked expected
+    unresolved_anomalies_count = (
+        db.query(Anomaly)
+        .join(Transaction)
+        .filter(Transaction.account_id.in_(user_account_ids))
+        .filter((Anomaly.user_feedback == "none") | (Anomaly.user_feedback == None))
+        .count()
+    )
+    needing_review_count = unresolved_anomalies_count + sum(1 for t in txns if t.category_id == "cat_uncategorized")
 
     # Real latest upload or transaction date
     latest_upload = db.query(SourceFile).filter(SourceFile.account_id.in_(user_account_ids)).order_by(SourceFile.imported_at.desc()).first()

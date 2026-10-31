@@ -224,6 +224,7 @@ export const api = {
 
   // Anomalies
   getAnomalies: (params?: {
+    feedback_filter?: string;
     type_filter?: string;
     severity_filter?: string;
     months?: number;
@@ -235,6 +236,27 @@ export const api = {
     limit?: number;
     offset?: number;
   }) => fetchFromApi(`/api/anomalies${toQueryString(params)}`),
+
+  submitAnomalyFeedback: (
+    anomalyId: string,
+    feedback: 'expected' | 'real_duplicate' | 'disputed' | 'dismissed' | 'none'
+  ) =>
+    fetchFromApi(`/api/anomalies/${anomalyId}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback }),
+    }),
+
+  batchAnomalyFeedback: (payload: {
+    feedback: 'expected' | 'real_duplicate' | 'disputed' | 'dismissed' | 'none';
+    anomaly_ids?: string[];
+    severity?: string;
+  }) =>
+    fetchFromApi('/api/anomalies/batch-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
 
   // Egress Logs
   getEgressLogs: (params?: {
