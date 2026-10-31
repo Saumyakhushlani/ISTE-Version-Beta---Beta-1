@@ -83,6 +83,20 @@ export const api = {
       }),
     }),
 
+  // Investments & NLP Advisor
+  getInvestmentSummary: () =>
+    fetchFromApi("/api/investments/summary"),
+
+  sendInvestmentChat: (message: string, history?: Array<{ role: string; content: string }>) =>
+    fetchFromApi("/api/investments/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        history: history || [],
+      }),
+    }),
+
   // Statement Ingestion
   previewStatement: (formData: FormData) =>
     fetchFromApi("/api/imports/preview", {
