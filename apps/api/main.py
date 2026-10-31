@@ -18,7 +18,8 @@ from routers import (
     sufficiency,
     recurring,
     anomalies,
-    privacy
+    privacy,
+    internal_auth
 )
 
 @asynccontextmanager
@@ -53,6 +54,7 @@ app.include_router(sufficiency.router, prefix="/api/sufficiency", tags=["Data Su
 app.include_router(recurring.router, prefix="/api/recurring", tags=["Recurring Commitments"])
 app.include_router(anomalies.router, prefix="/api/anomalies", tags=["Anomaly Detection"])
 app.include_router(privacy.router, prefix="/api/privacy", tags=["Privacy & Egress"])
+app.include_router(internal_auth.router, prefix="/api", tags=["Internal User Persistence"])
 
 @app.get("/health", tags=["Health"])
 def health_check():

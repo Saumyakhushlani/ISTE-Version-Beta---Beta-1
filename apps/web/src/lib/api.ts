@@ -3,7 +3,10 @@
  * Connects frontend UI to FastAPI backend on http://localhost:8000
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE =
+  typeof window !== 'undefined'
+    ? '/api/proxy'
+    : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
 
 function toQueryString(params?: Record<string, any>): string {
   if (!params) return "";
@@ -19,10 +22,14 @@ function toQueryString(params?: Record<string, any>): string {
 }
 
 export async function fetchFromApi<T = any>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  const isDirectAuth = endpoint.startsWith("/api/auth/") || endpoint.startsWith("/api/user/");
+  const url = isDirectAuth
+    ? endpoint
+    : `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
   try {
     const res = await fetch(url, {
       ...options,
+      credentials: "include",
       headers: {
         ...(options?.headers || {}),
       },
@@ -63,10 +70,23 @@ export const api = {
       method: "POST",
       body: formData,
     }),
-  commitStatement: (fileId: string, accountId?: string) => {
+
+  previewStatementAsync: (formData: FormData) =>
+    fetchFromApi("/api/imports/preview/async", {
+      method: "POST",
+      body: formData,
+    }),
+
+  getParsingJobStatus: (jobId: string) =>
+    fetchFromApi(`/api/imports/jobs/${jobId}`),
+
+  commitStatement: (fileId: string, accountId?: string, columnMappingOverride?: Record<string, any>) => {
     const form = new FormData();
     form.append("file_id", fileId);
     if (accountId) form.append("account_id", accountId);
+    if (columnMappingOverride) {
+      form.append("column_mapping_override", JSON.stringify(columnMappingOverride));
+    }
     return fetchFromApi("/api/imports/commit", {
       method: "POST",
       body: form,
@@ -182,5 +202,70 @@ export const api = {
         purchase_amount_minor: purchaseAmountMinor,
         scenarios,
       }),
+    }),
+
+  // Authentication & Onboarding
+  login: (email: string, password: string) =>
+    fetchFromApi("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    }),
+
+  register: (payload: {
+    email: string;
+    password: string;
+    full_name: string;
+    mobile_number?: string;
+    country?: string;
+    preferred_currency?: string;
+  }) =>
+    fetchFromApi("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  logout: () =>
+    fetchFromApi("/api/auth/logout", {
+      method: "POST",
+    }),
+
+  getCurrentUser: () => fetchFromApi("/api/auth/me"),
+
+  completeOnboarding: (payload: {
+    full_name: string;
+    mobile_number?: string;
+    country?: string;
+    preferred_currency?: string;
+    bank_accounts: any[];
+  }) =>
+    fetchFromApi("/api/user/onboarding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  getUserProfile: () => fetchFromApi("/api/user/profile"),
+
+  updateUserProfile: (payload: any) =>
+    fetchFromApi("/api/user/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  getUserAccounts: () => fetchFromApi("/api/user/accounts"),
+
+  createUserAccount: (payload: any) =>
+    fetchFromApi("/api/user/accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  deleteUserAccount: (accountId: string) =>
+    fetchFromApi(`/api/user/accounts/${accountId}`, {
+      method: "DELETE",
     }),
 };

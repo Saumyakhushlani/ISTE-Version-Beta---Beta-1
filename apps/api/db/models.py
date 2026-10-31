@@ -7,25 +7,69 @@ from db.database import Base
 def generate_uuid() -> str:
     return str(uuid.uuid4())
 
+# Default demo user ID for seed/backward compatibility
+DEMO_USER_ID = "usr_aarav_001"
+DEMO_USER_EMAIL = "aarav.kumar@example.com"
+DEMO_USER_PASSWORD_HASH = "$2b$10$/4yHIm8ckt/TOkMu4ELeNub4ooVbbBsJ..4Hayt2l1xx5bWshdPQW"  # "Password123!"
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    email = Column(String, unique=True, nullable=False, index=True)
+    password_hash = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    is_onboarded = Column(Boolean, default=False)
+    failed_login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    accounts = relationship("Account", back_populates="user", cascade="all, delete-orphan")
+    recurring_items = relationship("RecurringItem", back_populates="user", cascade="all, delete-orphan")
+    forecast_snapshots = relationship("ForecastSnapshot", back_populates="user", cascade="all, delete-orphan")
+    scenarios = relationship("Scenario", back_populates="user", cascade="all, delete-orphan")
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    full_name = Column(String, nullable=False)
+    mobile_number = Column(String, nullable=True)
+    country = Column(String, default="India")
+    preferred_currency = Column(String, default="INR")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="profile")
+
 class Account(Base):
     __tablename__ = "accounts"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True, default=DEMO_USER_ID)
     nickname = Column(String, nullable=False)
     bank = Column(String, nullable=False)
     type = Column(String, nullable=False)  # savings, current, credit_card, etc.
     masked_last4 = Column(String(4), nullable=False)
     opening_balance_minor = Column(BigInteger, default=0)
     currency = Column(String, default="INR")
+    is_primary = Column(Boolean, default=False)
+    status = Column(String, default="active")  # active | archived
+    account_holder_name = Column(String, nullable=True)
+    ifsc = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+    user = relationship("User", back_populates="accounts")
     transactions = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
 
 class SourceFile(Base):
     __tablename__ = "source_files"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    account_id = Column(String, ForeignKey("accounts.id"), nullable=False)
+    account_id = Column(String, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
     filename = Column(String, nullable=False)
     kind = Column(String, nullable=False)  # csv | pdf
     sha256 = Column(String, nullable=False)
@@ -41,8 +85,8 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    account_id = Column(String, ForeignKey("accounts.id"), nullable=False)
-    source_file_id = Column(String, ForeignKey("source_files.id"), nullable=True)
+    account_id = Column(String, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    source_file_id = Column(String, ForeignKey("source_files.id", ondelete="CASCADE"), nullable=True)
     source_row = Column(Integer, default=0)
     posted_date = Column(String, nullable=False)  # YYYY-MM-DD
     value_date = Column(String, nullable=True)
@@ -87,6 +131,8 @@ class RecurringItem(Base):
     __tablename__ = "recurring_items"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True, default=DEMO_USER_ID)
+    account_id = Column(String, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)
     merchant = Column(String, nullable=False)
     type = Column(String, nullable=False)  # subscription | emi | rent | utility | insurance | sip | salary
     cadence = Column(String, nullable=False)  # monthly | weekly | etc.
@@ -101,11 +147,13 @@ class RecurringItem(Base):
     user_status = Column(String, default="auto")  # auto | confirmed | rejected
     is_manual = Column(Boolean, default=False)
 
+    user = relationship("User", back_populates="recurring_items")
+
 class Anomaly(Base):
     __tablename__ = "anomalies"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    txn_id = Column(String, ForeignKey("transactions.id"), nullable=False)
+    txn_id = Column(String, ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False)
     type = Column(String, nullable=False)
     rule_id = Column(String, nullable=False)
     amount_minor = Column(BigInteger, nullable=False)
@@ -130,6 +178,7 @@ class ForecastSnapshot(Base):
     __tablename__ = "forecast_snapshots"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True, default=DEMO_USER_ID)
     ts = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     asof_date = Column(String, nullable=False)
     engine_version = Column(String, default="1.0.0")
@@ -141,20 +190,25 @@ class ForecastSnapshot(Base):
     confidence_json = Column(Text, nullable=False)
     gate_status = Column(String, default="OK")
 
+    user = relationship("User", back_populates="forecast_snapshots")
+
 class Scenario(Base):
     __tablename__ = "scenarios"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True, default=DEMO_USER_ID)
     name = Column(String, nullable=False)
-    base_snapshot_id = Column(String, ForeignKey("forecast_snapshots.id"), nullable=False)
+    base_snapshot_id = Column(String, ForeignKey("forecast_snapshots.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     active = Column(Boolean, default=True)
+
+    user = relationship("User", back_populates="scenarios")
 
 class ScenarioAdjustment(Base):
     __tablename__ = "scenario_adjustments"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    scenario_id = Column(String, ForeignKey("scenarios.id"), nullable=False)
+    scenario_id = Column(String, ForeignKey("scenarios.id", ondelete="CASCADE"), nullable=False)
     seq = Column(Integer, default=0)
     type = Column(String, nullable=False)  # cancel_recurring, emi, delay_purchase, income_shock, etc.
     params_json = Column(Text, nullable=False)
@@ -163,6 +217,7 @@ class EgressLog(Base):
     __tablename__ = "egress_log"
 
     id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     ts = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     purpose = Column(String, nullable=False)
     payload_json = Column(Text, nullable=False)

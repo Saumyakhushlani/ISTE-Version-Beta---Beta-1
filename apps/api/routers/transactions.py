@@ -1,6 +1,7 @@
 """
 Transactions Router
 Provides listing, filtering, search, and user category corrections with transactional undo rollback.
+Enforces strict multi-user data isolation.
 """
 
 from typing import Optional, List
@@ -11,7 +12,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from db.database import get_db
-from db.models import Transaction, CorrectionLog
+from db.models import Transaction, CorrectionLog, Account, User
+from auth import get_current_user
 from engine.correction import rollback_correction
 
 router = APIRouter()
@@ -39,15 +41,31 @@ def list_transactions(
     end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
     min_amount_paise: Optional[int] = Query(None, description="Minimum absolute amount in paise"),
     max_amount_paise: Optional[int] = Query(None, description="Maximum absolute amount in paise"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Returns paginated transactions with multi-bank filters, date range, amount, and search.
+    Enforces user-level isolation: only returns transactions for accounts owned by current_user.
     """
-    query = db.query(Transaction).filter(Transaction.status == "active")
+    user_accounts = db.query(Account).filter_by(user_id=current_user.id, status="active").all()
+    user_account_ids = [a.id for a in user_accounts]
 
+    if account_id and account_id not in user_account_ids:
+        # Cross-user access attempt: return empty result safely
+        return {
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+            "transactions": []
+        }
+
+    query = db.query(Transaction).filter(Transaction.status == "active")
     if account_id:
         query = query.filter(Transaction.account_id == account_id)
+    else:
+        query = query.filter(Transaction.account_id.in_(user_account_ids))
+
     if category_id:
         query = query.filter(Transaction.category_id == category_id)
     if channel:
@@ -71,7 +89,10 @@ def list_transactions(
 
     # Relative months filter
     if months and not start_date:
-        all_txns = db.query(Transaction.posted_date).filter(Transaction.status == "active").all()
+        all_txns = db.query(Transaction.posted_date).filter(
+            Transaction.status == "active",
+            Transaction.account_id.in_(user_account_ids)
+        ).all()
         if all_txns:
             latest_date_str = max(t[0] for t in all_txns)
             try:
@@ -82,21 +103,26 @@ def list_transactions(
             except Exception:
                 pass
 
-    # Amount range filters (evaluated on absolute amount)
+    # Amount threshold filters
     if min_amount_paise is not None:
-        query = query.filter((Transaction.amount_minor >= min_amount_paise) | (Transaction.amount_minor <= -min_amount_paise))
-    if max_amount_paise is not None:
-        query = query.filter((Transaction.amount_minor <= max_amount_paise) & (Transaction.amount_minor >= -max_amount_paise))
-
-    if search:
-        search_filter = f"%{search}%"
         query = query.filter(
-            (Transaction.raw_description.ilike(search_filter)) |
-            (Transaction.normalized_description.ilike(search_filter))
+            (Transaction.amount_minor >= min_amount_paise) | (Transaction.amount_minor <= -min_amount_paise)
+        )
+    if max_amount_paise is not None:
+        query = query.filter(
+            (Transaction.amount_minor <= max_amount_paise) & (Transaction.amount_minor >= -max_amount_paise)
+        )
+
+    # Search filter (description / merchant)
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (Transaction.raw_description.ilike(search_pattern)) |
+            (Transaction.normalized_description.ilike(search_pattern))
         )
 
     total = query.count()
-    txns = query.order_by(Transaction.posted_date.desc(), Transaction.source_row.desc()).offset(offset).limit(limit).all()
+    txns = query.order_by(Transaction.posted_date.desc(), Transaction.id.desc()).offset(offset).limit(limit).all()
 
     return {
         "total": total,
@@ -107,11 +133,13 @@ def list_transactions(
                 "id": t.id,
                 "account_id": t.account_id,
                 "posted_date": t.posted_date,
+                "value_date": t.value_date,
                 "amount_minor": t.amount_minor,
                 "amount_paise": t.amount_minor,
                 "currency": t.currency,
                 "raw_description": t.raw_description,
                 "normalized_description": t.normalized_description,
+                "description": t.normalized_description or t.raw_description,
                 "channel": t.channel,
                 "category_id": t.category_id,
                 "category_source": t.category_source,
@@ -129,6 +157,7 @@ def list_transactions(
 def list_corrections(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -158,16 +187,17 @@ def list_corrections(
         ]
     }
 
-def _apply_category_override(txn_id: str, req: CategoryCorrectionRequest, db: Session):
+def _apply_category_override(txn_id: str, req: CategoryCorrectionRequest, current_user: User, db: Session):
+    user_account_ids = [a.id for a in db.query(Account).filter_by(user_id=current_user.id).all()]
     target = db.query(Transaction).filter_by(id=txn_id).first()
-    if not target:
-        raise HTTPException(status_code=404, detail="Transaction not found.")
+    if not target or target.account_id not in user_account_ids:
+        raise HTTPException(status_code=404, detail="Transaction not found or access denied.")
 
     if req.scope == "same_merchant" and target.normalized_description:
         matching_txns = db.query(Transaction).filter_by(
             normalized_description=target.normalized_description,
             status="active"
-        ).all()
+        ).filter(Transaction.account_id.in_(user_account_ids)).all()
     else:
         matching_txns = [target]
 
@@ -214,21 +244,24 @@ def _apply_category_override(txn_id: str, req: CategoryCorrectionRequest, db: Se
 def update_transaction_category_patch(
     txn_id: str,
     req: CategoryCorrectionRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return _apply_category_override(txn_id, req, db)
+    return _apply_category_override(txn_id, req, current_user, db)
 
 @router.post("/{txn_id}/category")
 def update_transaction_category_post(
     txn_id: str,
     req: CategoryCorrectionRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return _apply_category_override(txn_id, req, db)
+    return _apply_category_override(txn_id, req, current_user, db)
 
 @router.post("/undo")
 def undo_last_correction(
     req: UndoCorrectionRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

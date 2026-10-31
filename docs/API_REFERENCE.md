@@ -28,20 +28,27 @@ Returns system health status and currency denomination.
 ## 2. Statement Ingestion
 
 ### `POST /api/imports/preview`
-Parses an uploaded CSV or PDF statement file and returns an extraction preview without committing changes to the database.
+Parses an uploaded CSV or PDF statement file and returns an extraction preview without committing changes to the database. Supports automatic detection of encodings, delimiters, date conventions, split or signed amounts, header detection, and dynamic column mapping.
 
 #### Request
 - **Content-Type**: `multipart/form-data`
 - **Form Fields**:
-  - `file`: Binary file upload (CSV or PDF).
-  - `bank_hint` *(optional, string)*: Bank layout identifier (`"auto"`, `"hdfc"`, `"sbi"`, `"icici"`). Default: `"auto"`.
+  - `file`: Binary file upload (CSV or PDF) *(required)*.
+  - `bank_hint` *(optional, string)*: Bank layout identifier (`"auto"`, `"hdfc"`, `"sbi"`, `"icici"`, etc.). Default: `"auto"`.
+  - `password` *(optional, string)*: Password for password-protected PDF statements.
+  - `column_mapping` *(optional, JSON string)*: Custom column mapping dict.
+  - `delimiter` *(optional, string)*: Override delimiter (`","`, `";"`, `"	"`, `"|"`).
+  - `encoding` *(optional, string)*: Override file encoding (`"utf-8"`, `"utf-8-sig"`, `"cp1252"`, etc.).
+  - `has_header` *(optional, boolean)*: Specify whether row 0 contains headers.
 
 #### Response `200 OK`
 ```json
 {
+  "file_id": "stg_6d78a9c2ef01",
   "filename": "HDFC_Statement_Aarav.csv",
   "content_type": "text/csv",
   "bank_detected": "HDFC Bank",
+  "masked_last4": "5521",
   "rows_detected": 142,
   "date_range": {
     "start": "2024-10-01",
@@ -49,7 +56,25 @@ Parses an uploaded CSV or PDF statement file and returns an extraction preview w
   },
   "opening_balance_minor": 4500000,
   "closing_balance_minor": 7400000,
+  "net_cash_flow_minor": 2900000,
   "reconciliation_status": "PASSED",
+  "reconciliation_delta_minor": 0,
+  "running_balance_status": "PASSED",
+  "running_balance_breaks": [],
+  "detected_delimiter": ",",
+  "detected_encoding": "utf-8",
+  "has_header": true,
+  "headers": ["Date", "Narration", "Chq/Ref No", "Value Dt", "Withdrawal Amt", "Deposit Amt", "Closing Balance"],
+  "column_mapping": {
+    "date": "Date",
+    "description": "Narration",
+    "debit": "Withdrawal Amt",
+    "credit": "Deposit Amt",
+    "balance": "Closing Balance"
+  },
+  "mapping_confidence": 1.0,
+  "is_ambiguous": false,
+  "ambiguity_reasons": [],
   "sample_rows": [
     {
       "source_row": 1,
@@ -66,7 +91,48 @@ Parses an uploaded CSV or PDF statement file and returns an extraction preview w
       "balance_after_minor": 12255000
     }
   ],
-  "warnings": []
+  "warnings": [],
+  "errors": []
+}
+```
+
+---
+
+### `POST /api/imports/preview/async`
+Non-blocking endpoint that enqueues large or multi-page statement files for asynchronous background parsing.
+
+#### Request
+- **Content-Type**: `multipart/form-data`
+- **Form Fields**: Same parameters as `/preview`.
+
+#### Response `200 OK`
+```json
+{
+  "job_id": "job_a9b8c7d6e5f4",
+  "status": "QUEUED",
+  "filename": "annual_statement_2024.csv",
+  "message": "Statement submitted for background parsing."
+}
+```
+
+---
+
+### `GET /api/imports/jobs/{job_id}`
+Retrieves background parsing job status, progress percentage, and final preview output payload.
+
+#### Response `200 OK`
+```json
+{
+  "job_id": "job_a9b8c7d6e5f4",
+  "status": "COMPLETED",
+  "progress_pct": 100,
+  "filename": "annual_statement_2024.csv",
+  "result": {
+    "file_id": "stg_6d78a9c2ef01",
+    "rows_detected": 1420,
+    "reconciliation_status": "PASSED"
+  },
+  "error": null
 }
 ```
 
@@ -78,19 +144,24 @@ Commits parsed statement transactions to the database, executing deduplication, 
 #### Request
 - **Content-Type**: `application/x-www-form-urlencoded`
 - **Form Fields**:
-  - `file_id` *(string, required)*: Identifier of previewed file or staging ID.
-  - `account_id` *(string, required)*: Target user bank account UUID.
+  - `file_id` *(string, required)*: Identifier of previewed file (`stg_...`).
+  - `account_id` *(string, optional)*: Target user bank account UUID. If omitted, matched or created automatically.
+  - `column_mapping_override` *(string, optional)*: JSON serialized column mapping dictionary. If provided, re-parses staged CSV before database commit.
 
 #### Response `200 OK`
 ```json
 {
   "status": "success",
+  "account_id": "acc_001_hdfc",
   "source_file_id": "sf_98234-abcd-ef01",
-  "imported_rows": 142,
-  "duplicates_merged": 14,
-  "transfers_detected": 6,
-  "anomalies_flagged": 3,
-  "new_recurring_items_found": 2
+  "bank": "HDFC",
+  "masked_last4": "5521",
+  "total_rows": 142,
+  "inserted": 142,
+  "duplicates_skipped": 0,
+  "internal_transfers_detected": 4,
+  "anomalies_detected": 2,
+  "recurring_items_updated": 6
 }
 ```
 

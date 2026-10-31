@@ -3,6 +3,7 @@ FastAPI Router for Affordability Decision Engine.
 Provides:
   POST /api/affordability — Full evaluation with Monte Carlo, Buffer, Headroom & Reasoning Ledger
   POST /api/affordability/ask — Natural language query parsing + Guarded narration
+Enforces strict multi-user data isolation.
 """
 import json
 import hashlib
@@ -13,7 +14,8 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
 from db.database import get_db
-from db.models import Transaction, Account, RecurringItem, SourceFile, ForecastSnapshot
+from db.models import Transaction, Account, RecurringItem, SourceFile, ForecastSnapshot, User
+from auth import get_current_user
 from engine.affordability import evaluate_affordability_decision
 from engine.recurring import detect_recurring_items
 from ai.extractor import parse_natural_language_query
@@ -33,12 +35,24 @@ class AffordabilityQuery(BaseModel):
 class NaturalLanguageAsk(BaseModel):
     question: str
 
-def fetch_db_state(db: Session):
+def fetch_db_state(db: Session, user_id: Optional[str] = None):
     """
-    Retrieves all active transactions, current account balances, recurring items, and source files.
+    Retrieves active transactions, current account balances, recurring items, and source files
+    strictly filtered by user_id for multi-user isolation.
     """
+    # 0. User Accounts
+    acct_query = db.query(Account).filter_by(status="active")
+    if user_id:
+        acct_query = acct_query.filter(Account.user_id == user_id)
+    accounts = acct_query.all()
+    user_account_ids = [a.id for a in accounts]
+
     # 1. Transactions
-    db_txns = db.query(Transaction).filter(Transaction.status == "active").order_by(Transaction.posted_date.asc()).all()
+    db_txns = db.query(Transaction).filter(
+        Transaction.status == "active",
+        Transaction.account_id.in_(user_account_ids)
+    ).order_by(Transaction.posted_date.asc()).all()
+
     txns = [
         {
             "id": t.id,
@@ -56,10 +70,8 @@ def fetch_db_state(db: Session):
     ]
 
     # 2. Account balances
-    accounts = db.query(Account).all()
     account_balances = {}
     for acct in accounts:
-        # Find latest transaction balance
         latest_txn = db.query(Transaction).filter(
             Transaction.account_id == acct.id,
             Transaction.status == "active"
@@ -69,10 +81,14 @@ def fetch_db_state(db: Session):
             account_balances[acct.bank] = latest_txn.balance_after_minor
         else:
             net_delta = sum(t["amount_minor"] for t in txns if t["account_id"] == acct.id)
-            account_balances[acct.bank] = acct.opening_balance_minor + net_delta
+            account_balances[acct.bank] = (acct.opening_balance_minor or 0) + net_delta
 
     # 3. Recurring items
-    db_recurring = db.query(RecurringItem).filter(RecurringItem.status == "active").all()
+    rec_query = db.query(RecurringItem).filter(RecurringItem.status == "active")
+    if user_id:
+        rec_query = rec_query.filter(RecurringItem.user_id == user_id)
+    db_recurring = rec_query.all()
+
     if db_recurring:
         recurring = [
             {
@@ -88,7 +104,7 @@ def fetch_db_state(db: Session):
             for r in db_recurring
         ]
     else:
-        # Auto-detect from transactions
+        # Auto-detect from user's transactions
         detected = detect_recurring_items(txns)
         recurring = [
             {
@@ -105,7 +121,8 @@ def fetch_db_state(db: Session):
         ]
 
     # 4. Source files
-    db_files = db.query(SourceFile).all()
+    sf_query = db.query(SourceFile).filter(SourceFile.account_id.in_(user_account_ids))
+    db_files = sf_query.all()
     source_files = [
         {
             "id": f.id,
@@ -120,7 +137,11 @@ def fetch_db_state(db: Session):
     return txns, account_balances, recurring, source_files
 
 @router.post("")
-def evaluate_affordability(query: AffordabilityQuery, db: Session = Depends(get_db)):
+def evaluate_affordability(
+    query: AffordabilityQuery,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Core Affordability Decision Endpoint:
     Computes deterministic financial math:
@@ -128,8 +149,9 @@ def evaluate_affordability(query: AffordabilityQuery, db: Session = Depends(get_
       - 5,000 Monte Carlo simulations
       - Reasoning Ledger (8 steps)
       - Number-verified narration
+    Enforces strict user isolation.
     """
-    txns, account_balances, recurring, source_files = fetch_db_state(db)
+    txns, account_balances, recurring, source_files = fetch_db_state(db, user_id=current_user.id)
 
     # Evaluate decision
     decision = evaluate_affordability_decision(
@@ -154,10 +176,11 @@ def evaluate_affordability(query: AffordabilityQuery, db: Session = Depends(get_
     # Record snapshot in database
     try:
         input_hash = hashlib.sha256(
-            f"{query.purchase_amount_minor}_{query.payment_type}_{len(txns)}".encode()
+            f"{query.purchase_amount_minor}_{query.payment_type}_{len(txns)}_{current_user.id}".encode()
         ).hexdigest()
 
         snapshot = ForecastSnapshot(
+            user_id=current_user.id,
             asof_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             engine_version="1.0.0",
             seed=42,
@@ -182,10 +205,15 @@ def evaluate_affordability(query: AffordabilityQuery, db: Session = Depends(get_
     return decision
 
 @router.post("/ask")
-def natural_language_ask(payload: NaturalLanguageAsk, db: Session = Depends(get_db)):
+def natural_language_ask(
+    payload: NaturalLanguageAsk,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Parses a natural language question (e.g. "Can I buy an iPhone for 80,000 next month?"),
     evaluates affordability, and returns guarded narration + reasoning ledger.
+    Enforces user isolation.
     """
     parsed_params = parse_natural_language_query(payload.question)
 
@@ -198,6 +226,6 @@ def natural_language_ask(payload: NaturalLanguageAsk, db: Session = Depends(get_
         emi_interest_rate_pct=parsed_params["emi_interest_rate_pct"]
     )
 
-    decision = evaluate_affordability(query, db=db)
+    decision = evaluate_affordability(query, current_user=current_user, db=db)
     decision["parsed_query"] = parsed_params
     return decision

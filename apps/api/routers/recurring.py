@@ -2,6 +2,7 @@
 Recurring Payments & Upcoming Timeline Router
 Provides listing of recurring obligations, upcoming payment calendars with bank attribution,
 query filtering, pagination, and user confirmation/editing.
+Enforces strict multi-user data isolation.
 """
 
 from fastapi import APIRouter, Depends, Query, HTTPException
@@ -10,7 +11,8 @@ from typing import Optional, List
 from pydantic import BaseModel
 
 from db.database import get_db
-from db.models import RecurringItem, Account, Transaction
+from db.models import RecurringItem, Account, Transaction, User
+from auth import get_current_user
 from engine.recurring import generate_upcoming_schedule
 
 router = APIRouter()
@@ -29,12 +31,14 @@ def list_recurring_items(
     max_amount_paise: Optional[int] = Query(None, description="Maximum typical amount in paise"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Returns paginated recurring obligations with filter options.
+    Enforces user isolation via current_user.id.
     """
-    query = db.query(RecurringItem).filter_by(status="active")
+    query = db.query(RecurringItem).filter_by(user_id=current_user.id, status="active")
     if type_filter:
         query = query.filter(RecurringItem.type == type_filter)
     if cadence:
@@ -88,34 +92,39 @@ def get_upcoming_schedule_endpoint(
     search: Optional[str] = Query(None, description="Search by merchant"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Returns upcoming payment schedule with bank attribution, pagination, and multi-filter support.
+    Enforces user isolation via current_user.id.
     """
     effective_days = (months * 30) if months else days
 
-    accounts_db = db.query(Account).all()
+    accounts_db = db.query(Account).filter_by(user_id=current_user.id, status="active").all()
     accounts_map = {
         a.id: {"bank": a.bank, "masked_last4": a.masked_last4}
         for a in accounts_db
     }
 
-    query = db.query(RecurringItem).filter_by(status="active")
+    query = db.query(RecurringItem).filter_by(user_id=current_user.id, status="active")
     if type_filter:
         query = query.filter(RecurringItem.type == type_filter)
     if search:
         query = query.filter(RecurringItem.merchant.ilike(f"%{search}%"))
 
     rec_items = query.all()
+    user_account_ids = [a.id for a in accounts_db]
+
     item_dicts = []
     for r in rec_items:
         last_t = db.query(Transaction).filter(
             Transaction.raw_description.ilike(f"%{r.merchant[:10]}%"),
-            Transaction.status == "active"
+            Transaction.status == "active",
+            Transaction.account_id.in_(user_account_ids)
         ).order_by(Transaction.posted_date.desc()).first()
 
-        item_acct = last_t.account_id if last_t else (accounts_db[0].id if accounts_db else None)
+        item_acct = r.account_id or (last_t.account_id if last_t else (accounts_db[0].id if accounts_db else None))
 
         item_dicts.append({
             "id": r.id,
@@ -160,14 +169,16 @@ def get_upcoming_schedule_endpoint(
 def update_recurring_item(
     item_id: str,
     req: EditRecurringRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Allows user to confirm, reject, or edit an auto-detected recurring obligation.
+    Enforces user isolation via current_user.id.
     """
-    item = db.query(RecurringItem).filter_by(id=item_id).first()
+    item = db.query(RecurringItem).filter_by(id=item_id, user_id=current_user.id).first()
     if not item:
-        raise HTTPException(status_code=404, detail="Recurring item not found.")
+        raise HTTPException(status_code=404, detail="Recurring item not found or access denied.")
 
     if req.user_status:
         item.user_status = req.user_status

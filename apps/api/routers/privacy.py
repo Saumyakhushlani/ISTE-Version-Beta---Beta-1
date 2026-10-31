@@ -1,6 +1,7 @@
 """
 Privacy & Egress Log Inspection Router.
 Provides endpoints to audit system local-first status and egress logs with filtering and pagination.
+Enforces strict multi-user data isolation.
 """
 
 import json
@@ -9,18 +10,27 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from db.database import get_db
-from db.models import EgressLog
+from db.models import EgressLog, User
+from auth import get_current_user
 from middleware.egress import PRIVACY_MODE
 
 router = APIRouter()
 
 @router.get("/status")
-def get_privacy_status(db: Session = Depends(get_db)):
+def get_privacy_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Returns air-gapped security status, database file location, and privacy mode.
     """
-    total_logs = db.query(EgressLog).count()
-    blocked_logs = db.query(EgressLog).filter(EgressLog.mode == "blocked_local").count()
+    total_logs = db.query(EgressLog).filter(
+        (EgressLog.user_id == current_user.id) | (EgressLog.user_id.is_(None))
+    ).count()
+    blocked_logs = db.query(EgressLog).filter(
+        (EgressLog.user_id == current_user.id) | (EgressLog.user_id.is_(None)),
+        EgressLog.mode == "blocked_local"
+    ).count()
 
     return {
         "privacy_mode": PRIVACY_MODE,
@@ -39,12 +49,16 @@ def list_egress_logs(
     search: Optional[str] = Query(None, description="Search by purpose or destination"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Returns the immutable audit log of outbound calls with pagination and filtering.
+    Enforces user isolation: only shows system logs or logs belonging to current_user.
     """
-    query = db.query(EgressLog)
+    query = db.query(EgressLog).filter(
+        (EgressLog.user_id == current_user.id) | (EgressLog.user_id.is_(None))
+    )
     if mode_filter:
         query = query.filter(EgressLog.mode == mode_filter)
     if destination:
@@ -68,8 +82,9 @@ def list_egress_logs(
                 "id": l.id,
                 "timestamp": l.ts.isoformat() if l.ts else None,
                 "purpose": l.purpose,
-                "destination": l.destination,
                 "mode": l.mode,
+                "destination": l.destination,
+                "payload_preview": l.payload_json[:100] if l.payload_json else "{}",
                 "payload": json.loads(l.payload_json or "{}")
             }
             for l in logs

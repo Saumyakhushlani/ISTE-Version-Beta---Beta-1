@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
-import { Search, ArrowDownRight, ArrowUpRight, ArrowLeftRight, Filter } from 'lucide-react';
+import { Search, ArrowDownRight, ArrowUpRight, ArrowLeftRight, Filter, Upload } from 'lucide-react';
 import { formatINR } from '@fdl/shared';
 import { api } from '@/lib/api';
+import StatementUploadModal from '@/components/StatementUploadModal';
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -30,6 +31,7 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   useEffect(() => {
     loadTransactions();
@@ -73,8 +75,17 @@ export default function TransactionsPage() {
             Browse normalized bank transactions, internal transfers, and category assignments.
           </p>
         </div>
-        <div className="text-xs text-slate-500 font-mono bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
-          Showing <span className="font-bold text-slate-800">{filtered.length}</span> of {txns.length} records
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsUploadOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload Statement</span>
+          </button>
+          <div className="text-xs text-slate-500 font-mono bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+            Showing <span className="font-bold text-slate-800">{filtered.length}</span> of {txns.length} records
+          </div>
         </div>
       </motion.div>
 
@@ -168,6 +179,13 @@ export default function TransactionsPage() {
           </table>
         </div>
       </motion.div>
+
+      {/* Upload Modal */}
+      <StatementUploadModal
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onSuccess={() => loadTransactions()}
+      />
     </motion.div>
   );
 }

@@ -25,40 +25,120 @@ This document lists every backend API endpoint in the Financial Decision Lab sys
 ### 2.1 Statement Ingestion APIs
 
 #### `POST /api/imports/preview`
-Parses an uploaded bank statement (CSV or PDF) and extracts its data for user preview **without** saving to the database.
+Parses an uploaded bank statement (CSV or PDF) and extracts its data for user preview **without** saving to the database. Supports automatic detection of encodings, delimiters, date conventions, split or signed amounts, header detection, and dynamic column mapping.
 
 - **Request Type**: `multipart/form-data`
 - **Input Props / Form Fields**:
   | Field | Type | Required | Description |
   |---|---|---|---|
   | `file` | `UploadFile` (Binary) | **Yes** | CSV or PDF bank statement file. |
-  | `bank_hint` | `string` | No (default: `"auto"`) | Optional bank name hint (`"HDFC"`, `"SBI"`, `"ICICI"`, `"Axis"`, `"PhonePe"`, etc.). If `"auto"`, the system automatically detects the bank using statement headers and IFSC keywords. |
+  | `bank_hint` | `string` | No (default: `"auto"`) | Optional bank name hint (`"HDFC"`, `"SBI"`, `"ICICI"`, `"Axis"`, etc.). If `"auto"`, the system detects the bank using statement headers and IFSC keywords. |
+  | `password` | `string` | No | Optional password for encrypted PDF statements. |
+  | `column_mapping` | `string` (JSON string or dict) | No | Optional explicit column mapping override e.g. `{"date": "Date", "description": "Narration", "debit": "Dr", "credit": "Cr", "balance": "Bal"}`. |
+  | `delimiter` | `string` | No | Optional delimiter override (`","`, `";"`, `"	"`, `"|"`). If omitted, auto-detected. |
+  | `encoding` | `string` | No | Optional file encoding override (`"utf-8"`, `"utf-8-sig"`, `"cp1252"`, `"iso-8859-1"`). |
+  | `has_header` | `boolean` | No | Explicit boolean indicating whether row 0 contains column names. |
 
 - **Output Response (`200 OK`)**:
   ```json
   {
-    "file_id": "staged_6d78a9c2",
+    "file_id": "stg_6d78a9c2ef01",
     "filename": "hdfc_statement.csv",
     "content_type": "text/csv",
     "bank_detected": "HDFC",
     "masked_last4": "5521",
     "rows_detected": 142,
     "date_range": {
-      "start": "2026-05-01",
-      "end": "2026-10-25"
+      "start": "2024-05-01",
+      "end": "2024-10-25"
     },
     "opening_balance_minor": 7400000,
     "closing_balance_minor": 11240000,
+    "net_cash_flow_minor": 3840000,
     "reconciliation_status": "PASSED",
+    "reconciliation_delta_minor": 0,
+    "running_balance_status": "PASSED",
+    "running_balance_breaks": [],
+    "detected_delimiter": ",",
+    "detected_encoding": "utf-8",
+    "has_header": true,
+    "headers": ["Date", "Narration", "Withdrawal", "Deposit", "Closing Balance"],
+    "column_mapping": {
+      "date": "Date",
+      "description": "Narration",
+      "debit": "Withdrawal",
+      "credit": "Deposit",
+      "balance": "Closing Balance"
+    },
+    "mapping_confidence": 1.0,
+    "is_ambiguous": false,
+    "ambiguity_reasons": [],
     "sample_rows": [
       {
-        "posted_date": "2026-10-25",
-        "description": "UPI/SWIGGY/ORDER_982",
+        "source_row": 1,
+        "posted_date": "2024-10-25",
+        "raw_description": "UPI/SWIGGY/ORDER_982",
         "amount_minor": -45000,
         "balance_after_minor": 11240000
       }
     ],
-    "warnings": []
+    "warnings": [],
+    "errors": []
+  }
+  ```
+
+---
+
+#### `POST /api/imports/preview/async`
+Submits a bank statement file (CSV or PDF) for asynchronous background extraction and parsing. Designed for large statements, multi-page PDFs, or non-blocking client workflows.
+
+- **Request Type**: `multipart/form-data`
+- **Input Props / Form Fields**:
+  | Field | Type | Required | Description |
+  |---|---|---|---|
+  | `file` | `UploadFile` (Binary) | **Yes** | CSV or PDF bank statement file. |
+  | `bank_hint` | `string` | No (default: `"auto"`) | Optional bank name hint. |
+  | `password` | `string` | No | Optional password for encrypted PDF statements. |
+  | `column_mapping` | `string` | No | Optional explicit column mapping JSON string. |
+  | `delimiter` | `string` | No | Optional delimiter override. |
+  | `encoding` | `string` | No | Optional encoding override. |
+  | `has_header` | `boolean` | No | Explicit boolean flag for header presence. |
+
+- **Output Response (`200 OK`)**:
+  ```json
+  {
+    "job_id": "job_a9b8c7d6e5f4",
+    "status": "QUEUED",
+    "filename": "annual_statement_2024.csv",
+    "message": "Statement submitted for background parsing."
+  }
+  ```
+
+---
+
+#### `GET /api/imports/jobs/{job_id}`
+Polls the execution status and retrieves results of a background statement parsing job.
+
+- **Request Type**: `GET`
+- **Path Parameters**:
+  | Parameter | Type | Required | Description |
+  |---|---|---|---|
+  | `job_id` | `string` | **Yes** | Job UUID returned by `/api/imports/preview/async`. |
+
+- **Output Response (`200 OK`)**:
+  ```json
+  {
+    "job_id": "job_a9b8c7d6e5f4",
+    "status": "COMPLETED",
+    "progress_pct": 100,
+    "filename": "annual_statement_2024.csv",
+    "result": {
+      "file_id": "stg_6d78a9c2ef01",
+      "rows_detected": 1420,
+      "reconciliation_status": "PASSED",
+      "running_balance_status": "PASSED"
+    },
+    "error": null
   }
   ```
 
@@ -73,6 +153,7 @@ Commits a previously previewed statement into the database. Performs deduplicati
   |---|---|---|---|
   | `file_id` | `string` | **Yes** | The temporary `file_id` returned by the `/preview` endpoint. |
   | `account_id` | `string` | No | Optional account ID. If omitted, the system links to an existing account matching the bank & last 4 digits or creates a new one. |
+  | `column_mapping_override` | `string` (JSON string) | No | Optional confirmed column mapping dictionary to re-parse the staged file with user overrides prior to commit. |
 
 - **Output Response (`200 OK`)**:
   ```json

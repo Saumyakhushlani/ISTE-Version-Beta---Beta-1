@@ -1,191 +1,166 @@
 """
-Auto-Detecting Bank Statement CSV Parser
-Handles PhonePe, Google Pay, Paytm, HDFC, SBI, ICICI, Axis, and generic layouts.
-Parses Indian date and number formatting directly into integer paise (MinorAmount).
-Performs automatic opening-to-closing balance reconciliation when balances are present.
+Dynamic, Auto-Detecting Bank Statement CSV Parser for Financial Decision Lab (FDL).
+Supports:
+- Encodings: UTF-8, UTF-8-SIG (BOM), UTF-16, Windows-1252, ISO-8859-1.
+- Delimiters: Comma (,), Semicolon (;), Tab (\\t), Pipe (|).
+- Header detection, preamble metadata stripping, and headerless files.
+- Column mapping: automatic synonym matching, data type inference, and explicit user overrides.
+- Amount conventions: split Debit/Credit columns, signed Amount, Amount + Dr/Cr indicator.
+- Number formatting: Indian numbering (1,23,456.78), currency symbols (₹, Rs., $), parentheses, DR/CR.
+- Date formats: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, DD-Mon-YYYY, YYYY-MM-DD, Month DD YYYY.
+- Balance reconciliation: opening-to-closing balance and row-by-row running balance verification.
+- Integer paise precision: 100% exact integer paise (MinorAmount) with zero floating-point drift.
+- Meaningful row-level errors and warnings.
 """
 
 import csv
 import io
 import re
-from datetime import datetime
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Union, Tuple
+
+from parsers.amount_parser import parse_indian_amount_to_paise
+from parsers.date_parser import parse_date_to_iso, infer_date_format_from_samples
+from parsers.encoding_detector import detect_and_decode_bytes
+from parsers.delimiter_detector import detect_delimiter
+from parsers.column_mapper import detect_column_mapping, ColumnMappingResult, CANONICAL_HEADER_SYNONYMS
 from parsers.normalizer import normalize_transaction_description
+from parsers.reconciliation import verify_balance_reconciliation
 
-# Synonyms for header detection
-HEADER_SYNONYMS = {
-    "date": ["date", "txn date", "transaction date", "value date", "post date"],
-    "description": ["transaction details", "narration", "description", "particulars", "transaction remarks", "details"],
-    "withdrawal": ["withdrawal amt", "withdrawal amount", "withdrawal", "debit amount", "debit amt", "debit", "dr amount", "dr"],
-    "deposit": ["deposit amt", "deposit amount", "deposit", "credit amount", "credit amt", "credit", "cr amount", "cr"],
-    "amount": ["amount", "txn amount", "transaction amount"],
-    "txn_type": ["transaction type", "type", "dr/cr", "cr/dr"],
-    "balance": ["closing balance", "balance", "running balance", "net balance"],
-    "ref_no": ["utr", "transaction id", "chq/ref no", "ref no", "reference no", "cheque no"]
-}
-
-# Words that indicate a column is NOT a numerical amount column
-EXCLUDE_AMOUNT_KEYWORDS = ["instrument", "mode", "type", "channel", "status", "remarks", "details", "desc"]
-
-def parse_indian_amount_to_paise(val: Any) -> Optional[int]:
-    """
-    Converts currency string (e.g. '1,23,456.78', '₹15,000.00', '(500.00)', '100.00 Cr', '5000')
-    directly into signed integer paise.
-    1 INR = 100 paise.
-    """
-    if val is None:
-        return None
-    s = str(val).strip()
-    if not s or s == "-" or s.lower() == "nan":
-        return None
-
-    is_paren_neg = s.startswith("(") and s.endswith(")")
-    if is_paren_neg:
-        s = s[1:-1].strip()
-
-    is_dr = False
-    is_cr = False
-    if s.upper().endswith("DR"):
-        is_dr = True
-        s = s[:-2].strip()
-    elif s.upper().endswith("CR"):
-        is_cr = True
-        s = s[:-2].strip()
-
-    s = re.sub(r"[₹$,\s]", "", s)
-    if not s:
-        return None
-
-    try:
-        float_val = float(s)
-        paise = round(float_val * 100)
-        if is_paren_neg or is_dr:
-            return -abs(paise)
-        if is_cr:
-            return abs(paise)
-        return paise
-    except ValueError:
-        return None
-
-def parse_date_to_iso(val: str) -> Optional[str]:
-    """
-    Parses ambiguous date formats with India priority:
-    Supports 'Oct 30, 2026', DD/MM/YYYY, DD-MM-YYYY, DD-Mon-YYYY, YYYY-MM-DD.
-    Returns ISO 8601 string 'YYYY-MM-DD'.
-    """
-    if not val:
-        return None
-    s = str(val).strip()
-    s_clean = re.sub(r"\s+", " ", s)
-    
-    formats = [
-        "%Y-%m-%d",
-        "%b %d, %Y",
-        "%B %d, %Y",
-        "%b %d %Y",
-        "%d %b %Y",
-        "%d %B %Y",
-        "%d/%m/%Y",
-        "%d-%m-%Y",
-        "%d-%b-%Y",
-        "%d-%B-%Y",
-        "%d/%m/%y",
-        "%d-%m-%y"
-    ]
-    for fmt in formats:
-        try:
-            dt = datetime.strptime(s_clean, fmt)
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    return None
-
-def score_header_row(row: List[str]) -> Tuple[int, Dict[str, int]]:
-    """Scores how well a row matches expected bank CSV column headers."""
-    clean_row = [str(col).lower().strip() for col in row]
-    mapping = {}
-    score = 0
-
-    for canonical, synonyms in HEADER_SYNONYMS.items():
-        for idx, col_name in enumerate(clean_row):
-            # If checking withdrawal, deposit, or amount, ensure no non-amount keyword is present
-            if canonical in ["withdrawal", "deposit", "amount"]:
-                if any(ex in col_name for ex in EXCLUDE_AMOUNT_KEYWORDS):
-                    continue
-
-            # Exact or word boundary match
-            matched = False
-            for syn in synonyms:
-                if syn == col_name or (len(syn) > 2 and syn in col_name):
-                    matched = True
-                    break
-
-            if matched:
-                if canonical not in mapping:
-                    mapping[canonical] = idx
-                    score += 1
-                    break
-
-    # Clean up collisions: if withdrawal and deposit map to same column, drop them
-    if "withdrawal" in mapping and "deposit" in mapping and mapping["withdrawal"] == mapping["deposit"]:
-        del mapping["withdrawal"]
-        del mapping["deposit"]
-
-    return score, mapping
 
 def find_header_and_mapping(lines: List[List[str]]) -> Tuple[int, Dict[str, int]]:
-    """Scans the first 30 lines to find the true transaction table header row."""
-    best_score = 0
-    best_idx = 0
-    best_mapping = {}
-
-    for idx, row in enumerate(lines[:30]):
-        score, mapping = score_header_row(row)
-        has_amt = "amount" in mapping or "withdrawal" in mapping or "deposit" in mapping
-        if score > best_score and "date" in mapping and "description" in mapping and has_amt:
-            best_score = score
-            best_idx = idx
-            best_mapping = mapping
-
-    if best_score < 3:
-        raise ValueError("Could not auto-detect bank statement table headers. Missing Date, Description, or Amount columns.")
-
-    return best_idx, best_mapping
-
-def parse_csv_statement(csv_content: str, account_id: str = "default_acct") -> Dict[str, Any]:
     """
-    Parses a CSV string, standardizes all rows into canonical transactions,
-    and runs balance reconciliation.
+    Backward-compatible helper for finding header row and column mapping.
+    Used by pdf_parser and older test utilities.
     """
-    reader = csv.reader(io.StringIO(csv_content))
-    raw_lines = [row for row in reader if any(cell.strip() for cell in row)]
+    res = detect_column_mapping(lines)
+    return res.header_row_index, res.mapping
+
+
+
+FOOTER_PATTERNS = [
+    r"^\s*total",
+    r"^\s*grand total",
+    r"^\s*statement summary",
+    r"^\s*closing balance as on",
+    r"^\s*opening balance as on",
+    r"^\s*end of statement",
+    r"^\s*page\s+\d+",
+    r"^\s*note\s*:",
+    r"^\s*\*{3,}",
+]
+
+
+def is_footer_or_summary_row(row: List[str]) -> bool:
+    """Detects whether a row is a summary or footer row rather than a transaction."""
+    first_non_empty = next((c.strip().lower() for c in row if c.strip()), "")
+    if not first_non_empty:
+        return False
+    for pat in FOOTER_PATTERNS:
+        if re.search(pat, first_non_empty):
+            return True
+    return False
+
+
+def parse_csv_statement(
+    csv_content: Union[str, bytes],
+    account_id: str = "default_acct",
+    column_mapping: Optional[Dict[str, Union[int, str]]] = None,
+    delimiter: Optional[str] = None,
+    encoding: Optional[str] = None,
+    has_header: Optional[bool] = None
+) -> Dict[str, Any]:
+    """
+    Parses a CSV bank statement (string or bytes) into canonical FDL transactions.
+    Supports auto-detection and explicit configuration overrides.
+    """
+    # 1. Decode bytes if needed and detect encoding
+    detected_encoding = "utf-8"
+    if isinstance(csv_content, bytes):
+        text_content, detected_encoding = detect_and_decode_bytes(csv_content, explicit_encoding=encoding)
+    else:
+        text_content = str(csv_content)
+        if text_content.startswith("\ufeff"):
+            text_content = text_content[1:]
+            detected_encoding = "utf-8-sig"
+
+    if not text_content or not text_content.strip():
+        raise ValueError("CSV statement file is empty.")
+
+    # 2. Detect Delimiter
+    detected_delimiter = detect_delimiter(text_content, explicit_delimiter=delimiter)
+
+    # 3. Read CSV Lines with RFC 4180 quote handling
+    try:
+        reader = csv.reader(io.StringIO(text_content), delimiter=detected_delimiter)
+        raw_lines = [row for row in reader if any(cell.strip() for cell in row)]
+    except Exception as e:
+        raise ValueError(f"Failed to read CSV content: {str(e)}")
+
     if not raw_lines:
         raise ValueError("CSV statement file is empty.")
 
-    header_idx, col_map = find_header_and_mapping(raw_lines)
-    data_rows = raw_lines[header_idx + 1:]
+    # 4. Detect Column Mapping & Headers
+    mapping_result: ColumnMappingResult = detect_column_mapping(
+        lines=raw_lines,
+        explicit_mapping=column_mapping,
+        explicit_has_header=has_header
+    )
 
+    col_map = mapping_result.mapping
+    header_idx = mapping_result.header_row_index
+    data_rows = raw_lines[header_idx + 1:] if mapping_result.has_header else raw_lines
+
+    # 5. Determine Date Order (DMY vs MDY) from sample data
+    date_col = col_map.get("date")
+    date_samples = []
+    if date_col is not None:
+        for r in data_rows[:20]:
+            if date_col < len(r) and r[date_col].strip():
+                date_samples.append(r[date_col])
+    preferred_date_order = infer_date_format_from_samples(date_samples)
+
+    # 6. Parse Transactions
     transactions = []
     warnings = []
+    errors = []
     running_sum = 0
     opening_balance_minor = None
     closing_balance_minor = None
 
     for row_idx, row in enumerate(data_rows, start=1):
-        if not any(cell.strip() for cell in row):
+        actual_line_no = (header_idx + 1 + row_idx) if mapping_result.has_header else row_idx
+
+        # Check for footer/summary rows
+        if is_footer_or_summary_row(row):
+            continue
+
+        # Check minimum column count
+        max_needed_col = max(col_map.values()) if col_map else 0
+        if len(row) <= max_needed_col:
+            # Row has fewer columns than mapped
+            msg = f"Row {actual_line_no}: Incomplete row with only {len(row)} columns (expected at least {max_needed_col + 1})."
+            errors.append({"row": actual_line_no, "field": "row", "message": msg, "raw": str(row)})
+            warnings.append(msg)
             continue
 
         # Extract Date
-        date_str = row[col_map["date"]] if col_map["date"] < len(row) else ""
-        posted_date = parse_date_to_iso(date_str)
+        posted_date = None
+        if "date" in col_map and col_map["date"] < len(row):
+            raw_date_str = row[col_map["date"]].strip()
+            posted_date = parse_date_to_iso(raw_date_str, preferred_order=preferred_date_order)
+
         if not posted_date:
-            warnings.append(f"Row {row_idx}: Could not parse date '{date_str}', skipping.")
+            raw_val = row[col_map["date"]] if "date" in col_map and col_map["date"] < len(row) else ""
+            msg = f"Row {actual_line_no}: Could not parse date '{raw_val}', skipping."
+            errors.append({"row": actual_line_no, "field": "date", "message": msg, "raw": str(row)})
+            warnings.append(msg)
             continue
 
         # Extract Description
-        raw_desc = row[col_map["description"]] if col_map["description"] < len(row) else ""
-        
-        # Clean UPI prefix like "Paid to " or "Received from "
+        raw_desc = ""
+        if "description" in col_map and col_map["description"] < len(row):
+            raw_desc = row[col_map["description"]].strip()
+
         cleaned_raw_desc = raw_desc
         if cleaned_raw_desc.lower().startswith("paid to "):
             cleaned_raw_desc = cleaned_raw_desc[8:].strip()
@@ -205,35 +180,42 @@ def parse_csv_statement(csv_content: str, account_id: str = "default_acct") -> D
             raw_amt_paise = parse_indian_amount_to_paise(row[col_map["amount"]])
             txn_type = row[col_map["txn_type"]].strip().upper()
             if raw_amt_paise is not None:
-                if "DEBIT" in txn_type or "DR" in txn_type:
+                if any(dr in txn_type for dr in ("DEBIT", "DR", "DR.", "D", "OUT")):
                     amount_minor = -abs(raw_amt_paise)
-                elif "CREDIT" in txn_type or "CR" in txn_type:
+                elif any(cr in txn_type for cr in ("CREDIT", "CR", "CR.", "C", "IN")):
                     amount_minor = abs(raw_amt_paise)
                 else:
                     amount_minor = raw_amt_paise
+
         elif has_withdrawal and has_deposit:
             w_paise = parse_indian_amount_to_paise(row[col_map["withdrawal"]])
             d_paise = parse_indian_amount_to_paise(row[col_map["deposit"]])
-            if w_paise is not None and w_paise > 0:
-                amount_minor = -abs(w_paise)  # Debits are negative
-            elif d_paise is not None and d_paise > 0:
-                amount_minor = abs(d_paise)   # Credits are positive
+
+            if w_paise is not None and w_paise != 0:
+                amount_minor = -abs(w_paise)  # Debits/Withdrawals are negative
+            elif d_paise is not None and d_paise != 0:
+                amount_minor = abs(d_paise)   # Credits/Deposits are positive
+
         elif has_amount:
             amount_minor = parse_indian_amount_to_paise(row[col_map["amount"]])
+
         elif has_withdrawal:
             w_paise = parse_indian_amount_to_paise(row[col_map["withdrawal"]])
-            if w_paise is not None:
+            if w_paise is not None and w_paise != 0:
                 amount_minor = -abs(w_paise)
+
         elif has_deposit:
             d_paise = parse_indian_amount_to_paise(row[col_map["deposit"]])
-            if d_paise is not None:
+            if d_paise is not None and d_paise != 0:
                 amount_minor = abs(d_paise)
 
         if amount_minor is None or amount_minor == 0:
-            warnings.append(f"Row {row_idx}: Zero or unparseable amount, skipping.")
+            msg = f"Row {actual_line_no}: Zero or unparseable amount, skipping."
+            errors.append({"row": actual_line_no, "field": "amount", "message": msg, "raw": str(row)})
+            warnings.append(msg)
             continue
 
-        # Extract Balance after transaction if available
+        # Extract Running Balance if available
         balance_after = None
         if "balance" in col_map and col_map["balance"] < len(row):
             balance_after = parse_indian_amount_to_paise(row[col_map["balance"]])
@@ -247,7 +229,7 @@ def parse_csv_statement(csv_content: str, account_id: str = "default_acct") -> D
         running_sum += amount_minor
 
         transactions.append({
-            "source_row": row_idx + header_idx + 1,
+            "source_row": actual_line_no,
             "posted_date": posted_date,
             "amount_minor": amount_minor,
             "raw_description": raw_desc,
@@ -257,30 +239,43 @@ def parse_csv_statement(csv_content: str, account_id: str = "default_acct") -> D
             "balance_after_minor": balance_after
         })
 
-    # Balance Reconciliation Check
-    reconciliation_status = "UNVERIFIED"
-    reconciliation_delta = 0
-    if opening_balance_minor is not None and closing_balance_minor is not None:
-        expected_closing = opening_balance_minor + running_sum
-        reconciliation_delta = closing_balance_minor - expected_closing
-        if reconciliation_delta == 0:
-            reconciliation_status = "PASSED"
-        else:
-            reconciliation_status = f"DISCREPANCY (Delta: ₹{reconciliation_delta / 100:.2f})"
+    # 7. Financial Data Validation & Reconciliation
+    recon_result = verify_balance_reconciliation(
+        opening_balance_minor=opening_balance_minor,
+        closing_balance_minor=closing_balance_minor,
+        net_cash_flow_minor=running_sum,
+        transactions=transactions
+    )
 
     dates = [t["posted_date"] for t in transactions]
     period_start = min(dates) if dates else None
     period_end = max(dates) if dates else None
 
+    # Merge ambiguity reasons into warnings if any
+    for amb in mapping_result.ambiguity_reasons:
+        warnings.append(f"Column Mapping Notice: {amb}")
+
     return {
         "rows_detected": len(transactions),
+        "total_raw_rows": len(data_rows),
         "period_start": period_start,
         "period_end": period_end,
         "opening_balance_minor": opening_balance_minor,
         "closing_balance_minor": closing_balance_minor,
         "net_cash_flow_minor": running_sum,
-        "reconciliation_status": reconciliation_status,
-        "reconciliation_delta_minor": reconciliation_delta,
+        "reconciliation_status": recon_result["reconciliation_status"],
+        "reconciliation_delta_minor": recon_result["reconciliation_delta_minor"],
+        "running_balance_status": recon_result["running_balance_status"],
+        "running_balance_breaks": recon_result["running_balance_breaks"],
+        "detected_delimiter": detected_delimiter,
+        "detected_encoding": detected_encoding,
+        "has_header": mapping_result.has_header,
+        "headers": mapping_result.headers,
+        "column_mapping": mapping_result.mapping,
+        "mapping_confidence": mapping_result.confidence,
+        "is_ambiguous": mapping_result.is_ambiguous,
+        "ambiguity_reasons": mapping_result.ambiguity_reasons,
         "warnings": warnings,
+        "errors": errors,
         "transactions": transactions
     }

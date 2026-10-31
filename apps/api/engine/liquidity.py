@@ -2,6 +2,7 @@
 Multi-Bank Liquidity and Investment Sourcing Engine
 Calculates per-account inflow, outflow, and remaining balance,
 and provides smart transfer recommendations for large investments (FD/SIP/Purchases).
+Supports strict multi-user data isolation.
 """
 
 from typing import Dict, Any, List, Optional
@@ -10,15 +11,22 @@ from db.models import Account, Transaction, RecurringItem
 
 DEFAULT_ACCOUNT_FLOOR_BUFFER_PAISE = 500000  # ₹5,000.00 minimum reserve per account
 
-def compute_multi_account_summary(db: Session, account_id: Optional[str] = None) -> Dict[str, Any]:
+def compute_multi_account_summary(
+    db: Session,
+    account_id: Optional[str] = None,
+    user_id: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Computes financial breakdown for each individual bank account and the combined total:
     - Money in (Credits)
     - Money out (Debits)
     - Net flow
     - Current remaining balance
+    Filters strictly by user_id for multi-user isolation.
     """
-    query = db.query(Account)
+    query = db.query(Account).filter_by(status="active")
+    if user_id:
+        query = query.filter(Account.user_id == user_id)
     if account_id:
         query = query.filter(Account.id == account_id)
     accounts = query.all()
@@ -82,7 +90,8 @@ def compute_multi_account_summary(db: Session, account_id: Optional[str] = None)
 def recommend_investment_sourcing(
     target_amount_paise: int,
     db: Session,
-    investment_label: str = "Investment / FD"
+    investment_label: str = "Investment / FD",
+    user_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Evaluates how to fund a large investment or purchase across multiple accounts:
@@ -90,13 +99,17 @@ def recommend_investment_sourcing(
     2. Subtracts upcoming commitments tied to that specific account
     3. Subtracts minimum safety buffer (₹5,000)
     4. Generates optimal inter-account transfer recommendations
+    Enforces user isolation via user_id.
     """
-    summary = compute_multi_account_summary(db)
+    summary = compute_multi_account_summary(db, user_id=user_id)
     accounts = summary["accounts"]
     combined_liquid = summary["combined_liquid_paise"]
 
     # Gather upcoming 30-day recurring obligations per bank/merchant
-    recurring_items = db.query(RecurringItem).filter_by(status="active").all()
+    rec_query = db.query(RecurringItem).filter_by(status="active")
+    if user_id:
+        rec_query = rec_query.filter(RecurringItem.user_id == user_id)
+    recurring_items = rec_query.all()
     
     # Calculate committed obligations per account
     account_surpluses = []
@@ -146,8 +159,12 @@ def recommend_investment_sourcing(
         feasible = False
     else:
         feasible = True
-        best_acct = sorted_by_surplus[0]
-        if best_acct["available_surplus_paise"] >= target_amount_paise:
+        if not sorted_by_surplus:
+            best_acct = None
+        else:
+            best_acct = sorted_by_surplus[0]
+
+        if best_acct and best_acct["available_surplus_paise"] >= target_amount_paise:
             # Single account has enough surplus cash
             advice = (
                 f"You can comfortably fund the entire ₹{target_amount_paise / 100:,.0f} from "
@@ -161,7 +178,7 @@ def recommend_investment_sourcing(
                 "masked_last4": best_acct["masked_last4"],
                 "amount_paise": target_amount_paise
             })
-        else:
+        elif best_acct:
             # Need to combine or transfer between accounts
             remaining_to_fund = target_amount_paise - max(0, best_acct["available_surplus_paise"])
             if best_acct["available_surplus_paise"] > 0:
@@ -203,6 +220,8 @@ def recommend_investment_sourcing(
                     f"to {t['to_bank']}. "
                 )
             transfers_plan = transfers_needed
+        else:
+            advice = "No active bank accounts found to source funds from."
 
     total_safe_surplus = sum(max(0, a["available_surplus_paise"]) for a in account_surpluses)
 

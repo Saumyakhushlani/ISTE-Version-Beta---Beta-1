@@ -256,8 +256,17 @@ erDiagram
 ## 5. Subsystem Breakdown
 
 ### 5.1 Ingestion & Parsing Subsystem (`apps/api/parsers/`)
-- **`csv_parser.py`**: Heuristically detects header rows, delimiter (comma/tab/semicolon), date formats (DD/MM/YYYY vs YYYY-MM-DD), and credit/debit column pairs. Includes preconfigured bank profiles for HDFC, SBI, ICICI, and Axis Bank.
-- **`pdf_parser.py`**: Uses `pdfplumber` to extract statement tables, handle multi-page continuations, and extract opening/closing balance metadata from header blocks.
+- **`csv_parser.py`**: Dynamic CSV ingestion orchestrator. Coordinates encoding sniffing, delimiter detection, header identification, column mapping, amount/date normalization, and balance reconciliation.
+- **`encoding_detector.py`**: Sniffs byte order marks (UTF-8 BOM, UTF-16LE, UTF-16BE) and iteratively decodes candidate encodings (`utf-8`, `cp1252`, `iso-8859-1`).
+- **`delimiter_detector.py`**: Quote-aware delimiter frequency scoring for `,`, `;`, `\t`, and `|`, selecting the delimiter that yields consistent row column counts.
+- **`amount_parser.py`**: Exact integer-paise financial parser using Python `decimal.Decimal` with `ROUND_HALF_UP`. Handles Indian numbering (`1,23,456.78`), currency symbols (`₹`, `Rs.`, `$`), parentheses negative notation (`(500.00)`), and trailing `DR`/`CR` markers without floating-point math.
+- **`date_parser.py`**: Flexible date parser supporting 19 date patterns (DD/MM/YYYY, YYYY-MM-DD, DD-Mon-YYYY, etc.) with locale-aware day/month disambiguation using the > 12 rule.
+- **`column_mapper.py`**: Weighted synonym scoring against canonical fields (`date`, `description`, `debit`, `credit`, `amount`, `balance`). Automatically detects ambiguity (e.g. multiple date columns or unassigned critical fields) and supports headerless column inference and user overrides.
+- **`reconciliation.py`**: Two-tier balance verification:
+  1. *Opening/Closing Reconciliation*: Opening + Sum(Txns) == Closing within 100 paise tolerance.
+  2. *Running Balance Consistency*: Validates B_t = B_{t-1} + Delta_t row-by-row and flags break points with exact line numbers and deltas.
+- **`pdf_parser.py`**: Uses `pdfplumber` to extract statement tables, handle multi-page continuations, extract opening/closing balance metadata, and supports encrypted password decryption.
+- **`dataset_validator.py` (`apps/api/engine/`)**: Automated 4-dimension audit tool grading financial statements (`EXCELLENT`, `ACCEPTABLE`, `WARNING`, `DEFECTIVE`) on date continuity, amount validity, balance reconciliation, and metadata completeness.
 
 ### 5.2 Deduplication & Normalization Subsystem (`apps/api/ml/`)
 - **Fingerprinting**: Generates a stable hash per transaction:

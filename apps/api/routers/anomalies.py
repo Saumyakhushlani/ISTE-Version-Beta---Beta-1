@@ -2,6 +2,7 @@
 Anomaly Detection & User Feedback Router
 Exposes flagged spending spikes, unexpected duplicate charges, and new merchants
 with mathematical explanations, query filtering, pagination, and user feedback resolution.
+Enforces strict multi-user data isolation.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -11,7 +12,8 @@ from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 
 from db.database import get_db
-from db.models import Anomaly, Transaction, Account
+from db.models import Anomaly, Transaction, Account, User
+from auth import get_current_user
 
 router = APIRouter()
 
@@ -30,12 +32,28 @@ def list_anomalies(
     min_amount_paise: Optional[int] = Query(None, description="Minimum absolute anomaly amount in paise"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Returns paginated anomalies with filter support and full transaction context.
+    Enforces user isolation: only returns anomalies on transactions for current_user's accounts.
     """
-    query = db.query(Anomaly)
+    user_accounts = db.query(Account).filter_by(user_id=current_user.id, status="active").all()
+    user_account_ids = [a.id for a in user_accounts]
+
+    if account_id and account_id not in user_account_ids:
+        return {
+            "total": 0,
+            "total_anomalies": 0,
+            "limit": limit,
+            "offset": offset,
+            "anomalies": []
+        }
+
+    query = db.query(Anomaly).join(Transaction).filter(Transaction.account_id.in_(user_account_ids))
+    if account_id:
+        query = query.filter(Transaction.account_id == account_id)
     if type_filter:
         query = query.filter(Anomaly.type == type_filter)
     if severity_filter:
@@ -56,10 +74,6 @@ def list_anomalies(
     for a in anomalies:
         txn = db.query(Transaction).filter_by(id=a.txn_id).first()
         acct = db.query(Account).filter_by(id=txn.account_id).first() if txn else None
-
-        # Filter by account_id if specified
-        if account_id and txn and txn.account_id != account_id:
-            continue
 
         # Filter by transaction date if start_date/end_date specified
         if start_date and txn and txn.posted_date < start_date:
@@ -99,10 +113,14 @@ def list_anomalies(
         "anomalies": paginated_cards
     }
 
-def _apply_anomaly_feedback(anomaly_id: str, req: AnomalyFeedbackRequest, db: Session):
-    a = db.query(Anomaly).filter_by(id=anomaly_id).first()
+def _apply_anomaly_feedback(anomaly_id: str, req: AnomalyFeedbackRequest, current_user: User, db: Session):
+    user_account_ids = [a.id for a in db.query(Account).filter_by(user_id=current_user.id).all()]
+    a = db.query(Anomaly).join(Transaction).filter(
+        Anomaly.id == anomaly_id,
+        Transaction.account_id.in_(user_account_ids)
+    ).first()
     if not a:
-        raise HTTPException(status_code=404, detail="Anomaly not found.")
+        raise HTTPException(status_code=404, detail="Anomaly not found or access denied.")
 
     a.user_feedback = req.feedback
     db.commit()
@@ -119,14 +137,16 @@ def _apply_anomaly_feedback(anomaly_id: str, req: AnomalyFeedbackRequest, db: Se
 def submit_anomaly_feedback_post(
     anomaly_id: str,
     req: AnomalyFeedbackRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return _apply_anomaly_feedback(anomaly_id, req, db)
+    return _apply_anomaly_feedback(anomaly_id, req, current_user, db)
 
 @router.patch("/{anomaly_id}/feedback")
 def submit_anomaly_feedback_patch(
     anomaly_id: str,
     req: AnomalyFeedbackRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return _apply_anomaly_feedback(anomaly_id, req, db)
+    return _apply_anomaly_feedback(anomaly_id, req, current_user, db)

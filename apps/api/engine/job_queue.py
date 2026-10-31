@@ -6,6 +6,7 @@ Enables non-blocking background parsing of large, multi-page statements.
 import uuid
 import time
 import hashlib
+import json
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
@@ -25,7 +26,11 @@ def _process_parse_job(
     contents: bytes,
     filename: str,
     bank_hint: Optional[str] = "auto",
-    password: Optional[str] = None
+    password: Optional[str] = None,
+    column_mapping: Optional[str] = None,
+    delimiter: Optional[str] = None,
+    encoding: Optional[str] = None,
+    has_header: Optional[bool] = None
 ):
     job = _JOBS.get(job_id)
     if not job:
@@ -43,9 +48,21 @@ def _process_parse_job(
             raw_sample_text = str(contents[:4000])
         else:
             job["progress_pct"] = 35
-            text_content = contents.decode("utf-8", errors="replace")
-            parsed = parse_csv_statement(text_content)
-            raw_sample_text = text_content[:4000]
+            col_map_dict = None
+            if column_mapping:
+                try:
+                    col_map_dict = json.loads(column_mapping) if isinstance(column_mapping, str) else column_mapping
+                except Exception:
+                    pass
+
+            parsed = parse_csv_statement(
+                csv_content=contents,
+                column_mapping=col_map_dict,
+                delimiter=delimiter,
+                encoding=encoding,
+                has_header=has_header
+            )
+            raw_sample_text = contents[:4000].decode("utf-8", errors="replace")
 
         job["progress_pct"] = 75
 
@@ -63,6 +80,7 @@ def _process_parse_job(
         from routers.imports import _STAGING_FILES
         _STAGING_FILES[file_id] = {
             "filename": filename,
+            "contents": contents,
             "kind": "pdf" if filename.lower().endswith(".pdf") else "csv",
             "sha256": sha256_hash,
             "bank_detected": bank_detected,
@@ -85,9 +103,22 @@ def _process_parse_job(
             },
             "opening_balance_minor": parsed["opening_balance_minor"],
             "closing_balance_minor": parsed["closing_balance_minor"],
+            "net_cash_flow_minor": parsed.get("net_cash_flow_minor", 0),
             "reconciliation_status": parsed["reconciliation_status"],
-            "sample_rows": parsed["transactions"][:5],
-            "warnings": parsed["warnings"]
+            "reconciliation_delta_minor": parsed.get("reconciliation_delta_minor", 0),
+            "running_balance_status": parsed.get("running_balance_status", "NOT_AVAILABLE"),
+            "running_balance_breaks": parsed.get("running_balance_breaks", []),
+            "detected_delimiter": parsed.get("detected_delimiter", ","),
+            "detected_encoding": parsed.get("detected_encoding", "utf-8"),
+            "has_header": parsed.get("has_header", True),
+            "headers": parsed.get("headers", []),
+            "column_mapping": parsed.get("column_mapping", {}),
+            "mapping_confidence": parsed.get("mapping_confidence", 1.0),
+            "is_ambiguous": parsed.get("is_ambiguous", False),
+            "ambiguity_reasons": parsed.get("ambiguity_reasons", []),
+            "sample_rows": parsed["transactions"][:10],
+            "warnings": parsed["warnings"],
+            "errors": parsed.get("errors", [])
         }
 
     except Exception as e:
@@ -100,7 +131,11 @@ def submit_async_parse_job(
     contents: bytes,
     filename: str,
     bank_hint: Optional[str] = "auto",
-    password: Optional[str] = None
+    password: Optional[str] = None,
+    column_mapping: Optional[str] = None,
+    delimiter: Optional[str] = None,
+    encoding: Optional[str] = None,
+    has_header: Optional[bool] = None
 ) -> str:
     """
     Submits a statement parsing job to the background thread pool.
@@ -124,7 +159,11 @@ def submit_async_parse_job(
         contents,
         filename,
         bank_hint,
-        password
+        password,
+        column_mapping,
+        delimiter,
+        encoding,
+        has_header
     )
 
     return job_id

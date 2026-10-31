@@ -1,6 +1,7 @@
 """
 Seed script to ingest Aarav's synthetic bank statements (HDFC CSV + SBI CSV)
 into the database for realistic, deterministic dashboard visualization.
+Sets up default demo user Aarav Kumar.
 """
 import os
 import sys
@@ -10,7 +11,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
 from db.database import init_db, SessionLocal, engine
-from db.models import Base, Account, SourceFile, Transaction, RecurringItem, Anomaly
+from db.models import (
+    Base, User, UserProfile, Account, SourceFile, Transaction, RecurringItem, Anomaly,
+    DEMO_USER_ID, DEMO_USER_EMAIL, DEMO_USER_PASSWORD_HASH
+)
 from parsers.csv_parser import parse_csv_statement
 from parsers.bank_detector import detect_bank_and_account
 from engine.dedupe import deduplicate_transactions, detect_internal_transfers
@@ -19,8 +23,9 @@ from engine.recurring import detect_recurring_items
 from engine.anomaly import detect_anomalies
 
 def seed():
-    print("Initializing database...")
-    init_db()
+    print("Re-creating database schema with multi-user support...")
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
     data_dir = os.path.abspath(os.path.join(current_dir, "..", "..", "data", "synthetic", "aarav"))
@@ -31,15 +36,27 @@ def seed():
         print(f"Error: {hdfc_path} not found")
         return
 
-    # Clear existing data for fresh seed
-    db.query(Anomaly).delete()
-    db.query(RecurringItem).delete()
-    db.query(Transaction).delete()
-    db.query(SourceFile).delete()
-    db.query(Account).delete()
+    # 0. Create Demo User & Profile (Aarav Kumar)
+    aarav_user = User(
+        id=DEMO_USER_ID,
+        email=DEMO_USER_EMAIL,
+        password_hash=DEMO_USER_PASSWORD_HASH,
+        is_active=True,
+        is_onboarded=True
+    )
+    db.add(aarav_user)
     db.commit()
 
-    print("Cleared existing tables.")
+    aarav_profile = UserProfile(
+        user_id=DEMO_USER_ID,
+        full_name="Aarav Kumar",
+        mobile_number="+91 98765 43210",
+        country="India",
+        preferred_currency="INR"
+    )
+    db.add(aarav_profile)
+    db.commit()
+    print("Created demo user: Aarav Kumar (aarav.kumar@example.com)")
 
     # 1. Ingest HDFC statement
     with open(hdfc_path, "r", encoding="utf-8") as f:
@@ -47,12 +64,14 @@ def seed():
 
     hdfc_parsed = parse_csv_statement(hdfc_content)
     hdfc_acct = Account(
+        user_id=DEMO_USER_ID,
         nickname="Aarav HDFC Salary Account",
         bank="HDFC Bank",
         type="savings",
         masked_last4="4821",
         opening_balance_minor=hdfc_parsed["opening_balance_minor"] or 4500000,
-        currency="INR"
+        currency="INR",
+        is_primary=True
     )
     db.add(hdfc_acct)
     db.commit()
@@ -104,12 +123,14 @@ def seed():
 
         sbi_parsed = parse_csv_statement(sbi_content)
         sbi_acct = Account(
+            user_id=DEMO_USER_ID,
             nickname="Aarav SBI Savings & EMI Account",
             bank="State Bank of India",
             type="savings",
             masked_last4="4421",
             opening_balance_minor=sbi_parsed["opening_balance_minor"] or 2000000,
-            currency="INR"
+            currency="INR",
+            is_primary=False
         )
         db.add(sbi_acct)
         db.commit()
@@ -184,6 +205,7 @@ def seed():
     rec_items = detect_recurring_items(txn_dicts)
     for r in rec_items:
         r_obj = RecurringItem(
+            user_id=DEMO_USER_ID,
             merchant=r["merchant"],
             type=r["type"],
             cadence=r["cadence"],

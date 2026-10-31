@@ -9,12 +9,17 @@ export type AccountType = 'savings' | 'current' | 'credit_card' | 'wallet' | 'lo
 
 export interface Account {
   id: string;
+  user_id?: string;
   nickname: string;
   bank: string;
   type: AccountType;
   masked_last4: string;
   opening_balance_minor: MinorAmount;
   currency: string;
+  is_primary?: boolean;
+  status?: 'active' | 'archived';
+  account_holder_name?: string | null;
+  ifsc?: string | null;
   created_at: string;
 }
 
@@ -34,6 +39,7 @@ export type CategorySource = 'rule' | 'ml' | 'llm' | 'user';
 
 export interface Transaction {
   id: string;
+  user_id?: string;
   account_id: string;
   source_file_id: string;
   source_row: number;
@@ -65,6 +71,8 @@ export type RecurringUserStatus = 'auto' | 'confirmed' | 'rejected';
 
 export interface RecurringItem {
   id: string;
+  user_id?: string;
+  account_id?: string | null;
   merchant: string;
   type: RecurringType;
   cadence: RecurringCadence;
@@ -183,8 +191,72 @@ export interface AffordabilityResponse {
     min_delay_months: number;
     recommended_savings_cut_minor?: MinorAmount;
   };
-  narration?: {
+  narration?: string | {
     text: string;
     guard_status: 'passed' | 'fallback_template';
   };
+}
+
+// -------------------------------------------------------------
+// Authentication & User Management Types
+// -------------------------------------------------------------
+
+export interface UserProfile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  mobile_number?: string | null;
+  country: string;
+  preferred_currency: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  is_active: boolean;
+  is_onboarded: boolean;
+  created_at: string;
+  profile?: UserProfile | null;
+  accounts?: Account[];
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  full_name: string;
+  mobile_number?: string;
+  country?: string;
+  preferred_currency?: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  token?: string; // Optional if session is in HttpOnly cookie
+}
+
+export interface OnboardingBankInput {
+  bank: string;
+  nickname: string;
+  type: AccountType;
+  masked_last4: string;
+  opening_balance_minor?: MinorAmount;
+  currency?: string;
+  is_primary?: boolean;
+  account_holder_name?: string;
+  ifsc?: string;
+}
+
+export interface OnboardingRequest {
+  full_name: string;
+  mobile_number?: string;
+  country?: string;
+  preferred_currency?: string;
+  bank_accounts: OnboardingBankInput[];
 }
