@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, 
+  UploadCloud,
   CreditCard, 
   Clock, 
   Scale, 
@@ -85,6 +86,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const navLinks = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Upload Statement', href: '/upload', icon: UploadCloud },
     { name: 'Transactions', href: '/transactions', icon: CreditCard },
     { name: 'Recurring Payments', href: '/recurring', icon: Clock },
     { name: 'Decision Lab', href: '/lab', icon: Scale },
