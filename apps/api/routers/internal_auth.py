@@ -43,6 +43,20 @@ class BankAccountPayload(BaseModel):
     account_holder_name: Optional[str] = None
     ifsc: Optional[str] = None
 
+class UpdateAccountPayload(BaseModel):
+    bank: Optional[str] = None
+    nickname: Optional[str] = None
+    type: Optional[str] = None
+    masked_last4: Optional[str] = None
+    opening_balance_minor: Optional[int] = None
+    currency: Optional[str] = None
+    is_primary: Optional[bool] = None
+    account_holder_name: Optional[str] = None
+    ifsc: Optional[str] = None
+
+class UpdatePasswordPayload(BaseModel):
+    new_password_hash: str
+
 class OnboardingPayload(BaseModel):
     full_name: str
     mobile_number: Optional[str] = None
@@ -80,6 +94,16 @@ def _serialize_user(user: User) -> Dict[str, Any]:
     }
 
 def _serialize_account(account: Account) -> Dict[str, Any]:
+    # Calculate live reconciled balance: opening_balance_minor + sum(transactions)
+    opening_bal = account.opening_balance_minor or 0
+    txn_movements = 0
+    txn_count = 0
+    if hasattr(account, "transactions") and account.transactions:
+        active_txns = [t for t in account.transactions if t.status == "active"]
+        txn_movements = sum(t.amount_minor for t in active_txns)
+        txn_count = len(active_txns)
+    current_balance = opening_bal + txn_movements
+
     return {
         "id": account.id,
         "user_id": account.user_id,
@@ -88,6 +112,8 @@ def _serialize_account(account: Account) -> Dict[str, Any]:
         "type": account.type,
         "masked_last4": account.masked_last4,
         "opening_balance_minor": account.opening_balance_minor,
+        "current_balance_minor": current_balance,
+        "transaction_count": txn_count,
         "currency": account.currency,
         "is_primary": account.is_primary,
         "status": account.status,
@@ -267,23 +293,55 @@ def create_user_account(user_id: str, payload: BankAccountPayload, db: Session =
     db.refresh(acct)
     return _serialize_account(acct)
 
+@router.put("/{user_id}/password")
+def update_user_password(user_id: str, payload: UpdatePasswordPayload, db: Session = Depends(get_db)):
+    """Updates the password hash for a user."""
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.password_hash = payload.new_password_hash
+    db.commit()
+    db.refresh(user)
+    return {"status": "success", "message": "Password updated successfully."}
+
+@router.post("/{user_id}/accounts/{account_id}/primary")
+def set_primary_account(user_id: str, account_id: str, db: Session = Depends(get_db)):
+    """Sets a specific account as primary and unsets all other accounts for this user."""
+    target_acct = db.query(Account).filter_by(id=account_id, user_id=user_id).first()
+    if not target_acct:
+        raise HTTPException(status_code=404, detail="Bank account not found or access denied")
+
+    db.query(Account).filter_by(user_id=user_id).update({"is_primary": False})
+    target_acct.is_primary = True
+    db.commit()
+    db.refresh(target_acct)
+    return _serialize_account(target_acct)
+
 @router.put("/{user_id}/accounts/{account_id}")
-def update_user_account(user_id: str, account_id: str, payload: BankAccountPayload, db: Session = Depends(get_db)):
+def update_user_account(user_id: str, account_id: str, payload: UpdateAccountPayload, db: Session = Depends(get_db)):
     """Updates an existing bank account owned by the specified user."""
     acct = db.query(Account).filter_by(id=account_id, user_id=user_id).first()
     if not acct:
         raise HTTPException(status_code=404, detail="Bank account not found or access denied")
 
-    if payload.is_primary and not acct.is_primary:
+    if payload.is_primary is True and not acct.is_primary:
         db.query(Account).filter_by(user_id=user_id, is_primary=True).update({"is_primary": False})
 
-    acct.nickname = payload.nickname.strip()
-    acct.bank = payload.bank.strip()
-    acct.type = payload.type
-    acct.masked_last4 = payload.masked_last4[-4:]
-    acct.opening_balance_minor = payload.opening_balance_minor
-    acct.currency = payload.currency
-    acct.is_primary = payload.is_primary
+    if payload.nickname is not None:
+        acct.nickname = payload.nickname.strip()
+    if payload.bank is not None:
+        acct.bank = payload.bank.strip()
+    if payload.type is not None:
+        acct.type = payload.type
+    if payload.masked_last4 is not None:
+        acct.masked_last4 = payload.masked_last4[-4:]
+    if payload.opening_balance_minor is not None:
+        acct.opening_balance_minor = payload.opening_balance_minor
+    if payload.currency is not None:
+        acct.currency = payload.currency
+    if payload.is_primary is not None:
+        acct.is_primary = payload.is_primary
     if payload.account_holder_name is not None:
         acct.account_holder_name = payload.account_holder_name
     if payload.ifsc is not None:

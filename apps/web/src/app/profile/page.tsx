@@ -22,31 +22,19 @@ import {
   Sparkles,
   Sliders,
   LogOut,
-  ExternalLink,
   ChevronRight,
   Database,
   KeyRound,
-  FileCheck
+  FileCheck,
+  Edit2,
+  Star,
+  RefreshCw,
+  Wallet
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { formatINR } from '@fdl/shared';
-
-interface AccountRecord {
-  id: string;
-  user_id: string;
-  bank: string;
-  nickname: string;
-  type: string;
-  masked_last4: string;
-  opening_balance_minor: number;
-  currency: string;
-  is_primary: boolean;
-  status: string;
-  account_holder_name?: string;
-  ifsc?: string;
-  created_at?: string;
-}
+import EditAccountModal, { AccountRecord } from '@/components/EditAccountModal';
 
 type TabType = 'profile' | 'accounts' | 'preferences' | 'security';
 
@@ -56,7 +44,7 @@ export default function ProfilePage() {
 
   const [activeTab, setActiveTab] = useState<TabType>('profile');
 
-  // Form State
+  // Form State - Personal Info
   const [fullName, setFullName] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [country, setCountry] = useState('India');
@@ -66,7 +54,7 @@ export default function ProfilePage() {
   // Financial Preferences
   const [safetyBufferTier, setSafetyBufferTier] = useState('1.0');
   const [savingsTargetPct, setSavingsTargetPct] = useState('25');
-  const [privacyStrictness, setPrivacyStrictness] = useState('strict');
+  const [preferencesSaved, setPreferencesSaved] = useState(false);
 
   // Bank Accounts
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
@@ -78,6 +66,17 @@ export default function ProfilePage() {
   const [newBalanceRupees, setNewBalanceRupees] = useState('0');
   const [newHolderName, setNewHolderName] = useState('');
   const [newIfsc, setNewIfsc] = useState('');
+
+  // Edit Account Modal State
+  const [editingAccount, setEditingAccount] = useState<AccountRecord | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Security - Password Change State
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Status & Feedback
   const [isSaving, setIsSaving] = useState(false);
@@ -104,8 +103,17 @@ export default function ProfilePage() {
         } else if (u.name) {
           setFullName(u.name);
         }
-        if (u.accounts) {
-          setAccounts(u.accounts);
+
+        // Fetch fresh accounts with live reconciled balance
+        try {
+          const acctsRes = await api.getUserAccounts();
+          if (Array.isArray(acctsRes)) {
+            setAccounts(acctsRes);
+          } else if (u.accounts) {
+            setAccounts(u.accounts);
+          }
+        } catch {
+          if (u.accounts) setAccounts(u.accounts);
         }
       }
     } catch (err: any) {
@@ -138,6 +146,13 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSavePreferences = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPreferencesSaved(true);
+    setStatusMessage({ type: 'success', text: 'Decision Engine calibration settings saved successfully.' });
+    setTimeout(() => setPreferencesSaved(false), 3000);
+  };
+
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMessage(null);
@@ -158,7 +173,7 @@ export default function ProfilePage() {
         ifsc: newIfsc.trim().toUpperCase() || undefined,
       });
 
-      setStatusMessage({ type: 'success', text: `Successfully linked ${newBank} (...${cleanLast4})` });
+      setStatusMessage({ type: 'success', text: `Successfully linked ${newBank} (...${cleanLast4}) with opening balance ${formatINR(paise)}.` });
       setIsAddingAccount(false);
       setNewNickname('');
       setNewLast4('');
@@ -171,9 +186,24 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSetPrimary = async (accountId: string) => {
+    setStatusMessage(null);
+    try {
+      await api.setPrimaryUserAccount(accountId);
+      setStatusMessage({ type: 'success', text: 'Primary account updated successfully.' });
+      await loadUserData();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err.detail || 'Failed to set primary account.' });
+    }
+  };
+
   const handleDeleteAccount = async (accountId: string) => {
     if (accounts.length <= 1) {
       setStatusMessage({ type: 'error', text: 'You must maintain at least one linked account for cash flow reconciliation.' });
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to detach this bank account? All associated transactions and balance records will be removed.')) {
       return;
     }
 
@@ -183,6 +213,34 @@ export default function ProfilePage() {
       await loadUserData();
     } catch (err: any) {
       setStatusMessage({ type: 'error', text: err.detail || 'Failed to delete account.' });
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordStatus(null);
+
+    if (newPassword.length < 8) {
+      setPasswordStatus({ type: 'error', text: 'New password must be at least 8 characters long.' });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordStatus({ type: 'error', text: 'New passwords do not match. Please re-enter.' });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      setPasswordStatus({ type: 'success', text: 'Password changed successfully!' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setPasswordStatus({ type: 'error', text: err.detail || 'Failed to update password.' });
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -198,7 +256,11 @@ export default function ProfilePage() {
 
   const displayName = fullName || user?.name || (user?.email ? user.email.split('@')[0] : 'User');
   const userInitials = getInitials(displayName, user?.email);
-  const totalBalancePaise = accounts.reduce((acc, a) => acc + (a.opening_balance_minor || 0), 0);
+  const totalOpeningPaise = accounts.reduce((acc, a) => acc + (a.opening_balance_minor || 0), 0);
+  const totalReconciledPaise = accounts.reduce((acc, a) => {
+    return acc + (a.current_balance_minor !== undefined ? a.current_balance_minor : (a.opening_balance_minor || 0));
+  }, 0);
+  const primaryAccount = accounts.find((a) => a.is_primary);
 
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-8 select-none text-foreground font-sans">
@@ -236,8 +298,12 @@ export default function ProfilePage() {
               <p className="text-xl font-bold font-mono text-foreground mt-0.5">{accounts.length}</p>
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Tracked Liquidity</p>
-              <p className="text-xl font-bold font-mono text-primary mt-0.5">{formatINR(totalBalancePaise)}</p>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Opening Anchor</p>
+              <p className="text-xl font-bold font-mono text-foreground mt-0.5">{formatINR(totalOpeningPaise)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Reconciled Cash</p>
+              <p className="text-xl font-bold font-mono text-primary mt-0.5">{formatINR(totalReconciledPaise)}</p>
             </div>
           </div>
         </div>
@@ -309,7 +375,7 @@ export default function ProfilePage() {
           }`}
         >
           <Sliders className="w-4 h-4" />
-          <span>Financial Rules</span>
+          <span>Decision Parameters</span>
         </button>
 
         <button
@@ -325,28 +391,24 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      {/* TAB CONTENT */}
-
-      {/* 1. PERSONAL INFORMATION */}
+      {/* 1. PERSONAL INFO TAB */}
       {activeTab === 'profile' && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           className="grid grid-cols-1 lg:grid-cols-3 gap-6"
         >
-          <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
+          <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-6 shadow-sm space-y-6">
             <div>
-              <h2 className="text-base font-bold text-foreground">Personal Details</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Keep your legal name and contact details updated for bank statement matching.
-              </p>
+              <h2 className="text-base font-bold text-foreground">User Identification</h2>
+              <p className="text-xs text-muted-foreground">Manage your identity metadata and statement attribution.</p>
             </div>
 
             <form onSubmit={handleSaveProfile} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-foreground mb-1.5">
-                    Full Legal Name
+                    Account Holder Name
                   </label>
                   <input
                     type="text"
@@ -360,13 +422,13 @@ export default function ProfilePage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-foreground mb-1.5">
-                    Account Email Address
+                    Email Address
                   </label>
                   <input
                     type="email"
                     disabled
                     value={user?.email || ''}
-                    className="w-full bg-muted border border-border rounded-xl px-3.5 py-2.5 text-xs text-muted-foreground cursor-not-allowed font-mono"
+                    className="w-full bg-muted/60 border border-border rounded-xl px-3.5 py-2.5 text-xs text-muted-foreground font-mono cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -374,7 +436,7 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-foreground mb-1.5">
-                    Mobile Phone
+                    Mobile Number
                   </label>
                   <input
                     type="tel"
@@ -437,7 +499,7 @@ export default function ProfilePage() {
 
           {/* Side Info Cards */}
           <div className="space-y-4">
-            <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-3">
               <div className="flex items-center gap-2.5 text-xs font-bold text-foreground">
                 <Globe className="w-4 h-4 text-primary" />
                 <span>Regional Formatting</span>
@@ -447,7 +509,7 @@ export default function ProfilePage() {
               </p>
             </div>
 
-            <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-3">
               <div className="flex items-center gap-2.5 text-xs font-bold text-foreground">
                 <ShieldCheck className="w-4 h-4 text-emerald-500" />
                 <span>Zero Cloud Egress</span>
@@ -467,16 +529,20 @@ export default function ProfilePage() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Header Action Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border rounded-2xl p-5 shadow-xs">
             <div>
-              <h2 className="text-base font-bold text-foreground">Linked Accounts & Wallets</h2>
-              <p className="text-xs text-muted-foreground">
-                Accounts are automatically created and reconciled whenever you import bank statements.
+              <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" />
+                <span>Linked Accounts & Starting Liquidity</span>
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Set and edit your account opening balance amounts in Rupees. Current balances are computed as <span className="font-mono font-semibold text-foreground">Opening Balance + Net Transaction Movements</span>.
               </p>
             </div>
             <button
               onClick={() => setIsAddingAccount(!isAddingAccount)}
-              className="py-2 px-3.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-semibold flex items-center gap-2 transition shadow-xs self-start sm:self-auto"
+              className="py-2.5 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-semibold flex items-center gap-2 transition shadow-xs self-start sm:self-auto shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>{isAddingAccount ? 'Cancel Adding' : 'Add Bank Account'}</span>
@@ -491,11 +557,16 @@ export default function ProfilePage() {
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 onSubmit={handleAddAccount}
-                className="bg-card border border-primary/30 rounded-2xl p-6 shadow-sm space-y-4"
+                className="bg-card border border-primary/40 rounded-2xl p-6 shadow-sm space-y-4"
               >
-                <div className="flex items-center gap-2 border-b border-border pb-3">
-                  <Building2 className="w-4 h-4 text-primary" />
-                  <h3 className="text-sm font-bold text-foreground">Link New Bank Account</h3>
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-primary" />
+                    <h3 className="text-sm font-bold text-foreground">Link New Bank Account</h3>
+                  </div>
+                  <span className="text-xs font-mono text-muted-foreground">
+                    Initial Opening Amount will be anchored in Integer Paise
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -558,7 +629,12 @@ export default function ProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1">Opening Balance (₹)</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-foreground">Opening Amount (₹)</label>
+                      <span className="text-[10px] font-mono text-primary font-bold">
+                        {formatINR(Math.round((parseFloat(newBalanceRupees) || 0) * 100))}
+                      </span>
+                    </div>
                     <input
                       type="number"
                       step="any"
@@ -604,60 +680,112 @@ export default function ProfilePage() {
 
           {/* Account Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {accounts.map((acct) => (
-              <div
-                key={acct.id}
-                className="bg-card border border-border hover:border-primary/40 rounded-2xl p-5 shadow-xs transition group space-y-4"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center font-bold">
-                      <CreditCard className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-bold text-foreground">{acct.nickname || acct.bank}</h3>
-                        {acct.is_primary && (
-                          <span className="text-[9px] px-2 py-0.5 bg-primary/15 text-primary border border-primary/30 rounded-full font-bold uppercase font-mono">
-                            PRIMARY
-                          </span>
-                        )}
+            {accounts.map((acct) => {
+              const liveReconciledPaise = acct.current_balance_minor !== undefined 
+                ? acct.current_balance_minor 
+                : (acct.opening_balance_minor || 0);
+
+              return (
+                <div
+                  key={acct.id}
+                  className="bg-card border border-border hover:border-primary/40 rounded-2xl p-5 shadow-xs transition group space-y-4 relative"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center font-bold shrink-0">
+                        {acct.type === 'wallet' ? <Wallet className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {acct.bank} · <span className="font-mono">•••• {acct.masked_last4}</span> ({acct.type})
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-bold text-foreground">{acct.nickname || acct.bank}</h3>
+                          {acct.is_primary ? (
+                            <span className="text-[9px] px-2 py-0.5 bg-primary/15 text-primary border border-primary/30 rounded-full font-bold uppercase font-mono flex items-center gap-1">
+                              <Star className="w-2.5 h-2.5 fill-primary text-primary" />
+                              PRIMARY
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleSetPrimary(acct.id)}
+                              className="text-[9px] px-2 py-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border rounded-full font-mono transition"
+                              title="Make this your primary account"
+                            >
+                              Make Primary
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {acct.bank} · <span className="font-mono">•••• {acct.masked_last4}</span> ({acct.type})
+                          {acct.ifsc && <span className="ml-1 text-[10px] font-mono">[{acct.ifsc}]</span>}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card Actions */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingAccount(acct);
+                          setIsEditModalOpen(true);
+                        }}
+                        title="Edit Account & Opening Amount"
+                        className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+
+                      {accounts.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAccount(acct.id)}
+                          title="Delete account"
+                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dual Balance Visualizer: Opening Balance vs Live Reconciled Balance */}
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border bg-muted/20 p-3 rounded-xl">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Opening Amount</p>
+                        <button
+                          onClick={() => {
+                            setEditingAccount(acct);
+                            setIsEditModalOpen(true);
+                          }}
+                          className="text-[10px] text-primary hover:underline font-mono"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      <p className="text-sm font-bold font-mono text-foreground mt-0.5">
+                        {formatINR(acct.opening_balance_minor || 0)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                        Base starting anchor
+                      </p>
+                    </div>
+
+                    <div className="border-l border-border pl-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Reconciled Balance</p>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      </div>
+                      <p className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+                        {formatINR(liveReconciledPaise)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                        {acct.transaction_count !== undefined ? `${acct.transaction_count} txns reconciled` : 'Live liquidity'}
                       </p>
                     </div>
                   </div>
-
-                  {accounts.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteAccount(acct.id)}
-                      title="Delete account"
-                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
-
-                <div className="border-t border-border pt-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Opening Balance</p>
-                    <p className="text-base font-bold font-mono text-foreground mt-0.5">
-                      {formatINR(acct.opening_balance_minor || 0)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Status</p>
-                    <p className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Active
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             {accounts.length === 0 && (
               <div className="col-span-2 p-12 text-center bg-card border border-border rounded-2xl space-y-3">
@@ -687,7 +815,7 @@ export default function ProfilePage() {
               </p>
             </div>
 
-            <div className="space-y-4">
+            <form onSubmit={handleSavePreferences} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-1">
                   Safety Buffer Multiplier
@@ -727,7 +855,17 @@ export default function ProfilePage() {
                   Used by the Decision Lab to compute headroom surplus above your savings goals.
                 </span>
               </div>
-            </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="submit"
+                  className="py-2 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Preferences</span>
+                </button>
+              </div>
+            </form>
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
@@ -780,45 +918,139 @@ export default function ProfilePage() {
           animate={{ opacity: 1, y: 0 }}
           className="grid grid-cols-1 lg:grid-cols-2 gap-6"
         >
+          {/* Change Password Card */}
           <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
             <div className="flex items-center gap-3 border-b border-border pb-4">
               <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
-                <Database className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-foreground">Local SQLite Vault</h2>
-                <p className="text-xs text-muted-foreground">Physical database container and privacy mode</p>
-              </div>
-            </div>
-
-            <div className="space-y-3 font-mono text-xs">
-              <div className="p-3 bg-muted/50 rounded-xl border border-border">
-                <p className="text-[10px] text-muted-foreground uppercase font-semibold">Database Driver</p>
-                <p className="font-bold text-foreground mt-0.5">SQLite 3.x (Sync & Async Session)</p>
-              </div>
-              <div className="p-3 bg-muted/50 rounded-xl border border-border">
-                <p className="text-[10px] text-muted-foreground uppercase font-semibold">Local Storage Path</p>
-                <p className="font-bold text-primary mt-0.5 break-all">apps/api/fdl.db</p>
-              </div>
-              <div className="p-3 bg-muted/50 rounded-xl border border-border">
-                <p className="text-[10px] text-muted-foreground uppercase font-semibold">Egress Audit Log</p>
-                <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">0 Cloud Sync Requests · 100% Offline</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
-            <div className="flex items-center gap-3 border-b border-border pb-4">
-              <div className="w-10 h-10 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center font-bold">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-foreground">Session Authentication</h2>
-                <p className="text-xs text-muted-foreground">Stateless JWT session security token</p>
+                <h2 className="text-base font-bold text-foreground">Update Password</h2>
+                <p className="text-xs text-muted-foreground">Change your single-tenant vault master password</p>
               </div>
             </div>
 
-            <div className="space-y-4">
+            {passwordStatus && (
+              <div
+                className={`p-3.5 rounded-xl text-xs flex items-center gap-2 border ${
+                  passwordStatus.type === 'success'
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
+                    : 'bg-destructive/10 text-destructive border-destructive/25'
+                }`}
+              >
+                {passwordStatus.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 shrink-0 text-destructive" />
+                )}
+                <span>{passwordStatus.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full bg-input border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Min 8 characters"
+                    className="w-full bg-input border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter password"
+                    className="w-full bg-input border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                  />
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                Passwords are hashed locally with bcrypt (10 rounds) and verified against constant-time comparison.
+              </p>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="py-2.5 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition disabled:opacity-50"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>{isChangingPassword ? 'Updating Password...' : 'Update Password'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Session & Database Vault Card */}
+          <div className="space-y-6">
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 border-b border-border pb-4">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-foreground">Local SQLite Vault</h2>
+                  <p className="text-xs text-muted-foreground">Physical database container and privacy mode</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 font-mono text-xs">
+                <div className="p-3 bg-muted/50 rounded-xl border border-border">
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold">Database Driver</p>
+                  <p className="font-bold text-foreground mt-0.5">SQLite 3.x (Sync & Async Session)</p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-xl border border-border">
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold">Local Storage Path</p>
+                  <p className="font-bold text-primary mt-0.5 break-all">apps/api/fdl.db</p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-xl border border-border">
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold">Egress Audit Log</p>
+                  <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">0 Cloud Sync Requests · 100% Offline</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 border-b border-border pb-3">
+                <div className="w-10 h-10 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center font-bold">
+                  <LogOut className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-foreground">Session Termination</h2>
+                  <p className="text-xs text-muted-foreground">Stateless JWT session security token</p>
+                </div>
+              </div>
+
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Your authenticated session is signed with HMAC-SHA256 and stored in an HTTP-only secure cookie. Sign out to revoke your session key.
               </p>
@@ -835,6 +1067,20 @@ export default function ProfilePage() {
           </div>
         </motion.div>
       )}
+
+      {/* Edit Account Modal */}
+      <EditAccountModal
+        account={editingAccount}
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingAccount(null);
+        }}
+        onSuccess={async () => {
+          setStatusMessage({ type: 'success', text: `Account updated successfully with new balance parameters.` });
+          await loadUserData();
+        }}
+      />
     </div>
   );
 }

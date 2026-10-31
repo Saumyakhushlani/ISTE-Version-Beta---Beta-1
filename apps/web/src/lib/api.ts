@@ -367,4 +367,23 @@ export const api = {
     fetchFromApi(`/api/user/accounts/${accountId}`, {
       method: "DELETE",
     }),
+
+  updateUserAccount: (accountId: string, payload: any) =>
+    fetchFromApi(`/api/user/accounts/${accountId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  setPrimaryUserAccount: (accountId: string) =>
+    fetchFromApi(`/api/user/accounts/${accountId}/primary`, {
+      method: "POST",
+    }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    fetchFromApi("/api/user/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
 };

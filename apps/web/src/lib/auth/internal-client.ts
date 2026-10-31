@@ -206,6 +206,25 @@ export const internalAuth = {
   },
 
   /**
+   * Set an account as primary
+   */
+  async setPrimaryAccount(userId: string, accountId: string): Promise<any> {
+    return await internalFetch(`/api/internal/users/${userId}/accounts/${accountId}/primary`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Update password hash for user
+   */
+  async updatePassword(userId: string, newPasswordHash: string): Promise<any> {
+    return await internalFetch(`/api/internal/users/${userId}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ new_password_hash: newPasswordHash }),
+    });
+  },
+
+  /**
    * Delete a bank account
    */
   async deleteAccount(userId: string, accountId: string): Promise<any> {
