@@ -2,6 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@fdl/shared"],
+  experimental: {
+    workerThreads: false,
+    cpus: 1
+  },
   async rewrites() {
     return [
       {

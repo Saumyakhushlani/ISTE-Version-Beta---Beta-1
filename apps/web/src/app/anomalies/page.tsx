@@ -54,11 +54,11 @@ export default function AnomaliesPage() {
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="p-6 space-y-8 max-w-7xl mx-auto"
+      className="p-6 space-y-8 max-w-7xl mx-auto text-foreground"
     >
       <motion.div variants={itemVariants}>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Anomalies & Spike Alerts</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Anomalies & Spike Alerts</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Algorithmic detection of unusual spending spikes (Modified Z-Score &gt; 3.5), duplicate debits within 3 days, and new high-value merchants.
         </p>
       </motion.div>
@@ -66,30 +66,30 @@ export default function AnomaliesPage() {
       {/* Summary Stat */}
       <motion.div 
         variants={itemVariants}
-        className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm flex items-center justify-between"
+        className="bg-card border border-border rounded-xl p-6 shadow-sm flex items-center justify-between text-card-foreground"
       >
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center">
             <ShieldAlert className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900">Active Anomaly Flags</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Automated detection flags requiring user review</p>
+            <h3 className="text-base font-bold text-foreground">Active Anomaly Flags</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Automated detection flags requiring user review</p>
           </div>
         </div>
         <div className="text-right">
-          <span className="text-3xl font-extrabold text-slate-900 font-mono">{anomalies.length}</span>
-          <span className="text-xs text-slate-400 block">Total flagged</span>
+          <span className="text-3xl font-extrabold text-foreground font-mono">{anomalies.length}</span>
+          <span className="text-xs text-muted-foreground block">Total flagged</span>
         </div>
       </motion.div>
 
       {/* Anomalies List */}
       <motion.div variants={containerVariants} className="space-y-4">
         {anomalies.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 bg-white border border-slate-200/90 rounded-2xl">
-            <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-2 opacity-80" />
-            <p className="text-sm font-semibold text-slate-800">No anomalies detected</p>
-            <p className="text-xs text-slate-400 mt-1">Your spending matches historical distributions within normal parameters.</p>
+          <div className="p-12 text-center text-muted-foreground bg-card border border-border rounded-xl">
+            <CheckCircle className="w-10 h-10 text-primary mx-auto mb-2 opacity-80" />
+            <p className="text-sm font-semibold text-foreground">No anomalies detected</p>
+            <p className="text-xs text-muted-foreground mt-1">Your spending matches historical distributions within normal parameters.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
@@ -99,27 +99,27 @@ export default function AnomaliesPage() {
                 variants={itemVariants}
                 whileHover={{ y: -2, boxShadow: '0 8px 20px -4px rgba(0, 0, 0, 0.06)' }}
                 transition={{ duration: 0.15 }}
-                className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-sm flex items-center justify-between gap-4"
+                className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center justify-between gap-4 text-card-foreground"
               >
                 <div>
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                      a.severity === 'high' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
-                      a.severity === 'medium' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                      'bg-slate-200 text-slate-700'
+                      a.severity === 'high' ? 'bg-destructive/20 text-destructive border border-destructive/30' :
+                      a.severity === 'medium' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' :
+                      'bg-muted text-muted-foreground'
                     }`}>
                       {a.type.replace('_', ' ')}
                     </span>
-                    <span className="text-xs font-mono text-slate-400">Rule: {a.rule_id}</span>
+                    <span className="text-xs font-mono text-muted-foreground">Rule: {a.rule_id}</span>
                   </div>
-                  <p className="text-sm font-semibold text-slate-800 mt-1">{a.reason_text}</p>
+                  <p className="text-sm font-semibold text-foreground mt-1">{a.reason_text}</p>
                 </div>
 
                 <div className="text-right whitespace-nowrap">
-                  <p className="text-lg font-bold text-rose-600 font-mono">
+                  <p className="text-lg font-bold text-destructive font-mono">
                     {formatINR(getAnomalyAmount(a))}
                   </p>
-                  <p className="text-xs text-slate-400 mt-0.5">{(a.detected_at || a.created_at || '')?.slice(0, 10)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{(a.detected_at || a.created_at || '')?.slice(0, 10)}</p>
                 </div>
               </motion.div>
             ))}
