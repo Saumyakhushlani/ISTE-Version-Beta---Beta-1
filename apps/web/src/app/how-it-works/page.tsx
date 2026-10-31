@@ -40,6 +40,7 @@ import InkOrbitFeatures from '@/components/ui/ink-orbit-features';
 import EnterpriseAIPipeline from '@/components/ui/ai-agent-pipeline';
 import FinancialPipelineBeam from '@/components/ui/financial-pipeline-beam';
 import Integrations from '@/components/ui/integrations-4';
+import { FooterSection } from '@/components/ui/footer-section';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
 
 const FDL_PILLARS: FeatureType[] = [
@@ -717,28 +718,9 @@ export default function HowItWorksPage() {
       </main>
 
       {/* ========================================================
-          10. FOOTER
+          10. FOOTER SECTION
       ======================================================== */}
-      <footer className="border-t border-border py-12 px-6 sm:px-8 bg-background">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-foreground">Financial Decision Lab</span>
-            <span>&middot;</span>
-            <span>Local-First Deterministic Financial Architecture</span>
-          </div>
-          <div className="flex items-center gap-6">
-            <Link href="/" className="hover:text-foreground transition-colors">
-              Product Overview
-            </Link>
-            <Link href="/privacy" className="hover:text-foreground transition-colors">
-              Privacy &amp; Security
-            </Link>
-            <Link href="/login" className="hover:text-foreground transition-colors">
-              Sign In
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <FooterSection currentPath="how-it-works" />
     </div>
   );
 }

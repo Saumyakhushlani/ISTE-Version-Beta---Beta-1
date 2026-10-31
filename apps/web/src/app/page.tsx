@@ -32,6 +32,7 @@ import {
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ContainerScroll } from '@/components/ui/container-scroll-animation';
 import { FaqSection } from '@/components/ui/faq-section';
+import { FooterSection } from '@/components/ui/footer-section';
 import Integrations from '@/components/ui/integrations-4';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
 
@@ -835,22 +836,9 @@ export default function HomePage() {
       </main>
 
       {/* ========================================================
-          6. FOOTER
+          6. FOOTER SECTION
       ======================================================== */}
-      <footer className="border-t border-border py-8 px-6 bg-background text-xs text-muted-foreground">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-foreground">Financial Decision Lab</span>
-            <span>—</span>
-            <span>Deterministic Financial Math &amp; Reasoning Ledger</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy &amp; Air-Gap Audit</Link>
-            <Link href="/login" className="hover:text-foreground transition-colors">Login</Link>
-            <Link href="/dashboard" className="hover:text-foreground transition-colors">Dashboard</Link>
-          </div>
-        </div>
-      </footer>
+      <FooterSection currentPath="home" />
     </div>
   );
 }
