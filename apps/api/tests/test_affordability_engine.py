@@ -156,6 +156,13 @@ def test_api_affordability_and_whatif_endpoints():
     commit_resp = client.post("/api/imports/commit", data={"file_id": file_id})
     assert commit_resp.status_code == 200
 
+    from db.database import SessionLocal
+    from db.models import Transaction
+    _db = SessionLocal()
+    _t = _db.query(Transaction).filter_by(status="active").first()
+    active_sf_id = _t.source_file_id if _t else commit_resp.json().get("source_file_id")
+    _db.close()
+
     # Test /api/affordability endpoint
     aff_resp = client.post(
         "/api/affordability",
@@ -163,7 +170,8 @@ def test_api_affordability_and_whatif_endpoints():
             "purchase_amount_minor": 5_000_000,  # ₹50,000
             "label": "PlayStation 5",
             "timing": "next_month",
-            "payment_type": "cash"
+            "payment_type": "cash",
+            "source_file_ids": [active_sf_id] if active_sf_id else None
         }
     )
     assert aff_resp.status_code == 200
@@ -188,6 +196,7 @@ def test_api_affordability_and_whatif_endpoints():
         "/api/scenarios/compare",
         json={
             "purchase_amount_minor": 8_000_000,  # ₹80,000
+            "source_file_ids": [active_sf_id] if active_sf_id else None,
             "scenarios": [
                 {
                     "name": "6-Month EMI",

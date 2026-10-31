@@ -33,6 +33,30 @@ class CreateScenarioRequest(BaseModel):
 class CompareScenariosPayload(BaseModel):
     purchase_amount_minor: int
     scenarios: List[CreateScenarioRequest]
+    source_file_ids: Optional[List[str]] = None
+
+@router.get("/recurring-options")
+def get_recurring_options_for_scenarios(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns active subscriptions and recurring obligations for the current user
+    to populate cancellation dropdowns in What-If scenario modeling.
+    """
+    txns, account_balances, recurring, source_files = fetch_db_state(db, user_id=current_user.id)
+    obligations = [
+        {
+            "id": r.get("id"),
+            "merchant": r.get("merchant"),
+            "cadence": r.get("cadence"),
+            "typical_amount_minor": r.get("typical_amount_minor"),
+            "type": r.get("type")
+        }
+        for r in recurring
+        if r.get("type") != "salary" and (r.get("amount_minor", 0) < 0 or r.get("typical_amount_minor", 0) > 0)
+    ]
+    return obligations
 
 @router.post("/compare")
 def compare_scenarios(
@@ -44,7 +68,7 @@ def compare_scenarios(
     Simulates What-If overlays side-by-side against the baseline without mutating transactions.
     Enforces user isolation via current_user.id.
     """
-    txns, account_balances, recurring, source_files = fetch_db_state(db, user_id=current_user.id)
+    txns, account_balances, recurring, source_files = fetch_db_state(db, user_id=current_user.id, source_file_ids=payload.source_file_ids)
 
     # 1. Baseline evaluation (Cash purchase now)
     base_decision = evaluate_affordability_decision(
@@ -79,7 +103,25 @@ def compare_scenarios(
         for adj in sc.adjustments:
             if adj.type == "cancel_recurring":
                 merchant_to_cancel = adj.params.get("merchant", "")
-                sc_recurring = [r for r in sc_recurring if merchant_to_cancel.lower() not in r["merchant"].lower()]
+                item_id = adj.params.get("id", "")
+                sc_recurring = [
+                    r for r in sc_recurring
+                    if (not item_id or r.get("id") != item_id) and
+                       (not merchant_to_cancel or merchant_to_cancel.lower() not in r.get("merchant", "").lower())
+                ]
+
+            elif adj.type == "add_recurring":
+                add_merchant = adj.params.get("merchant", "New Commitment")
+                add_amount = adj.params.get("typical_amount_minor", 100000)
+                sc_recurring.append({
+                    "id": f"sc_rec_{len(sc_recurring)}",
+                    "merchant": add_merchant,
+                    "type": "subscription",
+                    "cadence": "monthly",
+                    "typical_amount_minor": add_amount,
+                    "amount_minor": -abs(add_amount),
+                    "confidence": 1.0
+                })
 
             elif adj.type == "purchase_emi":
                 payment_type = "emi"
@@ -87,13 +129,33 @@ def compare_scenarios(
                 emi_rate = adj.params.get("interest_rate_pct", 0.0)
 
             elif adj.type == "delay_purchase":
-                delay_m = adj.params.get("months", 1)
+                delay_m = adj.params.get("months", 2)
+                if delay_m >= 2:
+                    sc_purchase_paise = 0
+                else:
+                    sc_purchase_paise = int(sc_purchase_paise * 0.5)
 
             elif adj.type == "income_shock":
-                reduction_pct = adj.params.get("reduction_pct", 20.0)
+                pct = adj.params.get("reduction_pct")
+                if pct is not None:
+                    multiplier = 1.0 - (float(pct) / 100.0)
+                else:
+                    delta_pct = adj.params.get("delta_pct", 0.0)
+                    multiplier = 1.0 + (float(delta_pct) / 100.0)
+
                 for r in sc_recurring:
-                    if r["type"] == "salary":
-                        r["amount_minor"] = int(r["amount_minor"] * (1 - reduction_pct / 100))
+                    if r.get("type") == "salary":
+                        r["typical_amount_minor"] = int(r["typical_amount_minor"] * multiplier)
+                        r["amount_minor"] = int(r["amount_minor"] * multiplier)
+
+            elif adj.type == "expense_shock":
+                cut_pct = adj.params.get("cut_pct", 20.0)
+                sc_txns = [
+                    dict(t, amount_minor=int(t["amount_minor"] * (1 - cut_pct / 100.0)))
+                    if t["amount_minor"] < 0 and not t.get("is_transfer", False)
+                    else t
+                    for t in sc_txns
+                ]
 
         # Run decision for scenario
         sc_decision = evaluate_affordability_decision(

@@ -34,6 +34,73 @@ def calculate_emi_paise(principal_paise: int, tenure_months: int, annual_interes
     emi = principal_paise * (i * factor) / (factor - 1.0)
     return int(round(emi))
 
+def compute_constructive_helper(
+    purchase_amount_paise: int,
+    actual_outflow_paise: int,
+    headroom_p10: int,
+    headroom_p50: int,
+    lowest_p50: int,
+    buffer_paise: int,
+    expected_income_paise: int,
+    committed_outflows_paise: int,
+    variable_spend_paise: int,
+    current_payment_type: str = "cash"
+) -> Dict[str, Any]:
+    """
+    Computes deterministic constructive remedies for tight or unaffordable purchases (PRD FR-10.5):
+    - Maximum affordable upfront cash today without buffer breach
+    - Minimum delay in months to afford via net savings
+    - Recommended EMI tenure that brings breach probability <= 10%
+    - Discretionary variable spending cut needed
+    """
+    import math
+
+    # 1. Max affordable cash today
+    max_affordable_p50 = max(0, headroom_p50 + actual_outflow_paise)
+    max_affordable_p10 = max(0, headroom_p10 + actual_outflow_paise)
+
+    # 2. Shortfall to reach safe conservative headroom (P10 headroom >= 0)
+    shortfall_paise = max(0, -headroom_p10)
+
+    # 3. Monthly net savings capacity: Income - Committed - Variable
+    monthly_net_savings = max(0, expected_income_paise - committed_outflows_paise - variable_spend_paise)
+    min_delay_months = 0
+    if shortfall_paise > 0:
+        if monthly_net_savings > 0:
+            min_delay_months = int(math.ceil(shortfall_paise / monthly_net_savings))
+        else:
+            min_delay_months = 2  # default realistic delay
+
+    # 4. Recommended EMI Tenure
+    # Find smallest tenure in [3, 6, 9, 12, 18, 24, 36] where monthly installment <= headroom_p10 + actual_outflow_paise
+    available_monthly_capacity = max(0, headroom_p10 + actual_outflow_paise)
+    recommended_emi_months = None
+    recommended_monthly_emi_paise = 0
+    for tenure in [3, 6, 9, 12, 18, 24, 36]:
+        emi = calculate_emi_paise(purchase_amount_paise, tenure, annual_interest_pct=0.0)
+        if emi <= available_monthly_capacity:
+            recommended_emi_months = tenure
+            recommended_monthly_emi_paise = emi
+            break
+
+    if recommended_emi_months is None:
+        recommended_emi_months = 12
+        recommended_monthly_emi_paise = calculate_emi_paise(purchase_amount_paise, 12, annual_interest_pct=12.0)
+
+    # 5. Suggested discretionary cut per month
+    suggested_monthly_cut = min(variable_spend_paise, shortfall_paise) if shortfall_paise > 0 else 0
+
+    return {
+        "max_affordable_paise": max_affordable_p50,
+        "max_affordable_conservative_paise": max_affordable_p10,
+        "shortfall_paise": shortfall_paise,
+        "min_delay_months": min_delay_months,
+        "monthly_net_savings_paise": monthly_net_savings,
+        "recommended_emi_months": recommended_emi_months,
+        "recommended_monthly_emi_paise": recommended_monthly_emi_paise,
+        "suggested_monthly_cut_paise": suggested_monthly_cut
+    }
+
 def evaluate_affordability_decision(
     transactions: List[Dict[str, Any]],
     recurring_items: List[Dict[str, Any]],
@@ -74,7 +141,8 @@ def evaluate_affordability_decision(
             "headroom": {"p10_minor": 0, "p50_minor": 0, "p90_minor": 0},
             "buffer": {"value_minor": 0, "reason": "Data insufficient to calculate buffer"},
             "lowest_balance": {"date": "N/A", "p50_minor": 0, "p10_minor": 0},
-            "ledger": []
+            "ledger": [],
+            "constructive_helper": None
         }
 
     # 2. Dynamic Safety Buffer
@@ -181,6 +249,20 @@ def evaluate_affordability_decision(
         account_breakdown_desc=acct_desc
     )
 
+    # 8. Compute Constructive Helper (PRD FR-10.5)
+    constructive_helper = compute_constructive_helper(
+        purchase_amount_paise=purchase_amount_paise,
+        actual_outflow_paise=actual_outflow_paise,
+        headroom_p10=headroom_p10,
+        headroom_p50=headroom_p50,
+        lowest_p50=lowest_bal["p50_minor"],
+        buffer_paise=buffer_paise,
+        expected_income_paise=expected_income,
+        committed_outflows_paise=committed_outflows,
+        variable_spend_paise=buffer_eval["variability_reserve_minor"],
+        current_payment_type=payment_type
+    )
+
     return {
         "verdict": {
             "code": verdict_code,
@@ -203,5 +285,6 @@ def evaluate_affordability_decision(
         "lowest_balance": lowest_bal,
         "emi_details": emi_details,
         "timeline": forecast["timeline"],
-        "ledger": ledger
+        "ledger": ledger,
+        "constructive_helper": constructive_helper
     }

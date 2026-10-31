@@ -278,6 +278,8 @@ export const api = {
     payment_type?: string;
     emi_months?: number;
     emi_interest_rate_pct?: number;
+    buffer_multiplier_override?: number;
+    source_file_ids?: string[];
   }) =>
     fetchFromApi("/api/affordability", {
       method: "POST",
@@ -293,6 +295,9 @@ export const api = {
     }),
 
   // What-If Scenarios
+  getScenarioRecurringOptions: () =>
+    fetchFromApi("/api/scenarios/recurring-options"),
+
   compareScenarios: (purchaseAmountMinor: number, scenarios: any[]) =>
     fetchFromApi("/api/scenarios/compare", {
       method: "POST",

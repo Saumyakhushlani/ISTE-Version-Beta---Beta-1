@@ -127,6 +127,8 @@ def fetch_db_state(db: Session, user_id: Optional[str] = None, source_file_ids: 
 
     # 4. Source files
     sf_query = db.query(SourceFile).filter(SourceFile.account_id.in_(user_account_ids))
+    if source_file_ids:
+        sf_query = sf_query.filter(SourceFile.id.in_(source_file_ids))
     db_files = sf_query.all()
     source_files = [
         {
