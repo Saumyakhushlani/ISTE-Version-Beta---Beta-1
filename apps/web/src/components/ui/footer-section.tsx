@@ -6,19 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { 
-  Github, 
-  Linkedin, 
   Moon, 
   Send, 
   Sun, 
-  Twitter, 
   ShieldCheck, 
   Cpu, 
   Lock,
@@ -175,92 +166,15 @@ export function FooterSection({ currentPath = "home" }: FooterSectionProps) {
             </ul>
           </div>
 
-          {/* Column 4: Local Air-Gap, Community & Theme */}
+          {/* Column 4: Local Air-Gap & Theme Mode */}
           <div className="relative space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
-              Privacy &amp; Community
+              Privacy &amp; Mode
             </h3>
             
-            <p className="text-xs text-muted-foreground">
-              Statements, transactions, and balances remain strictly on your device in SQLite (<code className="font-mono text-foreground">fdl.db</code>).
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Statements, transactions, and balances remain strictly on your device in SQLite (<code className="font-mono text-foreground">fdl.db</code>). Zero cloud telemetry.
             </p>
-
-            {/* Social Icons */}
-            <div className="flex space-x-2 pt-1">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <a
-                      href="https://github.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      <Github className="h-4 w-4" />
-                      <span className="sr-only">GitHub</span>
-                    </a>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Open Source Repository</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <a
-                      href="https://twitter.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      <Twitter className="h-4 w-4" />
-                      <span className="sr-only">Twitter</span>
-                    </a>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Follow on X / Twitter</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <a
-                      href="https://linkedin.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      <Linkedin className="h-4 w-4" />
-                      <span className="sr-only">LinkedIn</span>
-                    </a>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Connect on LinkedIn</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link
-                      href="/privacy"
-                      className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                      <span className="sr-only">Privacy Audit</span>
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Inspect Egress Log</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
 
             {/* Dark Mode Switcher */}
             <div className="pt-2">
