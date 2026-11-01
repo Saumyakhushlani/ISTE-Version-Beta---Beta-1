@@ -87,20 +87,26 @@ def get_tax_summary(
 
 @router.get("/pdf")
 def download_tax_pdf(
+    inline: bool = False,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Generates and downloads the ITR-1 Preparation Assistant PDF report.
+    Supports inline=true for direct in-browser PDF viewing or attachment download.
     """
     tax_data = _get_user_tax_data(current_user, db)
     pdf_bytes = generate_tax_intelligence_pdf(tax_data)
+
+    disposition = "inline" if inline else "attachment"
 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": "attachment; filename=FDL_ITR1_Preparation_Summary_AY2026-27.pdf",
+            "Content-Disposition": f'{disposition}; filename="FDL_ITR1_Preparation_Summary_AY2026-27.pdf"',
+            "Content-Type": "application/pdf",
+            "Access-Control-Expose-Headers": "Content-Disposition, Content-Type",
             "Cache-Control": "no-cache, no-store, must-revalidate"
         }
     )

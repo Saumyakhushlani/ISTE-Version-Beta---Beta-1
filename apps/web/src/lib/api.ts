@@ -83,6 +83,20 @@ export const api = {
       }),
     }),
 
+  // Investments & NLP Advisor
+  getInvestmentSummary: () =>
+    fetchFromApi("/api/investments/summary"),
+
+  sendInvestmentChat: (message: string, history?: Array<{ role: string; content: string }>) =>
+    fetchFromApi("/api/investments/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        history: history || [],
+      }),
+    }),
+
   // Statement Ingestion
   previewStatement: (formData: FormData) =>
     fetchFromApi("/api/imports/preview", {
@@ -300,18 +314,26 @@ export const api = {
       body: JSON.stringify(query),
     }),
 
-  chatAffordability: (message: string, history?: Array<{ role: string; content: string }>) =>
-    fetchFromApi<any>("/api/affordability/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, history: history || [] }),
-    }),
-
   askAffordability: (question: string) =>
     fetchFromApi("/api/affordability/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
+    }),
+
+  sendPurchaseAdvisorChat: (
+    message: string,
+    history?: Array<{ role: string; content: string }>,
+    sourceFileIds?: string[]
+  ) =>
+    fetchFromApi<any>("/api/affordability/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        history,
+        source_file_ids: sourceFileIds,
+      }),
     }),
 
   parseAffordabilityQuery: (question: string) =>
@@ -432,6 +454,23 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     }),
+
+  getEmailSyncStatus: () => fetchFromApi("/api/email-sync/status"),
+
+  getEmailAuthorizeUrl: () => fetchFromApi("/api/email-sync/oauth/authorize"),
+
+  syncEmails24h: () =>
+    fetchFromApi("/api/email-sync/sync-24h", {
+      method: "POST",
+    }),
+
+  disconnectEmailSync: () =>
+    fetchFromApi("/api/email-sync/disconnect", {
+      method: "DELETE",
+    }),
+
+  getEmailSyncLogs: () => fetchFromApi("/api/email-sync/logs"),
+
   getTaxSummary: () => fetchFromApi("/api/tax/summary"),
   getTaxPdfUrl: () => "/api/proxy/tax/pdf",
 };

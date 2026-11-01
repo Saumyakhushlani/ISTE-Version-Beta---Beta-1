@@ -35,6 +35,8 @@ from routers import (
     anomalies,
     privacy,
     internal_auth,
+    email_sync,
+    investments,
     tax
 )
 
@@ -71,6 +73,8 @@ app.include_router(recurring.router, prefix="/api/recurring", tags=["Recurring C
 app.include_router(anomalies.router, prefix="/api/anomalies", tags=["Anomaly Detection"])
 app.include_router(privacy.router, prefix="/api/privacy", tags=["Privacy & Egress"])
 app.include_router(internal_auth.router, prefix="/api", tags=["Internal User Persistence"])
+app.include_router(email_sync.router, prefix="/api/email-sync", tags=["Email Sync & OAuth"])
+app.include_router(investments.router, prefix="/api/investments", tags=["Investments & Liquidity Advisor"])
 app.include_router(tax.router, prefix="/api/tax", tags=["Tax Intelligence"])
 
 @app.get("/health", tags=["Health"])

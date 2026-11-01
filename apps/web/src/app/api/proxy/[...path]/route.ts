@@ -91,6 +91,12 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
       }
     });
 
+    const upstreamContentType = response.headers.get('content-type');
+    if (upstreamContentType) {
+      resHeaders.set('content-type', upstreamContentType);
+    }
+    resHeaders.set('access-control-expose-headers', 'Content-Disposition, Content-Type, Content-Length');
+
     const responseData = await response.arrayBuffer();
 
     return new NextResponse(responseData, {

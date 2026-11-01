@@ -31,10 +31,8 @@ import {
   FileCheck,
   PieChart as PieChartIcon,
   HelpCircle,
-  Inbox,
-  Coins
+  Inbox
 } from 'lucide-react';
-import LiquidityAdvisorModal from '@/components/LiquidityAdvisorModal';
 import {
   ResponsiveContainer,
   PieChart,
@@ -85,7 +83,6 @@ export default function DashboardPage() {
     }
   };
   const [hasInitializedFiles, setHasInitializedFiles] = useState(false);
-  const [isLiquidityModalOpen, setIsLiquidityModalOpen] = useState(false);
 
   // Natural Language query state
   const [nlQuery, setNlQuery] = useState('');
@@ -314,15 +311,6 @@ export default function DashboardPage() {
             <UploadCloud className="w-3.5 h-3.5 text-primary" />
             <span>Upload New Statement</span>
           </Link>
-
-          <button
-            type="button"
-            onClick={() => setIsLiquidityModalOpen(true)}
-            className="h-9 inline-flex items-center gap-1.5 px-2.5 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition shadow-xs cursor-pointer shrink-0 whitespace-nowrap"
-          >
-            <Coins className="w-3.5 h-3.5 text-amber-500" />
-            <span>Liquidity & Sourcing Advisor</span>
-          </button>
 
           {/* Account Filter */}
           <div className="relative shrink-0">
@@ -1528,12 +1516,6 @@ export default function DashboardPage() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* Liquidity & Sourcing Advisor Modal */}
-      <LiquidityAdvisorModal
-        isOpen={isLiquidityModalOpen}
-        onClose={() => setIsLiquidityModalOpen(false)}
-      />
 
     </motion.div>
   );

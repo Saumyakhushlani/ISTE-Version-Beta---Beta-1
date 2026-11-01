@@ -19,6 +19,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Menu,
+  TrendingUp,
   X
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -88,6 +89,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const navLinks = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Investments', href: '/investments', icon: TrendingUp },
     { name: 'Upload Statement', href: '/upload', icon: UploadCloud },
     { name: 'Transactions', href: '/transactions', icon: CreditCard },
     { name: 'Recurring Payments', href: '/recurring', icon: Clock },
