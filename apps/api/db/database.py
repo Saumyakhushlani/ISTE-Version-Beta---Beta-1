@@ -56,3 +56,12 @@ def get_db():
 def init_db():
     import db.models  # Ensure models are imported
     Base.metadata.create_all(bind=engine)
+    try:
+        from seed_demo import ensure_demo_users_seeded
+        db = SessionLocal()
+        try:
+            ensure_demo_users_seeded(db)
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[FDL] Note: auto-seeding demo users on init: {e}")

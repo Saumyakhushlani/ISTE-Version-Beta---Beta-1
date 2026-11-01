@@ -248,5 +248,19 @@ export const internalAuth = {
       method: 'DELETE',
     });
   },
+
+  /**
+   * Ensure demo users exist in the database
+   */
+  async seedDemoUsers(): Promise<any> {
+    try {
+      return await internalFetch('/api/internal/users/seed-demo', {
+        method: 'POST',
+      });
+    } catch (err) {
+      console.warn('seedDemoUsers call failed:', err);
+      return null;
+    }
+  },
 };
 

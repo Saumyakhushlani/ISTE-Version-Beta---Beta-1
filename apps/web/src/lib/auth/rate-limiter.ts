@@ -11,7 +11,7 @@ interface RateLimitRecord {
 const rateLimitStore = new Map<string, RateLimitRecord>();
 
 const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const WINDOW_MS = 1 * 60 * 1000; // 15 minutes
 
 export function checkRateLimit(identifier: string): {
   allowed: boolean;

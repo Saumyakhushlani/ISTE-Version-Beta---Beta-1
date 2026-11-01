@@ -75,12 +75,12 @@ export default function LoginPage() {
       {/* ========================================================
           LEFT COLUMN: BRAND SHOWCASE & PLATFORM VALUE
       ======================================================== */}
-      <div className="bg-muted/40 relative hidden h-full flex-col justify-between border-r border-border p-10 lg:flex overflow-hidden">
+      <div className="bg-muted/40 relative hidden h-full flex-col justify-between border-r border-border p-8 xl:p-10 lg:flex overflow-hidden">
         {/* Subtle gradient vignette */}
         <div className="from-background absolute inset-0 z-10 bg-gradient-to-t to-transparent pointer-events-none opacity-80" />
 
         {/* Brand Header */}
-        <div className="z-20 flex items-center gap-3">
+        <div className="z-20 flex items-center gap-3 shrink-0">
           <div className="flex items-end gap-1 h-6">
             <span className="w-2 h-4 bg-primary rounded-sm shadow-sm" />
             <span className="w-2 h-6 bg-primary rounded-sm shadow-sm" />
@@ -97,28 +97,31 @@ export default function LoginPage() {
         </div>
 
         {/* Center Showcase with Animated Dual Cards */}
-        <div className="z-20 h-full flex flex-col items-center w-full max-w-lg mx-auto">
-          {/* Animated Cards Container */}
-          <div className="w-full flex justify-center mb-1">
-            <CardsAnimation className="w-full max-w-[440px] xl:max-w-[500px]" />
+        <div className="z-20 my-auto flex flex-col items-center justify-center w-full max-w-md mx-auto py-2">
+          {/* Animated Cards Container - Professionally proportioned & centered */}
+          <div className="w-full flex justify-center items-center">
+            <CardsAnimation 
+              speed={0.55}
+              className="w-full max-w-[280px] sm:max-w-[320px] xl:max-w-[350px] h-[175px] sm:h-[195px] xl:h-[220px]" 
+            />
           </div>
 
-          <div className="text-center space-y-2.5 max-w-sm">
+          <div className="text-center space-y-3 max-w-sm mt-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-xs font-mono text-primary backdrop-blur-sm">
               <ShieldCheckIcon className="size-3.5" />
-              <span>100% LOCAL-FIRST &amp; AIR-GAPPED</span>
+              <span>100% LOCAL-FIRST & AIR-GAPPED</span>
             </div>
 
             <blockquote className="space-y-1.5">
               <p className="text-xl xl:text-2xl font-bold tracking-tight leading-snug text-foreground">
-                &ldquo;Can I afford this next month?&rdquo;
+                &ldquo;Make every financial decision with mathematical certainty.&rdquo;
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Deterministic dual-account cash-flow modeling with zero hallucinations and provable mathematical headroom.
               </p>
             </blockquote>
 
-            <div className="pt-1 flex flex-wrap items-center justify-center gap-2 text-[11px] font-mono text-muted-foreground">
+            <div className="pt-0.5 flex flex-wrap items-center justify-center gap-2 text-[11px] font-mono text-muted-foreground">
               <span className="px-2.5 py-0.5 rounded-md bg-card/60 border border-border">5k Monte Carlo</span>
               <span className="px-2.5 py-0.5 rounded-md bg-card/60 border border-border">Integer Paise</span>
               <span className="px-2.5 py-0.5 rounded-md bg-card/60 border border-border">Seed=42</span>
@@ -127,7 +130,7 @@ export default function LoginPage() {
         </div>
 
         {/* Bottom Feature Badges */}
-        <div className="z-20 flex items-center justify-between text-xs text-muted-foreground pt-4 border-t border-border/60">
+        <div className="z-20 flex items-center justify-between text-xs text-muted-foreground pt-4 border-t border-border/60 shrink-0">
           <span>Local SQLite Storage (fdl.db)</span>
           <span className="font-mono text-[11px] text-primary font-semibold">Zero Cloud Egress</span>
         </div>

@@ -12,6 +12,10 @@ DEMO_USER_ID = "usr_aarav_001"
 DEMO_USER_EMAIL = "aarav.kumar@example.com"
 DEMO_USER_PASSWORD_HASH = "$2b$10$/4yHIm8ckt/TOkMu4ELeNub4ooVbbBsJ..4Hayt2l1xx5bWshdPQW"  # "Password123!"
 
+PRIYA_USER_ID = "usr_priya_002"
+PRIYA_USER_EMAIL = "priya.sharma@example.com"
+PRIYA_USER_PASSWORD_HASH = "$2b$10$/4yHIm8ckt/TOkMu4ELeNub4ooVbbBsJ..4Hayt2l1xx5bWshdPQW"  # "Password123!"
+
 class User(Base):
     __tablename__ = "users"
 
