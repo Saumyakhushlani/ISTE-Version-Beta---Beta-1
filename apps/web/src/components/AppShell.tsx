@@ -96,7 +96,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { name: 'Upload Statement', href: '/upload', icon: UploadCloud },
     { name: 'Transactions', href: '/transactions', icon: CreditCard },
     { name: 'Recurring Payments', href: '/recurring', icon: Clock },
-    { name: 'Decision Lab', href: '/lab', icon: Scale },
     { name: 'Tax Intelligence', href: '/tax', icon: Calculator },
     { name: 'Reports & Anomalies', href: '/anomalies', icon: FileText },
     { name: 'Privacy & Security', href: '/privacy', icon: Settings },

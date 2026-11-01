@@ -3,7 +3,8 @@
   "services": {
     "api": {
       "root": "apps/api",
-      "framework": "fastapi"
+      "framework": "fastapi",
+      "entrypoint": "main:app"
     },
     "web": {
       "root": "apps/web",

@@ -4,7 +4,14 @@ Provides deterministic finance calculations, multi-bank statement parsing, ML ca
 upcoming payment calendars, anomaly detection, and evidence-linked affordability decisioning.
 """
 
+import sys
 from pathlib import Path
+
+# Ensure backend root directory is in sys.path for serverless runtimes
+BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 from dotenv import load_dotenv
 
 # Auto-load .env and .env.local from project root or workspace
