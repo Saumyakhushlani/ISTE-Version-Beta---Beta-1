@@ -65,10 +65,16 @@ export default function GoalsPlannerPage() {
   // Selected recurring IDs: all active by default
   const [excludedRecurringIds, setExcludedRecurringIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
+  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Load goals on mount
   useEffect(() => {
     loadGoals();
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
   }, []);
 
   const loadGoals = async () => {
@@ -147,21 +153,27 @@ export default function GoalsPlannerPage() {
   };
 
   // Toggle recurring expense checkbox (Mentor's interactive flow)
+  // State updates synchronously (0ms) so graph & milestones update in real time
   const handleToggleRecurring = (itemId: string) => {
-    startTransition(() => {
-      setExcludedRecurringIds((prev) => {
-        let next: string[];
-        if (prev.includes(itemId)) {
-          // Re-include (check it again)
-          next = prev.filter((id) => id !== itemId);
-        } else {
-          // Deselect (uncheck it -> cancel/pause this expense)
-          next = [...prev, itemId];
-        }
-        // Run optimization with the updated selection
+    setExcludedRecurringIds((prev) => {
+      let next: string[];
+      if (prev.includes(itemId)) {
+        // Re-include (check it again)
+        next = prev.filter((id) => id !== itemId);
+      } else {
+        // Deselect (uncheck it -> cancel/pause this expense)
+        next = [...prev, itemId];
+      }
+
+      // Debounce the backend AI advisory update so rapid clicking never lags or floods the API
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
         runOptimization(next);
-        return next;
-      });
+      }, 350);
+
+      return next;
     });
   };
 
@@ -177,7 +189,7 @@ export default function GoalsPlannerPage() {
     return Target;
   };
 
-  // Compute live client-side stats for instant feedback
+  // Compute live client-side stats for instant 60 FPS real-time feedback
   const clientFreedPaise = useMemo(() => {
     if (!optData || !optData.recurring_items) return 0;
     return optData.recurring_items
@@ -189,6 +201,68 @@ export default function GoalsPlannerPage() {
     if (!optData) return 0;
     return optData.baseline_monthly_savings_minor + clientFreedPaise;
   }, [optData, clientFreedPaise]);
+
+  // Real-time dynamic 24-month projection graph points (reacts immediately to checkbox toggles)
+  const dynamicProjectionGraph = useMemo(() => {
+    if (!optData || !optData.projection_graph) return [];
+    const baseSavings = optData.baseline_monthly_savings_minor;
+    const optSavings = baseSavings + clientFreedPaise;
+
+    return optData.projection_graph.map((pt) => {
+      const m = pt.month_index;
+      return {
+        ...pt,
+        baseline_saved_minor: baseSavings * m,
+        optimized_saved_minor: optSavings * m,
+      };
+    });
+  }, [optData, clientFreedPaise]);
+
+  // Real-time dynamic goal milestone timelines (reacts immediately to checkbox toggles)
+  const dynamicMilestones = useMemo(() => {
+    if (!optData || !goals.length) return [];
+    const baseSavings = optData.baseline_monthly_savings_minor;
+    const optSavings = baseSavings + clientFreedPaise;
+    const now = new Date();
+
+    return goals.map((g) => {
+      const netNeeded = Math.max(0, g.target_amount_minor - g.current_saved_minor);
+      if (netNeeded === 0) {
+        const todayStr = now.toISOString().split('T')[0];
+        return {
+          goal_id: g.id,
+          baseline_months: 0,
+          baseline_date: todayStr,
+          optimized_months: 0,
+          optimized_date: todayStr,
+          months_saved: 0,
+          is_achieved_immediately: true,
+        };
+      }
+
+      const baseMonths = baseSavings > 0 ? Number((netNeeded / baseSavings).toFixed(1)) : 999;
+      const optMonths = optSavings > 0 ? Number((netNeeded / optSavings).toFixed(1)) : 999;
+      const monthsSaved = Number(Math.max(0, baseMonths - optMonths).toFixed(1));
+
+      const baseDays = Math.round(baseMonths * 30.4375);
+      const optDays = Math.round(optMonths * 30.4375);
+
+      const baseDate = new Date(now.getTime() + baseDays * 86400000);
+      const optDate = new Date(now.getTime() + optDays * 86400000);
+
+      const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+      return {
+        goal_id: g.id,
+        baseline_months: baseMonths,
+        baseline_date: formatDate(baseDate),
+        optimized_months: optMonths,
+        optimized_date: formatDate(optDate),
+        months_saved: monthsSaved,
+        is_achieved_immediately: false,
+      };
+    });
+  }, [optData, goals, clientFreedPaise]);
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
@@ -451,7 +525,7 @@ export default function GoalsPlannerPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {goals.map((g) => {
                 const Icon = getCategoryIcon(g.category);
-                const milestone = optData?.milestones.find((m) => m.goal_id === g.id);
+                const milestone = dynamicMilestones.find((m) => m.goal_id === g.id) || optData?.milestones.find((m) => m.goal_id === g.id);
 
                 return (
                   <div
@@ -587,7 +661,7 @@ export default function GoalsPlannerPage() {
           )}
 
           {/* 6. Dynamic Recharts Projection Timeline Chart */}
-          {optData && optData.projection_graph.length > 0 && (
+          {optData && (dynamicProjectionGraph.length > 0 || optData.projection_graph.length > 0) && (
             <div className="rounded-2xl border border-border bg-card/60 p-4 md:p-5 shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
@@ -614,7 +688,10 @@ export default function GoalsPlannerPage() {
 
               <div className="h-64 w-full pt-2">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={optData.projection_graph} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                  <AreaChart 
+                    data={dynamicProjectionGraph.length > 0 ? dynamicProjectionGraph : optData.projection_graph} 
+                    margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
+                  >
                     <defs>
                       <linearGradient id="optGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />

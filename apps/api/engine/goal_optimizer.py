@@ -175,8 +175,8 @@ def compute_goal_optimization(
             base_accum = 0
             opt_accum = 0
         else:
-            base_accum = min(total_target_minor, max(0, baseline_savings_minor * m))
-            opt_accum = min(total_target_minor, max(0, optimized_savings_minor * m))
+            base_accum = max(0, baseline_savings_minor * m)
+            opt_accum = max(0, optimized_savings_minor * m)
 
         projection_graph.append({
             "month_index": m,
