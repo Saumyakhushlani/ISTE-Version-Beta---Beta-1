@@ -4,10 +4,12 @@
  * Authenticated via X-Internal-Secret header.
  */
 
-const FASTAPI_INTERNAL_URL =
+const rawFastApiUrl =
+  process.env.API_URL ||
   process.env.FASTAPI_INTERNAL_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   'http://127.0.0.1:8000';
+const FASTAPI_INTERNAL_URL = rawFastApiUrl.replace(/\/+$/, '');
 
 const INTERNAL_SERVICE_KEY =
   process.env.INTERNAL_SERVICE_KEY ||

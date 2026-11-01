@@ -5,11 +5,12 @@ import { verifyToken } from '@/lib/auth/jwt';
 export const dynamic = 'force-dynamic';
 
 const rawFastApiUrl =
+  process.env.API_URL ||
   process.env.FASTAPI_INTERNAL_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   'http://127.0.0.1:8000';
-// Force IPv4 loopback to avoid Windows Node.js 18+ undici ECONNREFUSED ::1:8000 mismatch
-const FASTAPI_INTERNAL_URL = rawFastApiUrl.replace('://localhost', '://127.0.0.1');
+// Force IPv4 loopback to avoid Windows Node.js 18+ undici ECONNREFUSED ::1:8000 mismatch and trim trailing slash
+const FASTAPI_INTERNAL_URL = rawFastApiUrl.replace('://localhost', '://127.0.0.1').replace(/\/+$/, '');
 
 async function handleProxy(req: NextRequest, { params }: { params: { path: string[] } }) {
   let targetPath = '/' + (params.path || []).join('/');

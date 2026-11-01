@@ -6,7 +6,7 @@
 const API_BASE =
   typeof window !== 'undefined'
     ? '/api/proxy'
-    : (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000');
+    : (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000');
 
 function toQueryString(params?: Record<string, any>): string {
   if (!params) return "";
@@ -24,11 +24,12 @@ function toQueryString(params?: Record<string, any>): string {
 export async function fetchFromApi<T = any>(endpoint: string, options?: RequestInit): Promise<T> {
   const isDirectAuth = endpoint.startsWith("/api/auth/") || endpoint.startsWith("/api/user/");
   const cleanEndpoint = endpoint.replace(/^\/api\/proxy/, "");
+  const serverBase = (process.env.API_URL || process.env.FASTAPI_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
   const url = isDirectAuth
     ? endpoint
     : typeof window !== "undefined"
       ? `/api/proxy${cleanEndpoint.startsWith("/") ? cleanEndpoint : `/${cleanEndpoint}`}`
-      : `${process.env.FASTAPI_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}${cleanEndpoint.startsWith("/") ? cleanEndpoint : `/${cleanEndpoint}`}`;
+      : `${serverBase}${cleanEndpoint.startsWith("/") ? cleanEndpoint : `/${cleanEndpoint}`}`;
   try {
     const res = await fetch(url, {
       ...options,
