@@ -4,6 +4,7 @@ Provides deterministic finance calculations, multi-bank statement parsing, ML ca
 upcoming payment calendars, anomaly detection, and evidence-linked affordability decisioning.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -61,10 +62,25 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Enable CORS for local Next.js frontend
+# Build CORS origin allowlist — always includes localhost for dev, plus any
+# production / staging origins declared in environment variables.
+_cors_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    # Production Vercel deployment
+    "https://iste-version-beta-beta-1.vercel.app",
+]
+# Allow overriding / extending via env vars (comma-separated)
+_frontend_url = os.getenv("FRONTEND_URL", "").strip()
+if _frontend_url:
+    for _origin in _frontend_url.split(","):
+        _origin = _origin.strip().rstrip("/")
+        if _origin and _origin not in _cors_origins:
+            _cors_origins.append(_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
