@@ -59,6 +59,7 @@ const itemVariants: Variants = {
 
 export default function RecurringPage() {
   const [items, setItems] = useState<any[]>([]);
+  const [allActiveItems, setAllActiveItems] = useState<any[]>([]);
   const [upcoming, setUpcoming] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('active');
@@ -90,16 +91,26 @@ export default function RecurringPage() {
           ? 'confirmed'
           : undefined;
 
-      const [recRes, upRes] = await Promise.all([
+      const [recRes, upRes, activeRes] = await Promise.all([
         api.getRecurringItems({
           status_filter,
           user_status_filter,
           limit: 100,
         }).catch(() => ({ recurring_items: [], counts: {} })),
-        api.getUpcomingSchedule(45).catch(() => ({ upcoming_payments: [] })),
+        api.getUpcomingSchedule(30).catch(() => ({ upcoming_payments: [] })),
+        activeTab === 'active'
+          ? Promise.resolve(null)
+          : api.getRecurringItems({ status_filter: 'active', limit: 200 }).catch(() => null),
       ]);
 
-      setItems(recRes?.recurring_items || []);
+      const currentItems = recRes?.recurring_items || [];
+      setItems(currentItems);
+      if (activeTab === 'active') {
+        setAllActiveItems(currentItems);
+      } else if (activeRes?.recurring_items) {
+        setAllActiveItems(activeRes.recurring_items);
+      }
+
       if (recRes?.counts) {
         setCounts({
           all_active: recRes.counts.all_active || 0,
@@ -176,11 +187,12 @@ export default function RecurringPage() {
     return matchesSearch && matchesType;
   });
 
-  const committedMonthly = items
+  const summarySourceItems = allActiveItems.length > 0 ? allActiveItems : items;
+  const committedMonthly = summarySourceItems
     .filter((i) => i.type !== 'salary' && i.status !== 'paused' && i.user_status !== 'rejected')
     .reduce((sum, i) => sum + getItemAmount(i), 0);
 
-  const salaryExpected = items
+  const salaryExpected = summarySourceItems
     .filter((i) => i.type === 'salary' && i.status !== 'paused' && i.user_status !== 'rejected')
     .reduce((sum, i) => sum + getItemAmount(i), 0);
 
@@ -628,10 +640,10 @@ export default function RecurringPage() {
           <div>
             <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
-              <span>Upcoming 45-Day Payment Schedule</span>
+              <span>Upcoming 30-Day Payment Schedule</span>
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Deterministic timeline of expected cash inflows and outflows with bank account attribution.
+              Deterministic 30-day timeline of expected cash inflows and outflows with bank account attribution.
             </p>
           </div>
           <button
@@ -653,7 +665,7 @@ export default function RecurringPage() {
             >
               {upcoming.length === 0 ? (
                 <div className="p-8 text-center text-xs text-muted-foreground">
-                  No upcoming payments scheduled in the next 45 days.
+                  No upcoming payments scheduled in the next 30 days.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -671,7 +683,7 @@ export default function RecurringPage() {
                       {upcoming.map((payment, idx) => (
                         <tr key={idx} className="hover:bg-muted/30 transition-colors">
                           <td className="py-3 px-4 whitespace-nowrap text-foreground font-semibold">
-                            {payment.date || payment.expected_date}
+                            {payment.due_date || payment.date || payment.expected_date}
                           </td>
                           <td className="py-3 px-4 font-sans text-foreground">
                             <span className="font-semibold">{payment.merchant}</span>
@@ -684,7 +696,7 @@ export default function RecurringPage() {
                           <td className="py-3 px-4">
                             <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                               <Building2 className="w-3.5 h-3.5 text-primary" />
-                              <span>{payment.bank || 'Primary Bank'}</span>
+                              <span>{payment.bank_name || payment.bank || 'Primary Bank'}</span>
                               {payment.masked_last4 && (
                                 <span className="font-mono text-[11px]">••••{payment.masked_last4}</span>
                               )}

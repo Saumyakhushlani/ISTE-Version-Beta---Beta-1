@@ -28,6 +28,16 @@ def test_dashboard_query_parameters():
         assert "total_outflow_paise" in acct
         assert "current_balance_paise" in acct
 
+    # Verify upcoming payments on dashboard contains distinct payments with no duplicates
+    upcoming = data_all.get("upcoming_payments", [])
+    assert len(upcoming) > 0
+    merchants = [p.get("merchant", "").strip().lower() for p in upcoming if p.get("merchant")]
+    assert len(merchants) == len(set(merchants)), f"Dashboard upcoming payments contains duplicates: {merchants}"
+    for p in upcoming:
+        assert "due_date" in p and p["due_date"]
+        assert "amount_paise" in p
+        assert "user_tag" in p
+
 def test_transactions_filters_and_pagination():
     res = client.get("/api/transactions?limit=5&offset=0")
     assert res.status_code == 200
@@ -50,6 +60,47 @@ def test_transactions_filters_and_pagination():
     for t in res_credit.json()["transactions"]:
         assert t["amount_minor"] > 0
         assert "amount_paise" in t
+
+def test_transactions_sorting():
+    # Sort by amount asc (smallest/most negative first)
+    res_asc = client.get("/api/transactions?sort_by=amount&sort_order=asc&limit=15")
+    assert res_asc.status_code == 200
+    data_asc = res_asc.json()
+    assert data_asc["sort_by"] == "amount"
+    assert data_asc["sort_order"] == "asc"
+    amounts_asc = [t["amount_minor"] for t in data_asc["transactions"]]
+    assert len(amounts_asc) > 1
+    assert amounts_asc == sorted(amounts_asc)
+
+    # Sort by amount desc (largest/most positive credits first)
+    res_desc = client.get("/api/transactions?sort_by=amount&sort_order=desc&limit=15")
+    assert res_desc.status_code == 200
+    data_desc = res_desc.json()
+    assert data_desc["sort_by"] == "amount"
+    assert data_desc["sort_order"] == "desc"
+    amounts_desc = [t["amount_minor"] for t in data_desc["transactions"]]
+    assert len(amounts_desc) > 1
+    assert amounts_desc == sorted(amounts_desc, reverse=True)
+
+    # Sort by posted_date asc
+    res_date_asc = client.get("/api/transactions?sort_by=posted_date&sort_order=asc&limit=10")
+    assert res_date_asc.status_code == 200
+    dates_asc = [t["posted_date"] for t in res_date_asc.json()["transactions"]]
+    assert dates_asc == sorted(dates_asc)
+
+    # Sort by posted_date desc
+    res_date_desc = client.get("/api/transactions?sort_by=posted_date&sort_order=desc&limit=10")
+    assert res_date_desc.status_code == 200
+    dates_desc = [t["posted_date"] for t in res_date_desc.json()["transactions"]]
+    assert dates_desc == sorted(dates_desc, reverse=True)
+
+    # Combined sort, filter, and pagination
+    res_combined = client.get("/api/transactions?type=debit&sort_by=amount&sort_order=asc&limit=5&offset=5")
+    assert res_combined.status_code == 200
+    comb_txns = res_combined.json()["transactions"]
+    assert len(comb_txns) <= 5
+    for t in comb_txns:
+        assert t["amount_minor"] < 0
 
 def test_transactions_corrections_listing():
     res = client.get("/api/transactions/corrections?limit=10")

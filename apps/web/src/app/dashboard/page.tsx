@@ -199,41 +199,52 @@ export default function DashboardPage() {
   const breachProbPct = forecast?.probability_of_breaching_buffer_pct ?? 0;
   const negProbPct = forecast?.probability_of_negative_balance_pct ?? 0;
 
-  // Upcoming Payments - Real data only
-  const upcomingList = (data?.upcoming_payments || []).map((u: any, idx: number) => {
-    let icon = CreditCard;
-    let iconBg = "bg-primary/10 text-primary";
-    const m = (u.merchant || "").toLowerCase();
-    const t = (u.type || "").toLowerCase();
-    if (m.includes("rent") || t.includes("rent") || t.includes("housing")) {
-      icon = Home;
-      iconBg = "bg-destructive/10 text-destructive";
-    } else if (m.includes("emi") || t.includes("emi") || m.includes("loan")) {
-      icon = CreditCard;
-      iconBg = "bg-purple-500/10 text-purple-600 dark:text-purple-400";
-    } else if (m.includes("netflix") || t.includes("subscription") || m.includes("spotify")) {
-      icon = Tv;
-      iconBg = "bg-rose-500/10 text-rose-600 dark:text-rose-400";
-    } else if (m.includes("airtel") || m.includes("wifi") || m.includes("internet") || m.includes("jio") || m.includes("broadband")) {
-      icon = Wifi;
-      iconBg = "bg-sky-500/10 text-sky-600 dark:text-sky-400";
-    } else if (m.includes("insurance") || t.includes("insurance")) {
-      icon = ShieldCheck;
-      iconBg = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400";
-    }
+  // Upcoming Payments - Real data only (distinct obligations only)
+  const seenUpcomingMerchants = new Set<string>();
+  const upcomingList = (data?.upcoming_payments || [])
+    .filter((u: any) => {
+      const cleanName = (u.merchant?.replace("UPI-", "").replace("ACH D-", "").split("-")[0] || u.merchant || "Scheduled Bill")
+        .trim()
+        .toLowerCase();
+      if (seenUpcomingMerchants.has(cleanName)) return false;
+      seenUpcomingMerchants.add(cleanName);
+      return true;
+    })
+    .slice(0, 6)
+    .map((u: any, idx: number) => {
+      let icon = CreditCard;
+      let iconBg = "bg-primary/10 text-primary";
+      const m = (u.merchant || "").toLowerCase();
+      const t = (u.type || "").toLowerCase();
+      if (m.includes("rent") || t.includes("rent") || t.includes("housing")) {
+        icon = Home;
+        iconBg = "bg-destructive/10 text-destructive";
+      } else if (m.includes("emi") || t.includes("emi") || m.includes("loan")) {
+        icon = CreditCard;
+        iconBg = "bg-purple-500/10 text-purple-600 dark:text-purple-400";
+      } else if (m.includes("netflix") || t.includes("subscription") || m.includes("spotify")) {
+        icon = Tv;
+        iconBg = "bg-rose-500/10 text-rose-600 dark:text-rose-400";
+      } else if (m.includes("airtel") || m.includes("wifi") || m.includes("internet") || m.includes("jio") || m.includes("broadband")) {
+        icon = Wifi;
+        iconBg = "bg-sky-500/10 text-sky-600 dark:text-sky-400";
+      } else if (m.includes("insurance") || t.includes("insurance")) {
+        icon = ShieldCheck;
+        iconBg = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400";
+      }
 
-    const amt = u.amount_paise ?? u.typical_amount_paise ?? u.amount_minor ?? u.typical_amount_minor ?? 0;
+      const amt = u.amount_paise ?? u.typical_amount_paise ?? u.amount_minor ?? u.typical_amount_minor ?? 0;
 
-    return {
-      id: u.id || idx,
-      name: u.merchant?.replace("UPI-", "").replace("ACH D-", "").split("-")[0] || u.merchant || "Scheduled Bill",
-      date: u.due_date || u.next_expected_date || "Upcoming",
-      amount_paise: amt,
-      user_status: u.user_tag || (u.user_status === 'active' ? 'Auto' : 'User'),
-      icon,
-      iconBg
-    };
-  });
+      return {
+        id: u.id || u.item_id || idx,
+        name: u.merchant?.replace("UPI-", "").replace("ACH D-", "").split("-")[0] || u.merchant || "Scheduled Bill",
+        date: u.due_date || u.date || u.next_expected_date || "Upcoming",
+        amount_paise: amt,
+        user_status: u.user_tag || (u.user_status === 'confirmed' ? 'User' : 'Auto'),
+        icon,
+        iconBg
+      };
+    });
 
   // Anomalies - Real data only
   const anomaliesList = (data?.top_anomalies || []).map((a: any, idx: number) => ({

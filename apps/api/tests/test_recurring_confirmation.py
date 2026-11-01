@@ -155,3 +155,48 @@ def test_batch_confirm():
     res_after = client.get("/api/recurring")
     assert res_after.json()["counts"]["needs_review"] == 0
     assert res_after.json()["counts"]["confirmed"] == data["confirmed_count"]
+
+def test_upcoming_30_day_schedule_fields_and_cadence():
+    res = client.get("/api/recurring/upcoming?days=30")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["horizon_days"] == 30
+    payments = data["upcoming_payments"]
+    assert len(payments) > 0
+
+    for p in payments:
+        # Verify UI-expected key bindings exist and are non-empty
+        assert "due_date" in p and p["due_date"]
+        assert "date" in p and p["date"]
+        assert "expected_date" in p and p["expected_date"]
+        assert "bank_name" in p and p["bank_name"]
+        assert "bank" in p and p["bank"]
+        assert "amount_paise" in p and p["amount_paise"] > 0
+        assert "typical_amount_minor" in p and p["typical_amount_minor"] > 0
+
+    # Verify no date drift on monthly salary (last paid 2025-03-01 -> next 2025-04-01)
+    salary_pmt = next((p for p in payments if p["type"] == "salary"), None)
+    if salary_pmt:
+        assert salary_pmt["due_date"] == "2025-04-01"
+        assert salary_pmt["day_of_month"] == 1
+
+def test_upcoming_schedule_honors_edited_next_expected_date():
+    res = client.get("/api/recurring")
+    items = res.json()["recurring_items"]
+    target = next((item for item in items if item["type"] != "salary"), items[0])
+
+    new_date = "2025-04-10"
+    patch_res = client.patch(
+        f"/api/recurring/{target['id']}",
+        json={"next_expected_date": new_date}
+    )
+    assert patch_res.status_code == 200
+
+    up_res = client.get("/api/recurring/upcoming?days=30")
+    assert up_res.status_code == 200
+    up_payments = up_res.json()["upcoming_payments"]
+
+    # Verify that the target merchant now appears with due_date == new_date
+    matching = [p for p in up_payments if p["merchant"] == target["merchant"]]
+    assert len(matching) > 0
+    assert any(p["due_date"] == new_date for p in matching)

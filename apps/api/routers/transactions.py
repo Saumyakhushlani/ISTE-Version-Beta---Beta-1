@@ -10,6 +10,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import asc, desc, nulls_last
 
 from db.database import get_db
 from db.models import Transaction, CorrectionLog, Account, User
@@ -42,6 +43,8 @@ def list_transactions(
     min_amount_paise: Optional[int] = Query(None, description="Minimum absolute amount in paise"),
     max_amount_paise: Optional[int] = Query(None, description="Maximum absolute amount in paise"),
     source_file_ids: Optional[str] = Query(None, description="Comma-separated list of SourceFile IDs to include"),
+    sort_by: Optional[str] = Query("posted_date", description="Sort field: 'posted_date', 'amount', 'description', 'category_id', 'channel', 'balance'"),
+    sort_order: Optional[str] = Query("desc", description="Sort order: 'asc' or 'desc'"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -58,6 +61,8 @@ def list_transactions(
             "total": 0,
             "limit": limit,
             "offset": offset,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
             "transactions": []
         }
 
@@ -128,12 +133,42 @@ def list_transactions(
         )
 
     total = query.count()
-    txns = query.order_by(Transaction.posted_date.desc(), Transaction.id.desc()).offset(offset).limit(limit).all()
+    sort_col_map = {
+        "posted_date": Transaction.posted_date,
+        "date": Transaction.posted_date,
+        "amount": Transaction.amount_minor,
+        "amount_minor": Transaction.amount_minor,
+        "amount_paise": Transaction.amount_minor,
+        "description": Transaction.normalized_description,
+        "category": Transaction.category_id,
+        "category_id": Transaction.category_id,
+        "channel": Transaction.channel,
+        "balance": Transaction.balance_after_minor,
+        "balance_after_minor": Transaction.balance_after_minor,
+        "balance_after_paise": Transaction.balance_after_minor,
+    }
+
+    sort_field = (sort_by or "posted_date").lower()
+    sort_direction = (sort_order or "desc").lower()
+
+    col = sort_col_map.get(sort_field, Transaction.posted_date)
+    is_nullable_col = sort_field in ("balance", "balance_after_minor", "balance_after_paise")
+
+    if sort_direction == "asc":
+        primary_order = nulls_last(asc(col)) if is_nullable_col else asc(col)
+        secondary_order = asc(Transaction.id)
+    else:
+        primary_order = nulls_last(desc(col)) if is_nullable_col else desc(col)
+        secondary_order = desc(Transaction.id)
+
+    txns = query.order_by(primary_order, secondary_order).offset(offset).limit(limit).all()
 
     return {
         "total": total,
         "limit": limit,
         "offset": offset,
+        "sort_by": sort_field,
+        "sort_order": sort_direction,
         "transactions": [
             {
                 "id": t.id,

@@ -164,6 +164,8 @@ export const api = {
       end_date?: string;
       min_amount_paise?: number;
       max_amount_paise?: number;
+      sort_by?: string;
+      sort_order?: 'asc' | 'desc';
     } = 100,
     offset = 0
   ) => {

@@ -332,10 +332,18 @@ def get_dashboard_summary(
         for r in rec_items
     ]
 
-    # Upcoming payments schedule (with Auto / User tags)
-    upcoming_schedule = generate_upcoming_schedule(item_dicts, accounts_map, horizon_days=45)[:6]
-    for idx, up in enumerate(upcoming_schedule):
-        up["user_tag"] = "Auto" if idx % 2 == 0 else "User"
+    # Upcoming payments schedule (distinct upcoming obligations, no duplicates)
+    raw_schedule = generate_upcoming_schedule(item_dicts, accounts_map, horizon_days=30)
+    seen_merchants = set()
+    upcoming_schedule = []
+    for up in raw_schedule:
+        m_key = (up.get("merchant") or "").strip().lower()
+        if m_key and m_key not in seen_merchants:
+            seen_merchants.add(m_key)
+            up["user_tag"] = "User" if up.get("user_status") == "confirmed" else "Auto"
+            upcoming_schedule.append(up)
+        if len(upcoming_schedule) >= 6:
+            break
 
     # Top anomalies preview belonging strictly to this user's transactions (unresolved alerts first)
     recent_anomalies = (
