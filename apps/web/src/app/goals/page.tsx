@@ -25,7 +25,9 @@ import {
   ArrowRight,
   RefreshCw,
   SlidersHorizontal,
-  Layers
+  Layers,
+  Wallet,
+  Check
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -175,7 +177,7 @@ export default function GoalsPlannerPage() {
     return Target;
   };
 
-  // Compute live client-side stats for instant 60fps feedback
+  // Compute live client-side stats for instant feedback
   const clientFreedPaise = useMemo(() => {
     if (!optData || !optData.recurring_items) return 0;
     return optData.recurring_items
@@ -189,139 +191,154 @@ export default function GoalsPlannerPage() {
   }, [optData, clientFreedPaise]);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-slate-100 p-4 md:p-8 space-y-8 max-w-7xl mx-auto transition-colors duration-200">
+    <div className="space-y-6">
       
-      {/* 1. Header & Title */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800/80 pb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <Target className="w-6 h-6" />
+      {/* 1. Header & Page Title */}
+      <div className="py-2 border-b border-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+            <Target className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-foreground flex items-center gap-2 flex-wrap">
+              <span>Goals &amp; Expense Optimizer</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-mono">
+                Google Gemini 1.5 Flash
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 hidden sm:inline-flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3" />
+                100% Math Verified
+              </span>
             </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Goals & Expense Optimizer</h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-                Deterministic savings milestones powered by verified cash flow and Google Gemini NLP.
-              </p>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              Deterministic savings milestones powered by verified cash flow and Google Gemini NLP.
             </div>
           </div>
         </div>
 
-        {/* Global Action / Status */}
-        <div className="flex items-center gap-2">
+        {/* Global Action / Recalculate */}
+        <div className="flex items-center gap-2 self-start md:self-auto">
           {goals.length > 0 && (
             <button
               onClick={() => runOptimization(excludedRecurringIds)}
               disabled={optimizing}
-              className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300 transition-colors"
+              className="h-9 inline-flex items-center gap-1.5 px-3 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition shadow-xs cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${optimizing ? 'animate-spin text-emerald-500' : ''}`} />
-              Recalculate
+              <span>Recalculate</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* 2. Top Natural Language Goal Input Bar */}
-      <div className="relative rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm p-4 md:p-6 transition-all">
-        <div className="flex flex-col gap-3">
-          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-            Add a Financial Goal with AI
-          </label>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                value={promptInput}
-                onChange={(e) => setPromptInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !addingGoal && handleAddGoal()}
-                placeholder="e.g. A bike of 55k, Goa vacation ₹35,000, or MacBook Air for 1.15 lakh..."
+      {/* 2. Top Natural Language Goal Input Card */}
+      <div className="rounded-2xl border border-border bg-card/60 p-4 md:p-5 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            Set a Financial Goal with AI
+          </span>
+          <span className="text-[11px] text-muted-foreground hidden sm:inline">
+            Press Enter or click Add Goal
+          </span>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2.5">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={promptInput}
+              onChange={(e) => setPromptInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !addingGoal && handleAddGoal()}
+              placeholder="e.g. A bike of 55k, Goa vacation ₹35,000, or MacBook Air for 1.15 lakh..."
+              disabled={addingGoal}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500 text-xs md:text-sm font-medium transition shadow-2xs"
+            />
+          </div>
+          <button
+            onClick={() => handleAddGoal()}
+            disabled={addingGoal || !promptInput.trim()}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition shadow-xs disabled:opacity-50 cursor-pointer whitespace-nowrap"
+          >
+            {addingGoal ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Parsing with Gemini...</span>
+              </>
+            ) : (
+              <>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Goal</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Quick Starter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
+          <span className="text-[11px] font-semibold text-muted-foreground shrink-0 flex items-center gap-1">
+            Suggestions:
+          </span>
+          {STARTER_GOALS.map((starter) => {
+            const Icon = starter.icon;
+            return (
+              <button
+                key={starter.label}
+                onClick={() => handleAddGoal(starter.query)}
                 disabled={addingGoal}
-                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-sm font-medium transition-all"
-              />
-            </div>
-            <button
-              onClick={() => handleAddGoal()}
-              disabled={addingGoal || !promptInput.trim()}
-              className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {addingGoal ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Parsing Goal...
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4" />
-                  Add Goal
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Quick Starter Pills */}
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            <span className="text-xs text-slate-400 dark:text-slate-500 mr-1">Suggestions:</span>
-            {STARTER_GOALS.map((starter) => {
-              const Icon = starter.icon;
-              return (
-                <button
-                  key={starter.label}
-                  onClick={() => handleAddGoal(starter.query)}
-                  disabled={addingGoal}
-                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-600 dark:hover:text-emerald-400 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800/80 transition-colors"
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{starter.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {errorMsg && (
-            <div className="flex items-center gap-2 p-3 mt-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
+                className="text-xs px-3 py-1.5 rounded-full bg-card hover:bg-muted border border-border hover:border-emerald-500/50 text-foreground transition shrink-0 whitespace-nowrap cursor-pointer shadow-2xs font-medium inline-flex items-center gap-1.5"
+              >
+                <Icon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>{starter.label}</span>
+              </button>
+            );
+          })}
         </div>
+
+        {errorMsg && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-500 dark:text-rose-400 text-xs mt-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
       </div>
 
-      {/* 3. Conditional Rendering: Empty State vs Full Dashboard */}
+      {/* 3. Conditional Rendering: Empty State vs Full Goals Dashboard */}
       {loadingGoals ? (
-        <div className="flex flex-col items-center justify-center py-24 text-slate-400 space-y-3">
-          <RefreshCw className="w-8 h-8 animate-spin text-emerald-500" />
-          <p className="text-sm">Loading your financial goals and cash flow...</p>
+        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground space-y-3">
+          <RefreshCw className="w-7 h-7 animate-spin text-emerald-500" />
+          <p className="text-xs font-medium">Analyzing verified accounts and calculating milestones...</p>
         </div>
       ) : goals.length === 0 ? (
-        /* Zero Goals Empty State — NO HEAVY API CALLS TRIGGERED */
+        /* Zero Goals Empty State — ZERO HEAVY AI OPTIMIZATION CALLS */
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 p-8 md:p-16 text-center bg-white/50 dark:bg-slate-950/50"
+          className="rounded-2xl border border-dashed border-border bg-card/40 p-8 md:p-14 text-center space-y-4"
         >
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
-            <Target className="w-8 h-8" />
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+            <Target className="w-7 h-7" />
           </div>
-          <h2 className="text-xl font-bold">No Financial Goals Added Yet</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-2">
-            Set your target purchase or dream milestone above (e.g. <i>"a bike of 55k"</i>). We will calculate the exact months needed and show which recurring subscriptions you can pause to reach it faster!
-          </p>
+          <div className="space-y-1">
+            <h2 className="text-base md:text-lg font-bold text-foreground">No Financial Goals Added Yet</h2>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+              Add your target purchase or dream milestone above (e.g. <i>"a bike of 55k"</i>). We will compute the exact completion timeline and show which recurring subscriptions you can pause to reach it faster!
+            </p>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto mt-8 text-left">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto pt-4 text-left">
             {STARTER_GOALS.map((starter) => {
               const Icon = starter.icon;
               return (
                 <div
                   key={starter.label}
                   onClick={() => handleAddGoal(starter.query)}
-                  className="cursor-pointer p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 transition-all shadow-sm hover:shadow"
+                  className="cursor-pointer p-3.5 rounded-xl bg-card border border-border hover:border-emerald-500/50 transition shadow-xs group"
                 >
-                  <Icon className="w-5 h-5 text-emerald-500 mb-2" />
-                  <div className="text-xs font-semibold">{starter.label}</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
-                    Click to add <ArrowRight className="w-3 h-3" />
+                  <Icon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mb-2 group-hover:scale-110 transition-transform" />
+                  <div className="text-xs font-semibold text-foreground">{starter.label}</div>
+                  <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                    Click to add <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                   </div>
                 </div>
               );
@@ -330,83 +347,83 @@ export default function GoalsPlannerPage() {
         </motion.div>
       ) : (
         /* Full Goals Dashboard */
-        <div className="space-y-8">
+        <div className="space-y-6">
           
           {/* Top KPI Metrics Strip */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
-              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                <span>Total Target Needed</span>
-                <Target className="w-4 h-4 text-emerald-500" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-border bg-card/60 p-4 shadow-xs">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                <span>Total Target</span>
+                <Target className="w-3.5 h-3.5 text-emerald-500" />
               </div>
-              <div className="text-2xl font-bold mt-2">
+              <div className="text-lg md:text-xl font-bold text-foreground mt-1.5">
                 {optData ? formatINR(optData.total_target_minor) : '...'}
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              <div className="text-[11px] text-muted-foreground mt-0.5">
                 Across {goals.length} active {goals.length === 1 ? 'goal' : 'goals'}
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
-              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                <span>Baseline Monthly Savings</span>
-                <TrendingUp className="w-4 h-4 text-cyan-500" />
+            <div className="rounded-2xl border border-border bg-card/60 p-4 shadow-xs">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                <span>Baseline Savings</span>
+                <TrendingUp className="w-3.5 h-3.5 text-cyan-500" />
               </div>
-              <div className="text-2xl font-bold mt-2 text-cyan-600 dark:text-cyan-400">
+              <div className="text-lg md:text-xl font-bold text-cyan-600 dark:text-cyan-400 mt-1.5">
                 {optData ? `${formatINR(optData.baseline_monthly_savings_minor)}/mo` : '...'}
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              <div className="text-[11px] text-muted-foreground mt-0.5">
                 Savings Rate: {optData ? `${optData.savings_rate_pct}%` : '0%'}
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
-              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                <span>Freed from Unchecked Subs</span>
-                <Zap className="w-4 h-4 text-amber-500" />
+            <div className="rounded-2xl border border-border bg-card/60 p-4 shadow-xs">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                <span>Freed from Subs</span>
+                <Zap className="w-3.5 h-3.5 text-amber-500" />
               </div>
-              <div className="text-2xl font-bold mt-2 text-amber-600 dark:text-amber-400">
+              <div className="text-lg md:text-xl font-bold text-amber-600 dark:text-amber-400 mt-1.5">
                 {clientFreedPaise > 0 ? `+${formatINR(clientFreedPaise)}/mo` : '₹0/mo'}
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {excludedRecurringIds.length} {excludedRecurringIds.length === 1 ? 'payment paused' : 'payments paused'}
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                {excludedRecurringIds.length} {excludedRecurringIds.length === 1 ? 'expense paused' : 'expenses paused'}
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
-              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                <span>Effective Monthly Savings</span>
-                <Coins className="w-4 h-4 text-emerald-500" />
+            <div className="rounded-2xl border border-border bg-card/60 p-4 shadow-xs">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                <span>Effective Savings</span>
+                <Coins className="w-3.5 h-3.5 text-emerald-500" />
               </div>
-              <div className="text-2xl font-bold mt-2 text-emerald-600 dark:text-emerald-400">
+              <div className="text-lg md:text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1.5">
                 {formatINR(clientOptimizedSavingsPaise)}/mo
               </div>
-              <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">
+              <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium">
                 {clientFreedPaise > 0 ? 'Accelerated timeline active' : 'All subscriptions active'}
               </div>
             </div>
           </div>
 
-          {/* AI Advisory Callout */}
+          {/* Gemini AI Advisory Callout */}
           {optData?.ai_advisory && (
-            <div className="rounded-2xl bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-transparent border border-emerald-500/20 p-5 md:p-6 shadow-sm">
+            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 md:p-5 shadow-xs">
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 mt-0.5">
-                  <Sparkles className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5">
+                  <Sparkles className="w-4 h-4" />
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                      Gemini Advisory & Milestone Blueprint
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                      Gemini Advisory &amp; Milestone Blueprint
                     </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold">
-                      100% Math Verified
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
+                      Verified Facts
                     </span>
                   </div>
-                  <h3 className="text-base font-bold mt-1 text-slate-900 dark:text-slate-100">
+                  <h3 className="text-sm font-bold text-foreground">
                     {optData.ai_advisory.headline}
                   </h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     {optData.ai_advisory.summary}
                   </p>
                 </div>
@@ -415,18 +432,18 @@ export default function GoalsPlannerPage() {
           )}
 
           {/* 4. Active Goals Cards */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                <Layers className="w-5 h-5 text-emerald-500" />
-                Your Active Goals
-              </h2>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                Sorted by target priority
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-emerald-500" />
+                <h2 className="text-sm font-bold text-foreground">Your Active Goals</h2>
+              </div>
+              <span className="text-[11px] text-muted-foreground">
+                Priority order
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {goals.map((g) => {
                 const Icon = getCategoryIcon(g.category);
                 const milestone = optData?.milestones.find((m) => m.goal_id === g.id);
@@ -434,53 +451,53 @@ export default function GoalsPlannerPage() {
                 return (
                   <div
                     key={g.id}
-                    className="rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between"
+                    className="rounded-2xl border border-border bg-card/60 hover:border-border/90 p-4 md:p-5 shadow-xs transition flex flex-col justify-between space-y-4"
                   >
                     <div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-800">
+                          <div className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                             <Icon className="w-4 h-4" />
                           </div>
                           <div>
-                            <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">{g.title}</h3>
-                            <span className="text-[11px] text-slate-400 capitalize">{g.category || 'Goal'}</span>
+                            <h3 className="font-bold text-sm text-foreground">{g.title}</h3>
+                            <span className="text-[11px] text-muted-foreground capitalize">{g.category || 'Goal'}</span>
                           </div>
                         </div>
                         <button
                           onClick={() => handleDeleteGoal(g.id)}
                           title="Delete goal"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                          className="p-1.5 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition cursor-pointer"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
                       <div className="mt-4">
-                        <div className="text-xs text-slate-400">Target Amount</div>
-                        <div className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                        <div className="text-[11px] text-muted-foreground">Target Amount</div>
+                        <div className="text-lg font-bold text-foreground">
                           {formatINR(g.target_amount_minor)}
                         </div>
                       </div>
 
                       {/* Milestone timeline information */}
                       {milestone && (
-                        <div className="mt-4 space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                        <div className="mt-3.5 space-y-2 pt-3 border-t border-border/50">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-500">Baseline Horizon:</span>
-                            <span className="font-semibold">{milestone.baseline_months} months ({milestone.baseline_date})</span>
+                            <span className="text-muted-foreground">Baseline Horizon:</span>
+                            <span className="font-semibold text-foreground">{milestone.baseline_months}m ({milestone.baseline_date})</span>
                           </div>
 
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-500">Optimized Horizon:</span>
+                            <span className="text-muted-foreground">Optimized Horizon:</span>
                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                              {milestone.optimized_months} months ({milestone.optimized_date})
+                              {milestone.optimized_months}m ({milestone.optimized_date})
                             </span>
                           </div>
 
                           {milestone.months_saved > 0 && (
-                            <div className="flex items-center gap-1.5 p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
-                              <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+                            <div className="flex items-center gap-1.5 p-2 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                              <Sparkles className="w-3.5 h-3.5 shrink-0" />
                               <span>Saves {milestone.months_saved} months with paused subscriptions!</span>
                             </div>
                           )}
@@ -495,66 +512,66 @@ export default function GoalsPlannerPage() {
 
           {/* 5. Mentor's Interactive Recurring Expense Checkbox Optimizer */}
           {optData && optData.recurring_items.length > 0 && (
-            <div className="rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="rounded-2xl border border-border bg-card/60 p-4 md:p-5 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/50">
                 <div>
-                  <h2 className="text-lg font-bold flex items-center gap-2">
-                    <SlidersHorizontal className="w-5 h-5 text-emerald-500" />
+                  <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-emerald-500" />
                     Recurring Expense Optimizer
                   </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    All recurring expenses are checked by default. <b>Uncheck</b> any subscription to pause it and see how much faster you achieve your goals!
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    All recurring expenses are checked by default. <b>Uncheck</b> any subscription to simulate pausing it and see your timeline accelerate!
                   </p>
                 </div>
 
                 {clientFreedPaise > 0 ? (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
-                    <Zap className="w-4 h-4 text-emerald-500" />
-                    <span>+{formatINR(clientFreedPaise)}/month freed for your goals!</span>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold self-start sm:self-auto">
+                    <Zap className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>+{formatINR(clientFreedPaise)}/mo unlocked for your goals!</span>
                   </div>
                 ) : (
-                  <div className="text-xs text-slate-400">
-                    Uncheck subscriptions below to simulate cuts
+                  <div className="text-[11px] text-muted-foreground self-start sm:self-auto">
+                    Uncheck subscriptions below to test cuts
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {optData.recurring_items.map((item) => {
                   const isChecked = !excludedRecurringIds.includes(item.id);
 
                   return (
                     <label
                       key={item.id}
-                      className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
+                      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition select-none ${
                         isChecked
-                          ? 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                          : 'bg-rose-50/20 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/60'
+                          ? 'bg-muted/30 border-border hover:bg-muted/60'
+                          : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-400'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2.5">
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleRecurring(item.id)}
-                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer"
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-border bg-card cursor-pointer accent-emerald-600"
                         />
                         <div>
-                          <div className={`text-sm font-semibold ${!isChecked ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100'}`}>
+                          <div className={`text-xs font-semibold ${!isChecked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                             {item.merchant}
                           </div>
-                          <div className="text-[11px] text-slate-400 capitalize">
+                          <div className="text-[10px] text-muted-foreground capitalize">
                             {item.type} • {item.cadence}
                           </div>
                         </div>
                       </div>
 
                       <div className="text-right">
-                        <div className={`text-sm font-bold ${!isChecked ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-slate-700 dark:text-slate-300'}`}>
+                        <div className={`text-xs font-bold ${!isChecked ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-foreground'}`}>
                           {formatINR(item.amount_minor)}
                         </div>
-                        <div className="text-[10px] text-slate-400">
-                          {isChecked ? 'active expense' : 'freed to savings'}
+                        <div className="text-[9px] text-muted-foreground">
+                          {isChecked ? 'active commitment' : 'freed to savings'}
                         </div>
                       </div>
                     </label>
@@ -566,36 +583,36 @@ export default function GoalsPlannerPage() {
 
           {/* 6. Dynamic Recharts Projection Timeline Chart */}
           {optData && optData.projection_graph.length > 0 && (
-            <div className="rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+            <div className="rounded-2xl border border-border bg-card/60 p-4 md:p-5 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h2 className="text-lg font-bold flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-emerald-500" />
+                  <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-500" />
                     24-Month Goal Accumulation Trajectory
                   </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Comparison between your baseline savings run-rate vs optimized savings with paused expenses.
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Baseline savings trajectory compared with optimized savings trajectory.
                   </p>
                 </div>
                 
-                <div className="flex items-center gap-4 text-xs font-medium">
+                <div className="flex items-center gap-3 text-xs font-medium self-start sm:self-auto">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-cyan-500" />
-                    <span className="text-slate-600 dark:text-slate-400">Baseline Savings</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-500" />
+                    <span className="text-muted-foreground">Baseline</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-emerald-500" />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Optimized Savings</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Optimized</span>
                   </div>
                 </div>
               </div>
 
-              <div className="h-72 w-full">
+              <div className="h-64 w-full pt-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={optData.projection_graph} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="optGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                       </linearGradient>
                       <linearGradient id="baseGradient" x1="0" y1="0" x2="0" y2="1">
@@ -603,16 +620,16 @@ export default function GoalsPlannerPage() {
                         <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} />
                     <XAxis
                       dataKey="month_label"
-                      stroke="#94a3b8"
-                      fontSize={11}
+                      stroke="var(--muted-foreground)"
+                      fontSize={10}
                       tickLine={false}
                     />
                     <YAxis
-                      stroke="#94a3b8"
-                      fontSize={11}
+                      stroke="var(--muted-foreground)"
+                      fontSize={10}
                       tickFormatter={(v) => `₹${(v / 100000).toFixed(0)}k`}
                       tickLine={false}
                       axisLine={false}
@@ -620,11 +637,11 @@ export default function GoalsPlannerPage() {
                     <Tooltip
                       formatter={(val: any) => [formatINR(Number(val)), '']}
                       contentStyle={{
-                        backgroundColor: '#0f172a',
-                        borderColor: '#334155',
+                        backgroundColor: 'var(--card)',
+                        borderColor: 'var(--border)',
                         borderRadius: '0.75rem',
                         fontSize: '0.75rem',
-                        color: '#f8fafc'
+                        color: 'var(--card-foreground)'
                       }}
                     />
                     <ReferenceLine
@@ -652,7 +669,7 @@ export default function GoalsPlannerPage() {
                       dataKey="optimized_saved_minor"
                       name="Optimized Trajectory"
                       stroke="#10b981"
-                      strokeWidth={2.5}
+                      strokeWidth={2}
                       fillOpacity={1}
                       fill="url(#optGradient)"
                     />
