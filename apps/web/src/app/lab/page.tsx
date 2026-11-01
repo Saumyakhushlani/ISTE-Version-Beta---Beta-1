@@ -11,7 +11,13 @@ import {
   Clock, 
   CreditCard, 
   Zap, 
-  Send
+  Send,
+  Smartphone,
+  Plane,
+  Gamepad2,
+  Laptop,
+  Bike,
+  Tv
 } from 'lucide-react';
 import { formatINR } from '@fdl/shared';
 import { api } from '@/lib/api';
@@ -74,20 +80,20 @@ interface PurchaseChatMessage {
 }
 
 const DEFAULT_PURCHASE_STARTERS = [
-  '📱 Can I buy an iPhone 16 Pro?',
-  '✈️ Can I spend on a Goa trip this month?',
-  '🎮 Can I afford a PS5?',
-  '💻 Can I buy a MacBook Air for ₹1,14,900?',
-  '🛵 Can I buy an Electric Scooter?',
+  { icon: Smartphone, label: 'Can I buy an iPhone 16 Pro?', query: 'Can I buy an iPhone 16 Pro?' },
+  { icon: Plane, label: 'Can I spend on a Goa trip this month?', query: 'Can I spend on a Goa trip this month?' },
+  { icon: Gamepad2, label: 'Can I afford a PS5?', query: 'Can I afford a PS5?' },
+  { icon: Laptop, label: 'Can I buy a MacBook Air for ₹1,14,900?', query: 'Can I buy a MacBook Air for ₹1,14,900?' },
+  { icon: Bike, label: 'Can I buy an Electric Scooter?', query: 'Can I buy an Electric Scooter?' },
 ];
 
 const QUICK_PURCHASE_PILLS = [
-  { name: 'iPhone 16 Pro', query: 'Can I buy an iPhone 16 Pro?' },
-  { name: 'Goa Vacation', query: 'Can I spend on a Goa trip this month?' },
-  { name: 'Sony PS5', query: 'Can I buy a Sony PS5 console?' },
-  { name: 'MacBook Air M3', query: 'Can I afford a MacBook Air M3?' },
-  { name: 'Electric Scooter', query: 'Can I buy an electric scooter?' },
-  { name: '55" 4K TV', query: 'Can I buy a 55-inch Smart TV?' },
+  { icon: Smartphone, name: 'iPhone 16 Pro', query: 'Can I buy an iPhone 16 Pro?' },
+  { icon: Plane, name: 'Goa Vacation', query: 'Can I spend on a Goa trip this month?' },
+  { icon: Gamepad2, name: 'Sony PS5', query: 'Can I buy a Sony PS5 console?' },
+  { icon: Laptop, name: 'MacBook Air M3', query: 'Can I afford a MacBook Air M3?' },
+  { icon: Bike, name: 'Electric Scooter', query: 'Can I buy an electric scooter?' },
+  { icon: Tv, name: '55" 4K TV', query: 'Can I buy a 55-inch Smart TV?' },
 ];
 
 function getFormattedTime(): string {
@@ -258,16 +264,20 @@ export default function DecisionLabPage() {
             <HelpCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             Try asking:
           </span>
-          {DEFAULT_PURCHASE_STARTERS.map((q, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleSendPurchaseChat(q)}
-              disabled={isSendingChat}
-              className="text-xs px-3 py-1.5 rounded-full bg-card hover:bg-muted border border-border hover:border-emerald-500/50 text-foreground transition shrink-0 whitespace-nowrap cursor-pointer shadow-2xs font-medium"
-            >
-              {q}
-            </button>
-          ))}
+          {DEFAULT_PURCHASE_STARTERS.map((item, idx) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={idx}
+                onClick={() => handleSendPurchaseChat(item.query)}
+                disabled={isSendingChat}
+                className="text-xs px-3 py-1.5 rounded-full bg-card hover:bg-muted border border-border hover:border-emerald-500/50 text-foreground transition shrink-0 whitespace-nowrap cursor-pointer shadow-2xs font-medium inline-flex items-center gap-1.5"
+              >
+                <Icon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Messages Thread */}
@@ -449,17 +459,21 @@ export default function DecisionLabPage() {
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">
             Presets:
           </span>
-          {QUICK_PURCHASE_PILLS.map((p) => (
-            <button
-              key={p.name}
-              type="button"
-              onClick={() => handleSendPurchaseChat(p.query)}
-              disabled={isSendingChat}
-              className="text-[11px] px-2.5 py-1 rounded-lg bg-card hover:bg-muted border border-border hover:border-emerald-500/40 text-foreground transition shrink-0 cursor-pointer shadow-2xs font-medium"
-            >
-              <span>{p.name}</span>
-            </button>
-          ))}
+          {QUICK_PURCHASE_PILLS.map((p) => {
+            const Icon = p.icon;
+            return (
+              <button
+                key={p.name}
+                type="button"
+                onClick={() => handleSendPurchaseChat(p.query)}
+                disabled={isSendingChat}
+                className="text-[11px] px-2.5 py-1 rounded-lg bg-card hover:bg-muted border border-border hover:border-emerald-500/40 text-foreground transition shrink-0 cursor-pointer shadow-2xs font-medium inline-flex items-center gap-1.5"
+              >
+                <Icon className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <span>{p.name}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Chat Input Bar */}
