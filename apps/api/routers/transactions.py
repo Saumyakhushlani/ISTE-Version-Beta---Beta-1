@@ -4,13 +4,14 @@ Provides listing, filtering, search, and user category corrections with transact
 Enforces strict multi-user data isolation.
 """
 
-from typing import Optional, List
+import re
 import json
+from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import asc, desc, nulls_last
+from sqlalchemy import asc, desc, nulls_last, or_
 
 from db.database import get_db
 from db.models import Transaction, CorrectionLog, Account, User
@@ -235,10 +236,20 @@ def _apply_category_override(txn_id: str, req: CategoryCorrectionRequest, curren
         raise HTTPException(status_code=404, detail="Transaction not found or access denied.")
 
     if req.scope == "same_merchant" and target.normalized_description:
-        matching_txns = db.query(Transaction).filter_by(
-            normalized_description=target.normalized_description,
-            status="active"
-        ).filter(Transaction.account_id.in_(user_account_ids)).all()
+        # Strip time tags (e.g. ' • 12:59 AM') to match all transactions for the merchant
+        base_desc = re.sub(r"\s*[•\(\[]\s*\d{1,2}:\d{2}.*$", "", target.normalized_description).strip()
+        conditions = [Transaction.normalized_description == target.normalized_description]
+        if target.merchant_id:
+            conditions.append(Transaction.merchant_id == target.merchant_id)
+        if base_desc:
+            conditions.append(Transaction.normalized_description.like(f"{base_desc}%"))
+            conditions.append(Transaction.raw_description.like(f"%{base_desc}%"))
+
+        matching_txns = db.query(Transaction).filter(
+            or_(*conditions),
+            Transaction.status == "active",
+            Transaction.account_id.in_(user_account_ids)
+        ).all()
     else:
         matching_txns = [target]
 

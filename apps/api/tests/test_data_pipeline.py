@@ -49,6 +49,32 @@ def test_deduplication_idempotence():
     assert to_insert == []
     assert merged_count == len(txns)
 
+def test_deduplication_with_timestamped_email_and_statement():
+    """Verify that an email transaction with time suffix matches later statement upload without time."""
+    email_txn = {
+        "posted_date": "2026-10-30",
+        "amount_minor": -34000,
+        "normalized_description": "Mr Deepesh Lodhi • 12:59 AM",
+        "raw_description": "UPI / Mr Deepesh Lodhi / VPA test@okbizaxis • 12:59 AM",
+        "status": "active"
+    }
+    statement_txn = {
+        "posted_date": "2026-10-30",
+        "amount_minor": -34000,
+        "normalized_description": "Mr Deepesh Lodhi",
+        "raw_description": "UPI-MR DEEPESH LODHI-TEST@OKBIZAXIS",
+        "status": "active"
+    }
+    # 1. Email already in DB, statement comes in later
+    to_insert, merged = deduplicate_transactions([dict(statement_txn)], [dict(email_txn)], "acct_test")
+    assert merged == 1
+    assert to_insert == []
+
+    # 2. Statement already in DB, email comes in
+    to_insert2, merged2 = deduplicate_transactions([dict(email_txn)], [dict(statement_txn)], "acct_test")
+    assert merged2 == 1
+    assert to_insert2 == []
+
 def test_internal_transfer_pairing():
     """Assert that offsetting transactions between HDFC and SBI are paired and netted."""
     hdfc_path = os.path.join(SYNTHETIC_DIR, "aarav", "hdfc_statement.csv")

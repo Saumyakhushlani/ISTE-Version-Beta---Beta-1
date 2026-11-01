@@ -7,15 +7,18 @@ and feeds them through the deterministic FDL post-import pipeline.
 
 import os
 import re
+import math
 import base64
 import hashlib
+import email.utils
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
+from concurrent.futures import ThreadPoolExecutor
 import httpx
 from sqlalchemy.orm import Session
 
 from db.models import User, Account, SourceFile, OAuthAccount, EmailSyncAudit, EgressLog
-from parsers.email_alert_parser import EmailAlertParser
+from parsers.email_alert_parser import EmailAlertParser, IST
 from engine.google_oauth import get_valid_access_token, _log_egress
 from routers.imports import _run_post_import_pipeline
 
@@ -72,20 +75,24 @@ def run_gmail_24h_sync(
     custom_query: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Scans Gmail for bank notification messages within the past `hours` (default 24h),
-    extracts transaction details, and inserts them into the FDL engine.
+    Scans Gmail for bank notification messages strictly within the trailing `hours` (default 24h),
+    extracts transaction details with timestamps, and inserts them into the FDL engine.
+    Optimized for high performance with batch audit lookups and concurrent parallel message fetching.
     """
     access_token = get_valid_access_token(user.id, db)
     if not access_token:
         raise ValueError("Google account not connected or authorization expired. Please connect via OAuth.")
 
-    # 1. Compute 24-hour timestamp cutoff
+    # 1. Compute strict timestamp cutoff (trailing 24 hours by default)
     cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
     cutoff_epoch = int(cutoff_time.timestamp())
+    days_span = max(1, math.ceil(hours / 24))
 
-    # Build targeted search query
+    # Strict 24-hour bounding filter for Gmail search index:
+    # "newer_than:1d after:{cutoff_epoch} (from:... OR subject:...)"
+    # Guarantees Google never scans or returns older messages outside the 24-hour window.
     base_filter = (
-        "after:" + str(cutoff_epoch) + " "
+        f"newer_than:{days_span}d after:{cutoff_epoch} "
         "(from:(alerts@hdfcbank.bank.in OR alerts@hdfcbank.net OR sbi.co.in OR icicibank.com OR axisbank.com OR kotak.com OR paytm OR phonepe OR cred) "
         "OR subject:(debited OR credited OR spent OR 'UPI txn' OR transaction OR alert))"
     )
@@ -108,28 +115,58 @@ def run_gmail_24h_sync(
     txns_added = 0
     duplicates_skipped = 0
 
-    # Group extracted transactions by account_last4
-    txns_by_account: Dict[str, List[Dict[str, Any]]] = {}
+    # 2. Batch Audit Lookup: O(1) in-memory check to eliminate N+1 DB queries
+    all_msg_ids = [m["id"] for m in messages_list if "id" in m]
+    existing_audits: Dict[str, str] = {}
+    if all_msg_ids:
+        rows = db.query(EmailSyncAudit.google_message_id, EmailSyncAudit.status).filter(
+            EmailSyncAudit.user_id == user.id,
+            EmailSyncAudit.google_message_id.in_(all_msg_ids)
+        ).all()
+        for r in rows:
+            existing_audits[r[0]] = r[1]
 
+    ids_to_fetch: List[str] = []
     for msg_meta in messages_list:
         msg_id = msg_meta.get("id")
         if not msg_id:
             continue
-
-        # Check if already processed
-        existing_audit = db.query(EmailSyncAudit).filter_by(user_id=user.id, google_message_id=msg_id).first()
-        if existing_audit and existing_audit.status in ("parsed", "skipped_non_financial"):
+        if msg_id in existing_audits and existing_audits[msg_id] in ("parsed", "skipped_non_financial"):
             duplicates_skipped += 1
             continue
+        ids_to_fetch.append(msg_id)
 
-        # Fetch message payload
-        detail_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=full"
-        _log_egress(db, user.id, "Fetch Gmail Message Detail", detail_url, {"message_id": msg_id})
-        msg_resp = httpx.get(detail_url, headers=headers, timeout=15.0)
-        if msg_resp.status_code != 200:
+    # 3. Concurrent Parallel Fetching: Fetch message payloads using worker threads
+    fetched_messages: Dict[str, Dict[str, Any]] = {}
+    if ids_to_fetch:
+        def _fetch_single_msg(m_id: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+            detail_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m_id}?format=full"
+            try:
+                # Direct httpx.get ensures mock compatibility with unit test suites
+                msg_resp = httpx.get(detail_url, headers=headers, timeout=15.0)
+                if msg_resp.status_code == 200:
+                    return m_id, msg_resp.json()
+            except Exception:
+                pass
+            return m_id, None
+
+        max_workers = min(8, len(ids_to_fetch))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for m_id, m_payload in executor.map(_fetch_single_msg, ids_to_fetch):
+                if m_payload:
+                    fetched_messages[m_id] = m_payload
+
+        _log_egress(db, user.id, "Fetch Gmail Message Details (Concurrent)", f"Fetched {len(fetched_messages)} messages", {"count": len(fetched_messages)})
+
+    # Group extracted transactions by account_last4
+    txns_by_account: Dict[str, List[Dict[str, Any]]] = {}
+    audits_to_add: List[EmailSyncAudit] = []
+
+    for msg_id in ids_to_fetch:
+        msg_json = fetched_messages.get(msg_id)
+        if not msg_json:
             continue
 
-        msg_json = msg_resp.json()
         payload = msg_json.get("payload", {})
         headers_list = payload.get("headers", [])
 
@@ -145,27 +182,47 @@ def run_gmail_24h_sync(
             elif name == "date":
                 date_header = h.get("value", "")
 
+        # 4. Strict 24-Hour Engine-Side Guard & Timestamp Extraction
+        email_dt: Optional[datetime] = None
+        if date_header:
+            try:
+                email_dt = email.utils.parsedate_to_datetime(date_header)
+            except Exception:
+                email_dt = None
+
+        if not email_dt and msg_json.get("internalDate"):
+            try:
+                epoch_ms = int(msg_json["internalDate"])
+                email_dt = datetime.fromtimestamp(epoch_ms / 1000.0, tz=timezone.utc)
+            except Exception:
+                pass
+
+        # Validate that message falls strictly within the trailing 24 hours
+        if email_dt:
+            dt_utc = email_dt.astimezone(timezone.utc) if email_dt.tzinfo else email_dt.replace(tzinfo=timezone.utc)
+            if dt_utc < cutoff_time:
+                # Beyond the 24-hour cutoff, drop immediately
+                continue
+
         body_text = _extract_body_text_from_payload(payload)
 
-        # Parse alert
+        # Parse alert with timestamp
         parsed_alert = EmailAlertParser.parse_alert(
             subject=subject,
             sender=sender,
             body=body_text,
-            received_at=datetime.now(timezone.utc)
+            email_datetime=email_dt
         )
 
         if not parsed_alert:
-            audit = EmailSyncAudit(
+            audits_to_add.append(EmailSyncAudit(
                 user_id=user.id,
                 google_message_id=msg_id,
                 sender=sender[:255] if sender else None,
                 subject=subject[:255] if subject else None,
                 status="skipped_non_financial",
                 transactions_extracted=0
-            )
-            db.add(audit)
-            db.commit()
+            ))
             continue
 
         alerts_parsed += 1
@@ -178,7 +235,7 @@ def run_gmail_24h_sync(
         parsed_alert["_sender"] = sender
         txns_by_account[last4].append(parsed_alert)
 
-    # Ingest transactions per account
+    # 5. Ingest transactions per account through FDL pipeline
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     for last4, alert_list in txns_by_account.items():
         sample_alert = alert_list[0]
@@ -256,17 +313,20 @@ def run_gmail_24h_sync(
         inserted_count = pipeline_result.get("inserted_count", len(formatted_txns))
         txns_added += inserted_count
 
-        # Record audits
+        # Record audits for parsed messages
         for alert in alert_list:
-            audit = EmailSyncAudit(
+            audits_to_add.append(EmailSyncAudit(
                 user_id=user.id,
                 google_message_id=alert["_msg_id"],
                 sender=alert["_sender"][:255] if alert.get("_sender") else None,
                 subject=alert["_subject"][:255] if alert.get("_subject") else None,
                 status="parsed",
                 transactions_extracted=1
-            )
-            db.add(audit)
+            ))
+
+    # Commit all accumulated audits in a single batch
+    if audits_to_add:
+        db.add_all(audits_to_add)
         db.commit()
 
     # Update OAuthAccount last_synced_at

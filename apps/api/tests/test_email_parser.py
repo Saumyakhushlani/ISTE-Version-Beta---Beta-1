@@ -1,12 +1,18 @@
 """
 Unit tests for Email Alert Parser.
-Verifies parsing of the user's exact HDFC UPI transaction alert email,
-as well as edge cases, credit alerts, and rejection of non-financial emails.
+Verifies parsing of bank transaction alert emails, timestamp extraction,
+enriched description formatting, and rejection of non-financial emails.
 """
 
 import pytest
-from datetime import datetime
-from parsers.email_alert_parser import EmailAlertParser, parse_currency_to_paise, normalize_date_string
+from datetime import datetime, timezone, timedelta
+from parsers.email_alert_parser import (
+    EmailAlertParser,
+    parse_currency_to_paise,
+    normalize_date_string,
+    extract_transaction_time,
+    IST
+)
 
 def test_currency_and_date_helpers():
     assert parse_currency_to_paise("340.00") == 34000
@@ -54,6 +60,39 @@ HDFC Bank
     assert result["channel"] == "UPI"
     assert result["reference_number"] == "074486320407"
     assert len(result["fingerprint"]) == 64
+
+def test_timestamp_extraction_and_description_enrichment():
+    """Verifies that transaction time is extracted and added to descriptions."""
+    # 1. From email datetime (Date header)
+    email_dt = datetime(2026, 10, 30, 0, 59, 0, tzinfo=IST)
+    time_str = extract_transaction_time("No time in body", email_dt)
+    assert time_str == "12:59 AM"
+
+    # Afternoon time
+    pm_dt = datetime(2026, 10, 30, 14, 30, 0, tzinfo=IST)
+    assert extract_transaction_time("No time in body", pm_dt) == "02:30 PM"
+
+    # 2. From body explicit timestamp
+    body_with_time = "Rs. 500 debited from account ending 1234 on 30-10-2026 at 14:32:10 towards Swiggy"
+    time_from_body = extract_transaction_time(body_with_time)
+    assert time_from_body == "02:32 PM"
+
+    # 3. Full alert parsing with email_datetime
+    subject = "❗ You have done a UPI txn."
+    sender = "alerts@hdfcbank.bank.in"
+    body = "Rs.340.00 is debited from your account ending 2650 towards VPA test@okbizaxis (Mr Deepesh Lodhi) on 30-10-26."
+    res = EmailAlertParser.parse_alert(
+        subject=subject,
+        sender=sender,
+        body=body,
+        email_datetime=email_dt
+    )
+    assert res is not None
+    assert res["time_str"] == "12:59 AM"
+    assert "• 12:59 AM" in res["raw_description"]
+    assert "• 12:59 AM" in res["normalized_description"]
+    # Merchant remains clean for dictionary/ML lookup
+    assert res["merchant"] == "Mr Deepesh Lodhi"
 
 def test_rejection_of_non_financial_emails():
     """OTP requests, newsletters, and promotional emails must be rejected."""

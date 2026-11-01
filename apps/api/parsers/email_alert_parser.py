@@ -9,14 +9,53 @@ Strictly adheres to:
 
 import re
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 from parsers.amount_parser import parse_indian_amount_to_paise
+
+# Indian Standard Time (IST) offset is UTC + 05:30
+IST = timezone(timedelta(hours=5, minutes=30))
 
 def parse_currency_to_paise(val_str: str) -> int:
     """Converts a currency string like '340.00' or 'Rs. 1,250.75' into integer paise."""
     res = parse_indian_amount_to_paise(val_str)
     return abs(res) if res is not None else 0
+
+def extract_transaction_time(text: str, email_datetime: Optional[datetime] = None) -> Optional[str]:
+    """
+    Extracts transaction timestamp from email text or email header datetime.
+    Returns 12-hour formatted Indian Standard Time string, e.g. '12:59 AM' or '02:30 PM'.
+    """
+    # 1. Search for explicit time expressions in email text
+    # e.g., "at 14:32:10", "at 02:32 PM", "at 14:32", "on 30-10-26 14:32:10", "14:32 hrs"
+    time_match = re.search(
+        r"(?:at|time[:\s]|dated\s+[^\n,]+?\s+at|on\s+[\d]{1,2}[-/][A-Za-z0-9]{2,4}[-/][\d]{2,4}\s+at?)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)",
+        text,
+        re.IGNORECASE
+    )
+    if not time_match:
+        # Check alternate pattern e.g. "14:32:10 hrs" or "02:30 PM"
+        time_match = re.search(r"\b(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm))\b", text)
+
+    if time_match:
+        raw_time = time_match.group(1).strip()
+        # Parse into standard 12-hour format e.g. "02:30 PM" or "12:59 AM"
+        for fmt in ["%I:%M:%S %p", "%I:%M %p", "%I:%M:%S%p", "%I:%M%p", "%H:%M:%S", "%H:%M"]:
+            try:
+                t_obj = datetime.strptime(raw_time.upper(), fmt)
+                return t_obj.strftime("%I:%M %p")
+            except ValueError:
+                continue
+
+    # 2. Fallback to email_datetime (converted to IST)
+    if email_datetime:
+        if email_datetime.tzinfo is None:
+            dt_ist = email_datetime.replace(tzinfo=IST)
+        else:
+            dt_ist = email_datetime.astimezone(IST)
+        return dt_ist.strftime("%I:%M %p")
+
+    return None
 
 def normalize_date_string(date_str: str) -> str:
     """
@@ -79,7 +118,8 @@ class EmailAlertParser:
         subject: str,
         sender: str,
         body: str,
-        received_at: Optional[datetime] = None
+        received_at: Optional[datetime] = None,
+        email_datetime: Optional[datetime] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Parses email subject, sender, and body into a structured transaction dict.
@@ -90,6 +130,10 @@ class EmailAlertParser:
 
         # Clean text
         text = f"{subject}\n{body}"
+
+        # Determine effective timestamp and extract time string (e.g. "12:59 AM")
+        effective_dt = email_datetime or received_at
+        time_str = extract_transaction_time(text, effective_dt)
 
         # 1. Detect Bank
         bank = "HDFC Bank"
@@ -151,7 +195,8 @@ class EmailAlertParser:
                 raw_desc=raw_desc,
                 merchant=merchant,
                 channel="UPI",
-                ref_no=ref_no
+                ref_no=ref_no,
+                time_str=time_str
             )
 
         # 5. Pattern B: Generic Indian Bank Debit/Credit with Account and Date
@@ -191,7 +236,8 @@ class EmailAlertParser:
                 raw_desc=raw_desc,
                 merchant=merchant,
                 channel=channel,
-                ref_no=ref_no
+                ref_no=ref_no,
+                time_str=time_str
             )
 
         # 6. Fallback Pattern C: Amount and Account Last 4 with email received date
@@ -204,7 +250,7 @@ class EmailAlertParser:
             abs_paise = parse_currency_to_paise(amount_str)
             amount_minor = abs_paise if is_credit else -abs_paise
 
-            posted_date = received_at.strftime("%Y-%m-%d") if received_at else datetime.now().strftime("%Y-%m-%d")
+            posted_date = effective_dt.strftime("%Y-%m-%d") if effective_dt else datetime.now().strftime("%Y-%m-%d")
             # Check if there's any explicit date in text
             date_match = re.search(r"(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})", text)
             if date_match:
@@ -224,7 +270,8 @@ class EmailAlertParser:
                 raw_desc=raw_desc,
                 merchant=merchant,
                 channel=channel,
-                ref_no=ref_no
+                ref_no=ref_no,
+                time_str=time_str
             )
 
         return None
@@ -239,21 +286,31 @@ class EmailAlertParser:
         raw_desc: str,
         merchant: str,
         channel: str,
-        ref_no: Optional[str]
+        ref_no: Optional[str],
+        time_str: Optional[str] = None
     ) -> Dict[str, Any]:
         """Constructs a normalized transaction dictionary for ingestion."""
-        # Generate idempotent fingerprint
+        # Generate idempotent fingerprint based on pure transaction fields
         fp_seed = f"{posted_date}|{amount_minor}|{ref_no or merchant}|{account_last4}"
         fingerprint = hashlib.sha256(fp_seed.encode("utf-8")).hexdigest()
+
+        # Format descriptions with time when available
+        if time_str:
+            enriched_raw_desc = f"{raw_desc} • {time_str}"
+            enriched_norm_desc = f"{merchant} • {time_str}"
+        else:
+            enriched_raw_desc = raw_desc
+            enriched_norm_desc = merchant
 
         return {
             "bank": bank,
             "account_last4": account_last4,
             "amount_minor": amount_minor,
             "posted_date": posted_date,
-            "raw_description": raw_desc,
-            "normalized_description": merchant,
+            "raw_description": enriched_raw_desc,
+            "normalized_description": enriched_norm_desc,
             "merchant": merchant,
+            "time_str": time_str,
             "channel": channel,
             "reference_number": ref_no,
             "fingerprint": fingerprint,

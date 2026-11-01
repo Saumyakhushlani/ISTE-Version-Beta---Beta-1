@@ -4,6 +4,7 @@ Implements the occurrence-ordinal deduplication algorithm (PRD §8.2)
 and cross-account internal transfer matcher (spec §2.2).
 """
 
+import re
 import hashlib
 import json
 import uuid
@@ -14,6 +15,13 @@ from typing import List, Dict, Any, Tuple
 TRANSFER_DATE_TOLERANCE_DAYS = 2
 TRANSFER_FEE_TOLERANCE_PAISE = 2500  # ₹25.00 for IMPS/NEFT fee tolerance
 
+def strip_time_tag(desc: str) -> str:
+    """Removes trailing timestamp suffix like ' • 12:59 AM' or ' (12:59 AM)' for canonical dedupe grouping."""
+    if not desc:
+        return ""
+    cleaned = re.sub(r"\s*[•\(\[]\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?[\]\)]?", "", desc)
+    return cleaned.strip()
+
 def compute_fingerprint(
     account_id: str,
     posted_date: str,
@@ -23,8 +31,10 @@ def compute_fingerprint(
 ) -> str:
     """
     Computes deterministic SHA-256 fingerprint for a transaction.
+    Uses canonical base description (without timestamp tag) for cross-statement idempotency.
     """
-    raw_key = f"{account_id}|{posted_date}|{amount_minor}|{normalized_description}|{occurrence_index}"
+    base_desc = strip_time_tag(normalized_description)
+    raw_key = f"{account_id}|{posted_date}|{amount_minor}|{base_desc}|{occurrence_index}"
     return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
 def deduplicate_transactions(
@@ -39,19 +49,21 @@ def deduplicate_transactions(
     2. Across overlapping statements, occurrences are aligned by (date, amount, occurrence_index).
        The overlapping count is max(k, m), preventing double-counting.
     """
-    # Group existing transactions by (posted_date, amount_minor, normalized_description)
+    # Group existing transactions by (posted_date, amount_minor, base_normalized_description)
     existing_buckets: Dict[Tuple[str, int, str], List[Dict[str, Any]]] = {}
     for txn in existing_txns:
         txn_acct = txn.get("account_id", account_id)
         txn_status = txn.get("status", "active")
         if txn_acct == account_id and txn_status == "active":
-            key = (txn["posted_date"], txn["amount_minor"], txn.get("normalized_description", ""))
+            norm_key = strip_time_tag(txn.get("normalized_description", ""))
+            key = (txn["posted_date"], txn["amount_minor"], norm_key)
             existing_buckets.setdefault(key, []).append(txn)
 
     # Group incoming transactions
     incoming_buckets: Dict[Tuple[str, int, str], List[Dict[str, Any]]] = {}
     for txn in incoming_txns:
-        key = (txn["posted_date"], txn["amount_minor"], txn.get("normalized_description", ""))
+        norm_key = strip_time_tag(txn.get("normalized_description", ""))
+        key = (txn["posted_date"], txn["amount_minor"], norm_key)
         incoming_buckets.setdefault(key, []).append(txn)
 
     to_insert: List[Dict[str, Any]] = []

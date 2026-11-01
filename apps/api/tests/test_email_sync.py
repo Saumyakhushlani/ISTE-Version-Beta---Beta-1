@@ -2,9 +2,9 @@
 Integration and Unit Tests for Google OAuth & 24-Hour Email Ingestion.
 Verifies:
 1. Token encryption / decryption using Fernet with AUTH_SECRET.
-2. Status endpoint returns disconnected when no tokens present.
+2. Status endpoint returns connection state with valid auth.
 3. Authorize endpoint generates valid Google OAuth consent URL.
-4. 24-hour sync with simulated Gmail API responses (using user's exact HDFC email).
+4. Strict 24-hour sync with parallel fetching and timestamp enrichment in description.
 5. X-Service-Key external authentication.
 """
 
@@ -19,7 +19,8 @@ from main import app
 from db.database import Base, engine, get_db
 from db.models import User, Account, Transaction, OAuthAccount, EmailSyncAudit, DEMO_USER_ID
 from engine.google_oauth import encrypt_secret, decrypt_secret, save_or_update_oauth_account
-from auth import INTERNAL_SERVICE_KEY
+from auth import INTERNAL_SERVICE_KEY, create_access_token
+from parsers.email_alert_parser import IST
 
 client = TestClient(app)
 
@@ -31,13 +32,15 @@ def test_fernet_token_encryption():
     assert decrypted == secret_token
 
 def test_email_sync_status_endpoint():
-    resp = client.get("/api/email-sync/status")
+    token = create_access_token(DEMO_USER_ID, "test@fdl.local")
+    resp = client.get("/api/email-sync/status", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     data = resp.json()
     assert "is_connected" in data
 
 def test_email_sync_authorize_endpoint():
-    resp = client.get("/api/email-sync/oauth/authorize")
+    token = create_access_token(DEMO_USER_ID, "test@fdl.local")
+    resp = client.get("/api/email-sync/oauth/authorize", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
@@ -47,7 +50,11 @@ def test_email_sync_authorize_endpoint():
 def test_gmail_24h_sync_with_mocked_api(db_session=None):
     """
     Simulates Google OAuth connection and Gmail API returning
-    the user's exact HDFC Bank UPI alert email.
+    the user's exact HDFC Bank UPI alert email within trailing 24h.
+    Verifies that:
+    1. Gmail query uses strict 24-hour bounding (newer_than:1d after:...).
+    2. Parallel message fetching ingests the transaction.
+    3. Transaction time is extracted and added to the description.
     """
     # 1. Setup mock OAuthAccount in DB
     from db.database import SessionLocal
@@ -74,12 +81,19 @@ def test_gmail_24h_sync_with_mocked_api(db_session=None):
             db=db
         )
 
+        # Recent timestamp within trailing 2 hours
+        now_ist = datetime.now(IST)
+        recent_ist = now_ist - timedelta(hours=2)
+        date_header_val = recent_ist.strftime("%a, %d %b %Y %H:%M:%S +0530")
+        expected_time_str = recent_ist.strftime("%I:%M %p")
+        date_in_body = recent_ist.strftime("%d-%m-%y")
+
         # Mock body data
-        email_body = """Dear Customer,
+        email_body = f"""Dear Customer,
 
 Greetings from HDFC Bank!
 
-Rs.340.00 is debited from your account ending 2650 towards VPA ******3524@okbizaxis (Mr Deepesh Lodhi) on 30-10-26.
+Rs.340.00 is debited from your account ending 2650 towards VPA ******3524@okbizaxis (Mr Deepesh Lodhi) on {date_in_body}.
 
 UPI transaction reference no.: 074486320407.
 
@@ -103,7 +117,7 @@ HDFC Bank
                 "headers": [
                     {"name": "Subject", "value": "❗ You have done a UPI txn. Check details!"},
                     {"name": "From", "value": "HDFC Bank InstaAlerts <alerts@hdfcbank.bank.in>"},
-                    {"name": "Date", "value": "Fri, 30 Oct 2026 00:59:00 +0530"}
+                    {"name": "Date", "value": date_header_val}
                 ],
                 "body": {
                     "data": encoded_body
@@ -111,8 +125,11 @@ HDFC Bank
             }
         }
 
+        captured_urls = []
+
         with patch("httpx.get") as mock_get:
             def side_effect(url, **kwargs):
+                captured_urls.append(url)
                 if "messages?q=" in url:
                     return mock_messages_list_resp
                 elif "messages/msg_hdfc_001" in url:
@@ -135,11 +152,20 @@ HDFC Bank
             assert data["alerts_parsed"] == 1
             assert data["transactions_added"] == 1
 
-            # Verify in DB: transaction inserted with -34000 paise (Rs. 340 debited)
+            # 1. Verify strict 24-hour query in Gmail API call
+            query_calls = [u for u in captured_urls if "messages?q=" in u]
+            assert len(query_calls) > 0
+            assert "newer_than:1d" in query_calls[0]
+            assert "after:" in query_calls[0]
+
+            # 2. Verify in DB: transaction inserted with -34000 paise (Rs. 340 debited)
             inserted_txn = db.query(Transaction).filter_by(amount_minor=-34000).first()
             assert inserted_txn is not None
-            assert inserted_txn.posted_date == "2026-10-30"
             assert "074486320407" in inserted_txn.raw_description or "Mr Deepesh Lodhi" in inserted_txn.raw_description
+
+            # 3. Verify transaction time is present in description
+            assert f"• {expected_time_str}" in inserted_txn.raw_description
+            assert f"• {expected_time_str}" in inserted_txn.normalized_description
 
             # Verify duplicate call skips already parsed message
             resp_dupe = client.post(
