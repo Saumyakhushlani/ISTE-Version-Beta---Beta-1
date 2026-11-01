@@ -57,44 +57,44 @@ Respond strictly with valid JSON. No conversational text."""
 
 def _extract_amount_regex(text: str) -> int:
     """Helper to extract purchase amount in minor paise via regex heuristics."""
-    # 1. Check for crore: e.g. 1.5 crore, Rs 2 cr
-    crore_match = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:crore|crores|cr)\b', text, re.IGNORECASE)
-    if crore_match:
-        val = float(crore_match.group(1))
-        return int(round(val * 10000000 * 100))
+    # 1. Crore: e.g. 1.5 crore, Rs 2 cr
+    m = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:crore|crores|cr)\b', text, re.IGNORECASE)
+    if m:
+        return int(round(float(m.group(1)) * 10000000 * 100))
 
-    # 2. Check for lakh / lac: e.g. Rs 2.1 lakh, 1.5 lakh, ₹3 lacs
-    lakh_match = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs)\b', text, re.IGNORECASE)
-    if lakh_match:
-        val = float(lakh_match.group(1))
-        return int(round(val * 100000 * 100))
+    # 2. Lakh: e.g. Rs 2.1 lakh, 1.5 lakh, ₹3 lacs
+    m = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs)\b', text, re.IGNORECASE)
+    if m:
+        return int(round(float(m.group(1)) * 100000 * 100))
 
-    # 3. Check for "k" or "thousand": e.g. 50k, 80 thousand
-    k_match = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:k|thousand|thousands)\b', text, re.IGNORECASE)
-    if k_match:
-        val = float(k_match.group(1))
-        return int(round(val * 1000 * 100))
+    # 3. K / Thousand: e.g. 50k, 80 thousand
+    m = re.search(r'(?:₹|Rs\.?\s*)?(\d+(?:\.\d+)?)\s*(?:k|thousand|thousands)\b', text, re.IGNORECASE)
+    if m:
+        return int(round(float(m.group(1)) * 1000 * 100))
 
     # 4. Explicit currency symbol followed by number: e.g. ₹79,900 or Rs. 80000
-    currency_match = re.search(r'(?:₹|Rs\.?\s*)\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)', text)
-    if currency_match:
-        raw_num = currency_match.group(1).replace(',', '')
-        return int(round(float(raw_num) * 100))
+    m = re.search(r'(?:₹|Rs\.?\s*)\s*(\d{1,3}(?:,\d{2,3})*(?:\.\d+)?|\d+)', text, re.IGNORECASE)
+    if m:
+        return int(round(float(m.group(1).replace(',', '')) * 100))
 
-    # 5. Check for "for <number>" or numbers with comma separators
-    for_match = re.search(r'(?:for|costs?|of|worth)\s+(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)', text, re.IGNORECASE)
-    if for_match:
-        raw_num = for_match.group(1).replace(',', '')
-        return int(round(float(raw_num) * 100))
+    # 5. Number followed by rupees / rs / inr: e.g. 50,000 rupees, 50000 rs
+    m = re.search(r'\b(\d{1,3}(?:,\d{2,3})+|\d{3,})\s*(?:rupees|rs|inr)\b', text, re.IGNORECASE)
+    if m:
+        return int(round(float(m.group(1).replace(',', '')) * 100))
 
-    # Fallback: find all numbers, pick largest number >= 100
-    all_nums = re.findall(r'\b\d+\b', text)
-    large_nums = [int(n) for n in all_nums if int(n) >= 100]
-    if large_nums:
-        return max(large_nums) * 100
+    # 6. 'for / costs / worth' but NOT followed by people/time units (e.g. 'for 15 friends')
+    m = re.search(r'(?:for|costs?|of|worth)\s+(\d{1,3}(?:,\d{2,3})*(?:\.\d+)?|\d+)\s*(?!(?:friends|people|guests|persons|days|nights|months|weeks|hours|years)\b)', text, re.IGNORECASE)
+    if m:
+        val = int(round(float(m.group(1).replace(',', '')) * 100))
+        if val >= 50000:  # At least ₹500
+            return val
+
+    # 7. Comma grouped numbers e.g. 50,000 or 1,20,000
+    m = re.search(r'\b(\d{1,3}(?:,\d{2,3})+)\b', text)
+    if m:
+        return int(round(float(m.group(1).replace(',', '')) * 100))
 
     return 0
-
 
 def parse_with_groq(
     query_text: str,

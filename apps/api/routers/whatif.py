@@ -22,7 +22,7 @@ from engine.affordability import evaluate_affordability_decision, calculate_emi_
 router = APIRouter()
 
 class ScenarioAdjustment(BaseModel):
-    type: str  # "cancel_recurring" | "purchase_emi" | "delay_purchase" | "income_shock"
+    type: str  # "cancel_recurring" | "purchase_emi" | "delay_purchase" | "income_shock" | "expense_shock" | "add_recurring"
     params: Dict[str, Any]
 
 class CreateScenarioRequest(BaseModel):
@@ -58,24 +58,20 @@ def get_recurring_options_for_scenarios(
     ]
     return obligations
 
-@router.post("/compare")
-def compare_scenarios(
-    payload: CompareScenariosPayload,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Simulates What-If overlays side-by-side against the baseline without mutating transactions.
-    Enforces user isolation via current_user.id.
-    """
-    txns, account_balances, recurring, source_files = fetch_db_state(db, user_id=current_user.id, source_file_ids=payload.source_file_ids)
-
+def simulate_scenarios_core(
+    txns: List[Dict[str, Any]],
+    account_balances: Dict[str, int],
+    recurring: List[Dict[str, Any]],
+    source_files: Optional[List[Dict[str, Any]]],
+    purchase_amount_minor: int,
+    scenarios: List[Any]
+) -> Dict[str, Any]:
     # 1. Baseline evaluation (Cash purchase now)
     base_decision = evaluate_affordability_decision(
         transactions=txns,
         recurring_items=recurring,
         current_balances=account_balances,
-        purchase_amount_paise=payload.purchase_amount_minor,
+        purchase_amount_paise=purchase_amount_minor,
         payment_type="cash",
         source_files=source_files,
         seed=42
@@ -92,27 +88,33 @@ def compare_scenarios(
 
     # 2. Evaluate each scenario
     simulated_scenarios = []
-    for sc in payload.scenarios:
+    for sc in scenarios:
+        sc_name = sc.name if hasattr(sc, "name") else (sc.get("name") if isinstance(sc, dict) else "Scenario")
+        adjustments = sc.adjustments if hasattr(sc, "adjustments") else (sc.get("adjustments", []) if isinstance(sc, dict) else [])
+
         sc_txns = list(txns)
         sc_recurring = [dict(r) for r in recurring]
-        sc_purchase_paise = payload.purchase_amount_minor
+        sc_purchase_paise = purchase_amount_minor
         payment_type = "cash"
         emi_months = None
         emi_rate = 0.0
 
-        for adj in sc.adjustments:
-            if adj.type == "cancel_recurring":
-                merchant_to_cancel = adj.params.get("merchant", "")
-                item_id = adj.params.get("id", "")
+        for adj in adjustments:
+            adj_type = adj.type if hasattr(adj, "type") else (adj.get("type", "") if isinstance(adj, dict) else "")
+            adj_params = adj.params if hasattr(adj, "params") else (adj.get("params", {}) if isinstance(adj, dict) else {})
+
+            if adj_type == "cancel_recurring":
+                merchant_to_cancel = adj_params.get("merchant", "")
+                item_id = adj_params.get("id", "")
                 sc_recurring = [
                     r for r in sc_recurring
                     if (not item_id or r.get("id") != item_id) and
                        (not merchant_to_cancel or merchant_to_cancel.lower() not in r.get("merchant", "").lower())
                 ]
 
-            elif adj.type == "add_recurring":
-                add_merchant = adj.params.get("merchant", "New Commitment")
-                add_amount = adj.params.get("typical_amount_minor", 100000)
+            elif adj_type == "add_recurring":
+                add_merchant = adj_params.get("merchant", "New Commitment")
+                add_amount = adj_params.get("typical_amount_minor", 100000)
                 sc_recurring.append({
                     "id": f"sc_rec_{len(sc_recurring)}",
                     "merchant": add_merchant,
@@ -123,24 +125,24 @@ def compare_scenarios(
                     "confidence": 1.0
                 })
 
-            elif adj.type == "purchase_emi":
+            elif adj_type == "purchase_emi":
                 payment_type = "emi"
-                emi_months = adj.params.get("months", 6)
-                emi_rate = adj.params.get("interest_rate_pct", 0.0)
+                emi_months = adj_params.get("months", 6)
+                emi_rate = adj_params.get("interest_rate_pct", 0.0)
 
-            elif adj.type == "delay_purchase":
-                delay_m = adj.params.get("months", 2)
+            elif adj_type == "delay_purchase":
+                delay_m = adj_params.get("months", 2)
                 if delay_m >= 2:
                     sc_purchase_paise = 0
                 else:
                     sc_purchase_paise = int(sc_purchase_paise * 0.5)
 
-            elif adj.type == "income_shock":
-                pct = adj.params.get("reduction_pct")
+            elif adj_type == "income_shock":
+                pct = adj_params.get("reduction_pct")
                 if pct is not None:
                     multiplier = 1.0 - (float(pct) / 100.0)
                 else:
-                    delta_pct = adj.params.get("delta_pct", 0.0)
+                    delta_pct = adj_params.get("delta_pct", 0.0)
                     multiplier = 1.0 + (float(delta_pct) / 100.0)
 
                 for r in sc_recurring:
@@ -148,8 +150,8 @@ def compare_scenarios(
                         r["typical_amount_minor"] = int(r["typical_amount_minor"] * multiplier)
                         r["amount_minor"] = int(r["amount_minor"] * multiplier)
 
-            elif adj.type == "expense_shock":
-                cut_pct = adj.params.get("cut_pct", 20.0)
+            elif adj_type == "expense_shock":
+                cut_pct = adj_params.get("cut_pct", 20.0)
                 sc_txns = [
                     dict(t, amount_minor=int(t["amount_minor"] * (1 - cut_pct / 100.0)))
                     if t["amount_minor"] < 0 and not t.get("is_transfer", False)
@@ -174,7 +176,7 @@ def compare_scenarios(
         delta_lowest = sc_decision["lowest_balance"]["p50_minor"] - base_decision["lowest_balance"]["p50_minor"]
 
         simulated_scenarios.append({
-            "name": sc.name,
+            "name": sc_name,
             "verdict": sc_decision["verdict"]["code"],
             "headline": sc_decision["verdict"]["headline"],
             "lowest_balance_paise": sc_decision["lowest_balance"]["p50_minor"],
@@ -188,7 +190,27 @@ def compare_scenarios(
         })
 
     return {
-        "purchase_amount_paise": payload.purchase_amount_minor,
+        "purchase_amount_paise": purchase_amount_minor,
         "baseline": baseline_summary,
         "scenarios": simulated_scenarios
     }
+
+@router.post("/compare")
+def compare_scenarios(
+    payload: CompareScenariosPayload,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Simulates What-If overlays side-by-side against the baseline without mutating transactions.
+    Enforces user isolation via current_user.id.
+    """
+    txns, account_balances, recurring, source_files = fetch_db_state(db, user_id=current_user.id, source_file_ids=payload.source_file_ids)
+    return simulate_scenarios_core(
+        txns=txns,
+        account_balances=account_balances,
+        recurring=recurring,
+        source_files=source_files,
+        purchase_amount_minor=payload.purchase_amount_minor,
+        scenarios=payload.scenarios
+    )

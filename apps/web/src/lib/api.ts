@@ -300,6 +300,13 @@ export const api = {
       body: JSON.stringify(query),
     }),
 
+  chatAffordability: (message: string, history?: Array<{ role: string; content: string }>) =>
+    fetchFromApi<any>("/api/affordability/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history: history || [] }),
+    }),
+
   askAffordability: (question: string) =>
     fetchFromApi("/api/affordability/ask", {
       method: "POST",
@@ -425,4 +432,6 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     }),
+  getTaxSummary: () => fetchFromApi("/api/tax/summary"),
+  getTaxPdfUrl: () => "/api/proxy/tax/pdf",
 };
