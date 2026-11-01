@@ -11,7 +11,11 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 
 from db.database import get_db
-from db.models import User, UserProfile, Account
+from db.models import (
+    User, UserProfile, Account,
+    DEMO_USER_ID, DEMO_USER_EMAIL,
+    PRIYA_USER_ID, PRIYA_USER_EMAIL
+)
 from auth import verify_internal_secret
 
 router = APIRouter(prefix="/internal/users", dependencies=[Depends(verify_internal_secret)])
@@ -164,6 +168,13 @@ def get_user_by_email(email: str = Query(...), db: Session = Depends(get_db)):
     """Retrieves a user by email address."""
     normalized_email = email.strip().lower()
     user = db.query(User).filter(User.email.ilike(normalized_email)).first()
+    if not user and normalized_email in (DEMO_USER_EMAIL.lower(), PRIYA_USER_EMAIL.lower()):
+        try:
+            from seed_demo import ensure_demo_users_seeded
+            ensure_demo_users_seeded(db)
+            user = db.query(User).filter(User.email.ilike(normalized_email)).first()
+        except Exception as e:
+            print(f"[FDL] Auto-seed demo on by-email error: {e}")
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return _serialize_user(user)
@@ -172,11 +183,28 @@ def get_user_by_email(email: str = Query(...), db: Session = Depends(get_db)):
 def get_user_by_id(user_id: str, db: Session = Depends(get_db)):
     """Retrieves a user and accounts by user ID."""
     user = db.query(User).filter_by(id=user_id).first()
+    if not user and user_id in (DEMO_USER_ID, PRIYA_USER_ID):
+        try:
+            from seed_demo import ensure_demo_users_seeded
+            ensure_demo_users_seeded(db)
+            user = db.query(User).filter_by(id=user_id).first()
+        except Exception as e:
+            print(f"[FDL] Auto-seed demo on by-id error: {e}")
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     data = _serialize_user(user)
     data["accounts"] = [_serialize_account(a) for a in user.accounts]
     return data
+
+@router.post("/seed-demo")
+def seed_demo_endpoint(db: Session = Depends(get_db)):
+    """Explicitly triggers demo data provisioning."""
+    try:
+        from seed_demo import ensure_demo_users_seeded
+        ensure_demo_users_seeded(db)
+        return {"status": "success", "message": "Demo users ensured"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to seed demo users: {str(e)}")
 
 @router.post("/{user_id}/lockout")
 def update_user_lockout(user_id: str, payload: LockoutPayload, db: Session = Depends(get_db)):

@@ -1,0 +1,12 @@
+STATE BANK OF INDIA
+Account Name: Aarav Kumar
+Account Number: XXXXXXXX4421
+IFS Code: SBIN0001180
+Branch: Indiranagar Bangalore
+Statement Period: 01-May-2024 to 25-May-2024
+----------------------------------------------------------------------------------------------------
+Txn Date,Value Date,Description,Ref No./Cheque No.,Debit,Credit,Balance
+01-05-2024,01-05-2024,NEFT-FUNDS TRF FROM HDFC 1180,NEFT501,,15000.00,45000.00
+08-05-2024,08-05-2024,ACH D-SBI CAR LOAN EMI,ACH502,12000.00,,33000.00
+14-05-2024,14-05-2024,UPI-BESCOM ELECTRICITY BILL,UPI503,1850.00,,31150.00
+20-05-2024,20-05-2024,UPI-ZERODHA BROKING SIP,UPI504,5000.00,,26150.00
