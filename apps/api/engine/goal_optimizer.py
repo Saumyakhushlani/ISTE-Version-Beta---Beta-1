@@ -73,7 +73,7 @@ def compute_goal_optimization(
     # 2. Compute verified financial telemetry
     telemetry = compute_investment_telemetry(db, user_id=user_id)
     liquid_funds_minor = telemetry.get("combined_liquid_paise", 0)
-    baseline_savings_minor = telemetry.get("monthly_savings", 0)
+    baseline_savings_minor = telemetry.get("monthly_savings_paise", 0) or telemetry.get("monthly_savings", 0)
     savings_rate_pct = telemetry.get("savings_rate_pct", 0.0)
 
     # 3. Retrieve recurring items and identify candidate cancellations

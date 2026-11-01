@@ -191,7 +191,7 @@ export default function GoalsPlannerPage() {
   }, [optData, clientFreedPaise]);
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       
       {/* 1. Header & Page Title */}
       <div className="py-2 border-b border-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -389,7 +389,9 @@ export default function GoalsPlannerPage() {
                 {clientFreedPaise > 0 ? `+${formatINR(clientFreedPaise)}/mo` : '₹0/mo'}
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                {excludedRecurringIds.length} {excludedRecurringIds.length === 1 ? 'expense paused' : 'expenses paused'}
+                {excludedRecurringIds.length > 0
+                  ? `${excludedRecurringIds.length} ${excludedRecurringIds.length === 1 ? 'expense paused' : 'expenses paused'}`
+                  : 'Uncheck items below to free cash'}
               </div>
             </div>
 
