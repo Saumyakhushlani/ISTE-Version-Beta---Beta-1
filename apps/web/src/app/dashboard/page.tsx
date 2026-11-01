@@ -62,17 +62,14 @@ function getBankBadge(bankName: string = "") {
 }
 
 export default function DashboardPage() {
-  const [data, setData] = useState<any>(() => {
-    return storageCache.getMetricsSync('dashboard:default') || null;
-  });
-  const [loading, setLoading] = useState<boolean>(() => {
-    return !storageCache.getMetricsSync('dashboard:default');
-  });
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [activeAccount, setActiveAccount] = useState('all');
   const [activeTimeRange, setActiveTimeRange] = useState('all');
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [fileToDelete, setFileToDelete] = useState<any | null>(null);
   const [isDeletingFile, setIsDeletingFile] = useState(false);
+  const [hasInitializedFiles, setHasInitializedFiles] = useState(false);
 
   const handleDeleteStatement = async () => {
     if (!fileToDelete) return;
@@ -87,7 +84,19 @@ export default function DashboardPage() {
       setIsDeletingFile(false);
     }
   };
-  const [hasInitializedFiles, setHasInitializedFiles] = useState(false);
+
+  // Hydrate from client cache immediately on mount without triggering SSR hydration mismatch
+  useEffect(() => {
+    const cached = storageCache.getMetricsSync<any>('dashboard:default');
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+      if (cached.source_files && !hasInitializedFiles) {
+        setSelectedFileIds(cached.source_files.map((sf: any) => sf.id));
+        setHasInitializedFiles(true);
+      }
+    }
+  }, []);
 
   // Natural Language query state
   const [nlQuery, setNlQuery] = useState('');
@@ -312,7 +321,7 @@ export default function DashboardPage() {
         <div className="shrink-0">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Executive Financial Analysis</h1>
-            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+            <span suppressHydrationWarning className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
               accounts.length > 0 
                 ? 'bg-primary/20 text-foreground border-primary/30' 
                 : 'bg-muted text-muted-foreground border-border'
