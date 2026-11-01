@@ -291,6 +291,9 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  // Egress Logs & Privacy Status
+  getPrivacyStatus: () => fetchFromApi('/api/privacy/status'),
+
   // Egress Logs
   getEgressLogs: (params?: {
     mode_filter?: string;

@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 
 interface FooterSectionProps {
-  currentPath?: "home" | "how-it-works"
+  currentPath?: "home" | "how-it-works" | "privacy";
 }
 
 export function FooterSection({ currentPath = "home" }: FooterSectionProps) {

@@ -38,6 +38,7 @@ import Integrations from '@/components/ui/integrations-4';
 import FinancialPipelineBeam from '@/components/ui/financial-pipeline-beam';
 import RuixenBentoCards from '@/components/ui/ruixen-bento-cards';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
+import { PublicNav } from '@/components/public-nav';
 
 const FDL_PILLARS: FeatureType[] = [
   {
@@ -131,124 +132,10 @@ const itemVariants: Variants = {
 };
 
 export default function HomePage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/30 flex flex-col justify-between overflow-x-hidden font-sans">
-      {/* ========================================================
-          1. NAVIGATION BAR
-      ======================================================== */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/90 backdrop-blur-md transition-colors">
-        <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-            <div className="flex items-end gap-1 h-5">
-              <span className="w-1.5 h-3 bg-primary rounded-sm shadow-sm transition-transform group-hover:scale-y-110" />
-              <span className="w-1.5 h-5 bg-primary rounded-sm shadow-sm transition-transform group-hover:scale-y-110" />
-              <span className="w-1.5 h-4 bg-primary rounded-sm shadow-sm transition-transform group-hover:scale-y-110" />
-            </div>
-            <span className="font-bold text-foreground text-base sm:text-lg tracking-tight whitespace-nowrap">
-              Financial Decision Lab
-            </span>
-          </Link>
-
-          {/* Centered Navigation Links */}
-          <div className="hidden lg:flex items-center justify-center gap-7 text-sm font-medium text-muted-foreground shrink-0">
-            <a href="#how-it-helps" className="hover:text-foreground transition-colors whitespace-nowrap">
-              Features
-            </a>
-            <Link href="/how-it-works" className="hover:text-foreground transition-colors whitespace-nowrap">
-              How It Works
-            </Link>
-            <Link href="/privacy" className="hover:text-foreground transition-colors whitespace-nowrap">
-              Privacy &amp; Security
-            </Link>
-            <a href="#faq" className="hover:text-foreground transition-colors whitespace-nowrap">
-              FAQ
-            </a>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="hidden lg:flex items-center gap-3 shrink-0">
-            <ThemeToggle />
-            <Link
-              href="/login"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 transition-colors whitespace-nowrap"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm font-semibold rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 transition-all shadow-xs active:scale-95 flex items-center gap-1.5 whitespace-nowrap"
-            >
-              Sign Up
-            </Link>
-          </div>
-
-          {/* Mobile / Tablet Menu Button (shown on < lg screens) */}
-          <div className="flex lg:hidden items-center gap-2">
-            <ThemeToggle />
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-foreground rounded-lg border border-border bg-card"
-              aria-label="Toggle navigation menu"
-            >
-              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-          </div>
-        </nav>
-
-        {/* Mobile Dropdown */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden border-b border-border bg-background/95 backdrop-blur-md px-6 py-4 space-y-3">
-            <a
-              href="#how-it-helps"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              Features
-            </a>
-            <Link
-              href="/how-it-works"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              How It Works
-            </Link>
-            <Link
-              href="/privacy"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              Privacy &amp; Security
-            </Link>
-            <a
-              href="#faq"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              FAQ
-            </a>
-            <div className="pt-2 border-t border-border flex flex-col gap-2">
-              <Link
-                href="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full text-center py-2 text-sm font-medium text-foreground border border-border rounded-lg bg-card"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full text-center py-2 text-sm font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-lg shadow-sm"
-              >
-                Sign Up
-              </Link>
-            </div>
-          </div>
-        )}
-      </header>
+      <PublicNav activeItem="home" />
 
       <main className="flex-1 relative overflow-hidden">
         {/* Continuous Ambient Background Glow for unified canvas */}

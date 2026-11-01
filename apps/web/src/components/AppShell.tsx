@@ -62,7 +62,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     pathname === '/' ||
     pathname === '/login' ||
     pathname === '/register' ||
-    pathname === '/how-it-works';
+    pathname === '/how-it-works' ||
+    pathname === '/privacy';
 
   useEffect(() => {
     checkAuth().then((authOk) => {
