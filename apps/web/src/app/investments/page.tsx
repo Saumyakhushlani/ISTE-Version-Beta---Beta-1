@@ -201,7 +201,7 @@ export default function InvestmentsPage() {
                 Eligible to Invest ({telemetry.savings_rate_pct}% Savings Rate)
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/30">
                 <AlertTriangle className="w-3.5 h-3.5" />
                 Hold Off on Investing (Zero/Deficit Savings)
               </span>
@@ -224,13 +224,13 @@ export default function InvestmentsPage() {
             </div>
             <div className="bg-background/80 rounded-xl p-3 border border-border/70">
               <div className="text-[11px] text-muted-foreground">Monthly Outflow</div>
-              <div className="text-sm md:text-base font-bold text-rose-400 mt-0.5">
+              <div className="text-sm md:text-base font-bold text-rose-600 dark:text-rose-400 mt-0.5">
                 -{formatINR(telemetry.monthly_outflow_paise)}
               </div>
             </div>
             <div className="bg-background/80 rounded-xl p-3 border border-border/70">
               <div className="text-[11px] text-muted-foreground">Net Monthly Savings</div>
-              <div className={`text-sm md:text-base font-bold mt-0.5 ${telemetry.monthly_savings_paise >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-400'}`}>
+              <div className={`text-sm md:text-base font-bold mt-0.5 ${telemetry.monthly_savings_paise >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                 {telemetry.monthly_savings_paise >= 0 ? '+' : ''}{formatINR(telemetry.monthly_savings_paise)}
               </div>
             </div>
@@ -238,13 +238,13 @@ export default function InvestmentsPage() {
 
           {/* Validation Alert Warning if not saving */}
           {!telemetry.can_invest && (
-            <div className="rounded-xl bg-rose-500/10 border border-rose-500/25 p-3.5 flex items-start gap-3 mt-2">
-              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div className="rounded-xl bg-rose-500/10 border border-rose-500/30 p-3.5 flex items-start gap-3 mt-2">
+              <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <div className="text-xs font-bold text-rose-300">
+                <div className="text-xs font-bold text-rose-700 dark:text-rose-300">
                   Deficit Detected · Hold Off On New Investments
                 </div>
-                <div className="text-xs text-rose-200/90 leading-relaxed">
+                <div className="text-xs text-rose-900/90 dark:text-rose-200/90 leading-relaxed">
                   Your expenses match or exceed your income. Our safety validation rule instructs you not to invest right now. Prioritize turning monthly cash flow positive and parking a 3-month emergency safety buffer in liquid savings first.
                 </div>
               </div>

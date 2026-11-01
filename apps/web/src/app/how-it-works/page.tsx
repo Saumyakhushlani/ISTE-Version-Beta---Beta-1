@@ -42,6 +42,7 @@ import FinancialPipelineBeam from '@/components/ui/financial-pipeline-beam';
 import Integrations from '@/components/ui/integrations-4';
 import { FooterSection } from '@/components/ui/footer-section';
 import { FeatureCard, type FeatureType } from '@/components/ui/grid-feature-cards';
+import { PublicNav } from '@/components/public-nav';
 
 const FDL_PILLARS: FeatureType[] = [
   {
@@ -108,131 +109,10 @@ const itemVariants: Variants = {
 };
 
 export default function HowItWorksPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/30 flex flex-col justify-between overflow-x-hidden font-sans">
-      {/* ========================================================
-          1. NAVIGATION BAR
-      ======================================================== */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/90 backdrop-blur-md transition-colors">
-        <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-            <div className="flex items-end gap-1 h-5">
-              <span className="w-1.5 h-3 bg-primary rounded-sm shadow-sm transition-transform group-hover:scale-y-110" />
-              <span className="w-1.5 h-5 bg-primary rounded-sm shadow-sm transition-transform group-hover:scale-y-110" />
-              <span className="w-1.5 h-4 bg-primary rounded-sm shadow-sm transition-transform group-hover:scale-y-110" />
-            </div>
-            <span className="font-bold text-foreground text-base sm:text-lg tracking-tight whitespace-nowrap">
-              Financial Decision Lab
-            </span>
-          </Link>
-
-          {/* Centered Navigation Links */}
-          <div className="hidden lg:flex items-center justify-center gap-6 xl:gap-8 text-sm font-medium text-muted-foreground shrink-0">
-            <Link href="/" className="hover:text-foreground transition-colors whitespace-nowrap">
-              Product Overview
-            </Link>
-            <a href="#pipeline-architecture" className="hover:text-foreground transition-colors whitespace-nowrap text-foreground font-semibold">
-              Architecture &amp; Pipeline
-            </a>
-            <a href="#data-cleaning" className="hover:text-foreground transition-colors whitespace-nowrap">
-              Data Cleaning
-            </a>
-            <a href="#equations" className="hover:text-foreground transition-colors whitespace-nowrap">
-              Formulas &amp; Math
-            </a>
-            <a href="#domain-invariants" className="hover:text-foreground transition-colors whitespace-nowrap">
-              Invariants Reference
-            </a>
-            <Link href="/privacy" className="hover:text-foreground transition-colors whitespace-nowrap">
-              Privacy &amp; Security
-            </Link>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="hidden lg:flex items-center gap-3 shrink-0">
-            <ThemeToggle />
-            <Link
-              href="/dashboard"
-              className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs active:scale-95 flex items-center gap-1.5 whitespace-nowrap"
-            >
-              Open Decision Lab <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {/* Mobile Menu Button */}
-          <div className="flex lg:hidden items-center gap-2">
-            <ThemeToggle />
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-foreground rounded-lg border border-border bg-card"
-              aria-label="Toggle navigation menu"
-            >
-              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-          </div>
-        </nav>
-
-        {/* Mobile Dropdown */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden border-b border-border bg-background/95 backdrop-blur-md px-6 py-4 space-y-3">
-            <Link
-              href="/"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              Product Overview
-            </Link>
-            <a
-              href="#pipeline-architecture"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1 font-semibold"
-            >
-              Architecture &amp; Pipeline
-            </a>
-            <a
-              href="#data-cleaning"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              Data Cleaning &amp; Gate
-            </a>
-            <a
-              href="#equations"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              Formulas &amp; Math
-            </a>
-            <a
-              href="#domain-invariants"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              Invariants Reference
-            </a>
-            <Link
-              href="/privacy"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-foreground py-1"
-            >
-              Privacy &amp; Security
-            </Link>
-            <div className="pt-2 border-t border-border flex flex-col gap-2">
-              <Link
-                href="/dashboard"
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full text-center py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-lg shadow-sm"
-              >
-                Open Decision Lab
-              </Link>
-            </div>
-          </div>
-        )}
-      </header>
+      <PublicNav activeItem="how-it-works" />
 
       <main className="flex-1">
         {/* ========================================================

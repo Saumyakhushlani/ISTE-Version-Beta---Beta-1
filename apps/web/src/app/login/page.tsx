@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
+import { CardsAnimation } from '@/components/auth/CardsAnimation';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -95,21 +96,34 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Center Pillar Highlight Badge */}
-        <div className="z-20 my-auto max-w-md">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-xs font-mono text-primary mb-4 backdrop-blur-sm">
-            <ShieldCheckIcon className="size-3.5" />
-            <span>100% LOCAL-FIRST &amp; AIR-GAPPED</span>
+        {/* Center Showcase with Animated Dual Cards */}
+        <div className="z-20 h-full flex flex-col items-center w-full max-w-lg mx-auto">
+          {/* Animated Cards Container */}
+          <div className="w-full flex justify-center mb-1">
+            <CardsAnimation className="w-full max-w-[440px] xl:max-w-[500px]" />
           </div>
-          <blockquote className="space-y-3">
-            <p className="text-2xl font-bold tracking-tight leading-snug text-foreground">
-              &ldquo;Can I afford this next month? Proving every calculation with zero hallucinations and provable mathematical headroom.&rdquo;
-            </p>
-            <footer className="font-mono text-xs text-muted-foreground flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-              <span>5,000 Monte Carlo Runs · Strict Number Guard · Seed=42</span>
-            </footer>
-          </blockquote>
+
+          <div className="text-center space-y-2.5 max-w-sm">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-xs font-mono text-primary backdrop-blur-sm">
+              <ShieldCheckIcon className="size-3.5" />
+              <span>100% LOCAL-FIRST &amp; AIR-GAPPED</span>
+            </div>
+
+            <blockquote className="space-y-1.5">
+              <p className="text-xl xl:text-2xl font-bold tracking-tight leading-snug text-foreground">
+                &ldquo;Can I afford this next month?&rdquo;
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Deterministic dual-account cash-flow modeling with zero hallucinations and provable mathematical headroom.
+              </p>
+            </blockquote>
+
+            <div className="pt-1 flex flex-wrap items-center justify-center gap-2 text-[11px] font-mono text-muted-foreground">
+              <span className="px-2.5 py-0.5 rounded-md bg-card/60 border border-border">5k Monte Carlo</span>
+              <span className="px-2.5 py-0.5 rounded-md bg-card/60 border border-border">Integer Paise</span>
+              <span className="px-2.5 py-0.5 rounded-md bg-card/60 border border-border">Seed=42</span>
+            </div>
+          </div>
         </div>
 
         {/* Bottom Feature Badges */}
