@@ -80,8 +80,10 @@ export default function RecurringPage() {
     loadData();
   }, [activeTab]);
 
-  async function loadData() {
-    setLoading(true);
+  async function loadData(options?: { bypassCache?: boolean }) {
+    if (options?.bypassCache || items.length === 0) {
+      setLoading(true);
+    }
     try {
       const status_filter = activeTab === 'dismissed' ? 'paused' : 'active';
       const user_status_filter =
@@ -96,11 +98,11 @@ export default function RecurringPage() {
           status_filter,
           user_status_filter,
           limit: 100,
-        }).catch(() => ({ recurring_items: [], counts: {} })),
-        api.getUpcomingSchedule(30).catch(() => ({ upcoming_payments: [] })),
+        }, options).catch(() => ({ recurring_items: [], counts: {} })),
+        api.getUpcomingSchedule(30, options).catch(() => ({ upcoming_payments: [] })),
         activeTab === 'active'
           ? Promise.resolve(null)
-          : api.getRecurringItems({ status_filter: 'active', limit: 200 }).catch(() => null),
+          : api.getRecurringItems({ status_filter: 'active', limit: 200 }, options).catch(() => null),
       ]);
 
       const currentItems = recRes?.recurring_items || [];
@@ -222,8 +224,8 @@ export default function RecurringPage() {
             <span>Upload Statement</span>
           </Link>
           <button
-            onClick={loadData}
-            title="Refresh"
+            onClick={() => loadData({ bypassCache: true })}
+            title="Refresh (Bypass Cache)"
             className="p-2 rounded-lg border border-border bg-card text-foreground hover:bg-muted shadow-xs transition"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-primary' : ''}`} />

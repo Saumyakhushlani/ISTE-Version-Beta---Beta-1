@@ -49,6 +49,7 @@ import {
 } from 'recharts';
 import { formatINR } from '@fdl/shared';
 import { api } from '@/lib/api';
+import { storageCache } from '@/lib/storage-cache';
 
 function getBankBadge(bankName: string = "") {
   const b = bankName.toLowerCase();
@@ -61,8 +62,12 @@ function getBankBadge(bankName: string = "") {
 }
 
 export default function DashboardPage() {
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<any>(() => {
+    return storageCache.getMetricsSync('dashboard:default') || null;
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    return !storageCache.getMetricsSync('dashboard:default');
+  });
   const [activeAccount, setActiveAccount] = useState('all');
   const [activeTimeRange, setActiveTimeRange] = useState('all');
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
@@ -75,7 +80,7 @@ export default function DashboardPage() {
     try {
       await api.deleteUploadedFile(fileToDelete.id);
       setFileToDelete(null);
-      await fetchDashboard();
+      await fetchDashboard(activeAccount, activeTimeRange, selectedFileIds, { bypassCache: true });
     } catch (e: any) {
       console.error('Failed to delete statement:', e);
     } finally {
@@ -94,8 +99,15 @@ export default function DashboardPage() {
     fetchDashboard(activeAccount, activeTimeRange, selectedFileIds);
   }, [activeAccount, activeTimeRange]);
 
-  async function fetchDashboard(accId = activeAccount, range = activeTimeRange, fileIds = selectedFileIds) {
-    setLoading(true);
+  async function fetchDashboard(
+    accId = activeAccount,
+    range = activeTimeRange,
+    fileIds = selectedFileIds,
+    options?: { bypassCache?: boolean }
+  ) {
+    if (options?.bypassCache || !data) {
+      setLoading(true);
+    }
     try {
       const params: any = {};
       if (accId && accId !== 'all') params.account_id = accId;
@@ -106,7 +118,7 @@ export default function DashboardPage() {
         params.source_file_ids = fileIds.join(',');
       }
 
-      const summary = await api.getDashboardSummary(params);
+      const summary = await api.getDashboardSummary(params, options);
       setData(summary);
 
       if (!hasInitializedFiles && summary?.source_files) {
@@ -357,8 +369,8 @@ export default function DashboardPage() {
 
           {/* Refresh Button */}
           <button
-            onClick={() => fetchDashboard(activeAccount, activeTimeRange, selectedFileIds)}
-            title="Refresh Analysis"
+            onClick={() => fetchDashboard(activeAccount, activeTimeRange, selectedFileIds, { bypassCache: true })}
+            title="Refresh Analysis (Bypass Cache)"
             className="h-9 w-9 inline-flex items-center justify-center rounded-xl border border-border bg-card text-foreground hover:bg-muted shadow-xs transition shrink-0 cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-primary' : ''}`} />

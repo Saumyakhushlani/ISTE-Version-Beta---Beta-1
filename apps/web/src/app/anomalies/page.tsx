@@ -79,13 +79,15 @@ export default function AnomaliesPage() {
     loadAnomalies();
   }, [activeTab]);
 
-  async function loadAnomalies() {
-    setLoading(true);
+  async function loadAnomalies(options?: { bypassCache?: boolean }) {
+    if (options?.bypassCache || anomalies.length === 0) {
+      setLoading(true);
+    }
     try {
       const res = await api.getAnomalies({
         feedback_filter: activeTab,
         limit: 100,
-      });
+      }, options);
       setAnomalies(res?.anomalies || []);
       if (res?.counts) {
         setCounts({
@@ -179,8 +181,8 @@ export default function AnomaliesPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={loadAnomalies}
-            title="Refresh"
+            onClick={() => loadAnomalies({ bypassCache: true })}
+            title="Refresh (Bypass Cache)"
             className="p-2 rounded-lg border border-border bg-card text-foreground hover:bg-muted shadow-xs transition"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-primary' : ''}`} />

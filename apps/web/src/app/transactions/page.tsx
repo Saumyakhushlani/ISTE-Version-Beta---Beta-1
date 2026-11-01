@@ -28,10 +28,12 @@ import {
   Landmark,
   CreditCard,
   DollarSign,
-  Inbox
+  Inbox,
+  RefreshCw
 } from 'lucide-react';
 import { formatINR, DEFAULT_CATEGORIES, rupeesToPaise } from '@fdl/shared';
 import { api } from '@/lib/api';
+import { storageCache } from '@/lib/storage-cache';
 import StatementUploadModal from '@/components/StatementUploadModal';
 import RecategorizeModal from '@/components/RecategorizeModal';
 import CorrectionHistoryDrawer from '@/components/CorrectionHistoryDrawer';
@@ -186,8 +188,35 @@ export default function TransactionsPage() {
     return () => clearTimeout(timer);
   }, [notification]);
 
-  const loadTransactions = useCallback(async () => {
-    setLoading(true);
+  // Instant hydration from IndexedDB cache on initial mount
+  useEffect(() => {
+    let active = true;
+    async function hydrateCache() {
+      try {
+        const cached = await storageCache.getTransactions({
+          limit: pageSize,
+          offset: 0,
+          sort_by: sortBy,
+          sort_order: sortOrder,
+        });
+        if (cached && active && txns.length === 0) {
+          setTxns(cached.transactions || []);
+          setTotalCount(cached.total ?? 0);
+          setLoading(false);
+        }
+      } catch {}
+    }
+    hydrateCache();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const loadTransactions = useCallback(async (options?: { bypassCache?: boolean }) => {
+    // If not bypassing and we already have cached data, don't show full-page skeleton
+    if (options?.bypassCache || txns.length === 0) {
+      setLoading(true);
+    }
     try {
       const offset = (currentPage - 1) * pageSize;
       const params: Record<string, any> = {
@@ -245,7 +274,7 @@ export default function TransactionsPage() {
         params.max_amount_paise = rupeesToPaise(Number(maxAmount));
       }
 
-      const res = await api.getTransactions(params);
+      const res = await api.getTransactions(params, options);
       setTxns(res?.transactions || []);
       setTotalCount(res?.total ?? 0);
     } catch (e) {
@@ -268,6 +297,7 @@ export default function TransactionsPage() {
     endDate,
     minAmount,
     maxAmount,
+    txns.length,
   ]);
 
   useEffect(() => {
@@ -397,6 +427,15 @@ export default function TransactionsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => loadTransactions({ bypassCache: true })}
+            title="Force refresh transactions from server"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-card hover:bg-muted text-foreground border border-border rounded-lg text-xs font-semibold shadow-xs transition"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+
           <button
             onClick={() => setIsHistoryOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-card hover:bg-muted text-foreground border border-border rounded-lg text-xs font-semibold shadow-xs transition"

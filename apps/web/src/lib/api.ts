@@ -1,7 +1,10 @@
 /**
  * API Client for Financial Decision Lab (FDL).
  * Connects frontend UI to FastAPI backend on http://127.0.0.1:8000
+ * Integrated with IndexedDB ('transactions') and LocalStorage ('metrics') caching.
  */
+
+import { storageCache, localCache, serializeParams } from './storage-cache';
 
 const API_BASE =
   typeof window !== 'undefined'
@@ -68,11 +71,22 @@ export async function fetchFromApi<T = any>(endpoint: string, options?: RequestI
   }
 }
 
-// API Endpoints
+// API Endpoints with Hybrid Storage Caching
 export const api = {
-  // Dashboard & Liquidity
-  getDashboardSummary: (params?: { account_id?: string; months?: number; start_date?: string; end_date?: string }) =>
-    fetchFromApi(`/api/dashboard${toQueryString(params)}`),
+  // Dashboard & Liquidity (Cached in LocalStorage / IndexedDB metrics)
+  getDashboardSummary: async (
+    params?: { account_id?: string; months?: number; start_date?: string; end_date?: string; source_file_ids?: string },
+    options?: { bypassCache?: boolean }
+  ) => {
+    const cacheKey = `dashboard:${serializeParams(params)}`;
+    if (!options?.bypassCache) {
+      const cached = await storageCache.getMetrics(cacheKey);
+      if (cached) return cached;
+    }
+    const data = await fetchFromApi(`/api/dashboard${toQueryString(params)}`);
+    await storageCache.setMetrics(cacheKey, data);
+    return data;
+  },
 
   getLiquidityAdvice: (target_paise: number, investment_label?: string) =>
     fetchFromApi("/api/dashboard/investment-advice", {
@@ -85,8 +99,16 @@ export const api = {
     }),
 
   // Investments & NLP Advisor
-  getInvestmentSummary: () =>
-    fetchFromApi("/api/investments/summary"),
+  getInvestmentSummary: async (options?: { bypassCache?: boolean }) => {
+    const cacheKey = 'investments:summary';
+    if (!options?.bypassCache) {
+      const cached = await storageCache.getMetrics(cacheKey);
+      if (cached) return cached;
+    }
+    const data = await fetchFromApi("/api/investments/summary");
+    await storageCache.setMetrics(cacheKey, data);
+    return data;
+  },
 
   sendInvestmentChat: (message: string, history?: Array<{ role: string; content: string }>) =>
     fetchFromApi("/api/investments/chat", {
@@ -114,42 +136,63 @@ export const api = {
   getParsingJobStatus: (jobId: string) =>
     fetchFromApi(`/api/imports/jobs/${jobId}`),
 
-  commitStatement: (fileId: string, accountId?: string, columnMappingOverride?: Record<string, any>) => {
+  commitStatement: async (fileId: string, accountId?: string, columnMappingOverride?: Record<string, any>) => {
     const form = new FormData();
     form.append("file_id", fileId);
     if (accountId) form.append("account_id", accountId);
     if (columnMappingOverride) {
       form.append("column_mapping_override", JSON.stringify(columnMappingOverride));
     }
-    return fetchFromApi("/api/imports/commit", {
+    const res = await fetchFromApi("/api/imports/commit", {
       method: "POST",
       body: form,
     });
+    // Invalidate client caches upon new statement commit
+    await storageCache.invalidateDataStores();
+    return res;
   },
 
-  loadDemoStatement: (persona: 'aarav' | 'priya') => {
+  loadDemoStatement: async (persona: 'aarav' | 'priya') => {
     const form = new FormData();
     form.append("persona", persona);
-    return fetchFromApi("/api/imports/demo-load", {
+    const res = await fetchFromApi("/api/imports/demo-load", {
       method: "POST",
       body: form,
     });
+    // Invalidate client caches upon demo load
+    await storageCache.invalidateDataStores();
+    return res;
   },
 
-  getUploadedFiles: () => fetchFromApi("/api/imports/files"),
+  getUploadedFiles: async (options?: { bypassCache?: boolean }) => {
+    const cacheKey = 'imports:files';
+    if (!options?.bypassCache) {
+      const cached = await storageCache.getMetrics(cacheKey);
+      if (cached) return cached;
+    }
+    const data = await fetchFromApi("/api/imports/files");
+    await storageCache.setMetrics(cacheKey, data, 5 * 60 * 1000);
+    return data;
+  },
 
-  deleteUploadedFile: (fileId: string) =>
-    fetchFromApi(`/api/imports/files/${fileId}`, {
+  deleteUploadedFile: async (fileId: string) => {
+    const res = await fetchFromApi(`/api/imports/files/${fileId}`, {
       method: "DELETE",
-    }),
+    });
+    await storageCache.invalidateDataStores();
+    return res;
+  },
 
-  deleteAllUploadedFiles: () =>
-    fetchFromApi("/api/imports/files", {
+  deleteAllUploadedFiles: async () => {
+    const res = await fetchFromApi("/api/imports/files", {
       method: "DELETE",
-    }),
+    });
+    await storageCache.invalidateDataStores();
+    return res;
+  },
 
-  // Transactions
-  getTransactions: (
+  // Transactions (Cached asynchronously in IndexedDB 'transactions' store)
+  getTransactions: async (
     limitOrParams: number | {
       limit?: number;
       offset?: number;
@@ -167,52 +210,98 @@ export const api = {
       sort_by?: string;
       sort_order?: 'asc' | 'desc';
     } = 100,
-    offset = 0
+    offsetOrOptions: number | { bypassCache?: boolean } = 0,
+    options?: { bypassCache?: boolean }
   ) => {
-    if (typeof limitOrParams === "number") {
-      return fetchFromApi(`/api/transactions?limit=${limitOrParams}&offset=${offset}`);
+    let offset = 0;
+    let opts = options;
+    if (typeof offsetOrOptions === 'object' && offsetOrOptions !== null) {
+      opts = offsetOrOptions;
+    } else if (typeof offsetOrOptions === 'number') {
+      offset = offsetOrOptions;
     }
-    return fetchFromApi(`/api/transactions${toQueryString(limitOrParams)}`);
+
+    const paramsObj = typeof limitOrParams === "number"
+      ? { limit: limitOrParams, offset }
+      : limitOrParams;
+
+    // Check IndexedDB first if not bypassing cache
+    if (!opts?.bypassCache) {
+      const cached = await storageCache.getTransactions(paramsObj);
+      if (cached) return cached;
+    }
+
+    const res = await (typeof limitOrParams === "number"
+      ? fetchFromApi(`/api/transactions?limit=${limitOrParams}&offset=${offset}`)
+      : fetchFromApi(`/api/transactions${toQueryString(limitOrParams)}`));
+
+    // Store in IndexedDB
+    await storageCache.setTransactions(paramsObj, res);
+    return res;
   },
 
-  updateTransactionCategory: (
+  updateTransactionCategory: async (
     txnId: string,
     payload: {
       category_id: string;
       scope: 'this_txn' | 'same_merchant';
       dry_run?: boolean;
     }
-  ) =>
-    fetchFromApi(`/api/transactions/${txnId}/category`, {
+  ) => {
+    const res = await fetchFromApi(`/api/transactions/${txnId}/category`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    }),
+    });
+    if (!payload.dry_run) {
+      await storageCache.clearTransactions();
+      localCache.clearMatching('dashboard');
+      localCache.clearMatching('recurring');
+    }
+    return res;
+  },
 
-  undoCategoryCorrection: (logId?: string) =>
-    fetchFromApi('/api/transactions/undo', {
+  undoCategoryCorrection: async (logId?: string) => {
+    const res = await fetchFromApi('/api/transactions/undo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ log_id: logId }),
-    }),
+    });
+    await storageCache.clearTransactions();
+    localCache.clearMatching('dashboard');
+    localCache.clearMatching('recurring');
+    return res;
+  },
 
   getCorrectionHistory: (params?: { limit?: number; offset?: number }) =>
     fetchFromApi(`/api/transactions/corrections${toQueryString(params)}`),
 
-  // Recurring & Upcoming
-  getRecurringItems: (params?: {
-    type_filter?: string;
-    cadence?: string;
-    search?: string;
-    min_amount_paise?: number;
-    max_amount_paise?: number;
-    status_filter?: string;
-    user_status_filter?: string;
-    limit?: number;
-    offset?: number;
-  }) => fetchFromApi(`/api/recurring${toQueryString(params)}`),
+  // Recurring & Upcoming (Cached in client storage)
+  getRecurringItems: async (
+    params?: {
+      type_filter?: string;
+      cadence?: string;
+      search?: string;
+      min_amount_paise?: number;
+      max_amount_paise?: number;
+      status_filter?: string;
+      user_status_filter?: string;
+      limit?: number;
+      offset?: number;
+    },
+    options?: { bypassCache?: boolean }
+  ) => {
+    const cacheKey = `recurring:items:${serializeParams(params)}`;
+    if (!options?.bypassCache) {
+      const cached = await storageCache.getMetrics(cacheKey);
+      if (cached) return cached;
+    }
+    const data = await fetchFromApi(`/api/recurring${toQueryString(params)}`);
+    await storageCache.setMetrics(cacheKey, data);
+    return data;
+  },
 
-  updateRecurringItem: (
+  updateRecurringItem: async (
     itemId: string,
     payload: {
       user_status?: 'confirmed' | 'rejected' | 'auto';
@@ -222,21 +311,29 @@ export const api = {
       type?: string;
       cadence?: string;
     }
-  ) =>
-    fetchFromApi(`/api/recurring/${itemId}`, {
+  ) => {
+    const res = await fetchFromApi(`/api/recurring/${itemId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    }),
+    });
+    localCache.clearMatching('recurring');
+    localCache.clearMatching('dashboard');
+    return res;
+  },
 
-  batchConfirmRecurring: (itemIds?: string[]) =>
-    fetchFromApi('/api/recurring/batch-confirm', {
+  batchConfirmRecurring: async (itemIds?: string[]) => {
+    const res = await fetchFromApi('/api/recurring/batch-confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_ids: itemIds }),
-    }),
+    });
+    localCache.clearMatching('recurring');
+    localCache.clearMatching('dashboard');
+    return res;
+  },
 
-  getUpcomingSchedule: (
+  getUpcomingSchedule: async (
     daysOrParams: number | {
       days?: number;
       months?: number;
@@ -247,54 +344,81 @@ export const api = {
       search?: string;
       limit?: number;
       offset?: number;
-    } = 30
+    } = 30,
+    options?: { bypassCache?: boolean }
   ) => {
-    if (typeof daysOrParams === "number") {
-      return fetchFromApi(`/api/recurring/upcoming?days=${daysOrParams}`);
+    const paramsObj = typeof daysOrParams === "number" ? { days: daysOrParams } : daysOrParams;
+    const cacheKey = `recurring:upcoming:${serializeParams(paramsObj)}`;
+    if (!options?.bypassCache) {
+      const cached = await storageCache.getMetrics(cacheKey);
+      if (cached) return cached;
     }
-    return fetchFromApi(`/api/recurring/upcoming${toQueryString(daysOrParams)}`);
+    const data = await (typeof daysOrParams === "number"
+      ? fetchFromApi(`/api/recurring/upcoming?days=${daysOrParams}`)
+      : fetchFromApi(`/api/recurring/upcoming${toQueryString(daysOrParams)}`));
+    await storageCache.setMetrics(cacheKey, data);
+    return data;
   },
 
-  // Anomalies
-  getAnomalies: (params?: {
-    feedback_filter?: string;
-    type_filter?: string;
-    severity_filter?: string;
-    months?: number;
-    start_date?: string;
-    end_date?: string;
-    account_id?: string;
-    search?: string;
-    min_amount_paise?: number;
-    limit?: number;
-    offset?: number;
-  }) => fetchFromApi(`/api/anomalies${toQueryString(params)}`),
+  // Anomalies (Cached in client storage)
+  getAnomalies: async (
+    params?: {
+      feedback_filter?: string;
+      type_filter?: string;
+      severity_filter?: string;
+      months?: number;
+      start_date?: string;
+      end_date?: string;
+      account_id?: string;
+      search?: string;
+      min_amount_paise?: number;
+      limit?: number;
+      offset?: number;
+    },
+    options?: { bypassCache?: boolean }
+  ) => {
+    const cacheKey = `anomalies:${serializeParams(params)}`;
+    if (!options?.bypassCache) {
+      const cached = await storageCache.getMetrics(cacheKey);
+      if (cached) return cached;
+    }
+    const data = await fetchFromApi(`/api/anomalies${toQueryString(params)}`);
+    await storageCache.setMetrics(cacheKey, data);
+    return data;
+  },
 
-  submitAnomalyFeedback: (
+  submitAnomalyFeedback: async (
     anomalyId: string,
     feedback: 'expected' | 'real_duplicate' | 'disputed' | 'dismissed' | 'none'
-  ) =>
-    fetchFromApi(`/api/anomalies/${anomalyId}/feedback`, {
+  ) => {
+    const res = await fetchFromApi(`/api/anomalies/${anomalyId}/feedback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ feedback }),
-    }),
+    });
+    localCache.clearMatching('anomalies');
+    localCache.clearMatching('dashboard');
+    return res;
+  },
 
-  batchAnomalyFeedback: (payload: {
+  batchAnomalyFeedback: async (payload: {
     feedback: 'expected' | 'real_duplicate' | 'disputed' | 'dismissed' | 'none';
     anomaly_ids?: string[];
     severity?: string;
-  }) =>
-    fetchFromApi('/api/anomalies/batch-feedback', {
+  }) => {
+    const res = await fetchFromApi('/api/anomalies/batch-feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    }),
+    });
+    localCache.clearMatching('anomalies');
+    localCache.clearMatching('dashboard');
+    return res;
+  },
 
   // Egress Logs & Privacy Status
   getPrivacyStatus: () => fetchFromApi('/api/privacy/status'),
 
-  // Egress Logs
   getEgressLogs: (params?: {
     mode_filter?: string;
     destination?: string;
@@ -399,10 +523,13 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  logout: () =>
-    fetchFromApi("/api/auth/logout", {
+  logout: async () => {
+    const res = await fetchFromApi("/api/auth/logout", {
       method: "POST",
-    }),
+    });
+    await storageCache.clearAll();
+    return res;
+  },
 
   getCurrentUser: () => fetchFromApi("/api/auth/me"),
 
@@ -428,31 +555,52 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  getUserAccounts: () => fetchFromApi("/api/user/accounts"),
+  getUserAccounts: async (options?: { bypassCache?: boolean }) => {
+    const cacheKey = 'accounts:list';
+    if (!options?.bypassCache) {
+      const cached = await storageCache.getMetrics(cacheKey);
+      if (cached) return cached;
+    }
+    const data = await fetchFromApi("/api/user/accounts");
+    await storageCache.setMetrics(cacheKey, data, 30 * 60 * 1000);
+    return data;
+  },
 
-  createUserAccount: (payload: any) =>
-    fetchFromApi("/api/user/accounts", {
+  createUserAccount: async (payload: any) => {
+    const res = await fetchFromApi("/api/user/accounts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }),
+    });
+    await storageCache.invalidateDataStores();
+    return res;
+  },
 
-  deleteUserAccount: (accountId: string) =>
-    fetchFromApi(`/api/user/accounts/${accountId}`, {
+  deleteUserAccount: async (accountId: string) => {
+    const res = await fetchFromApi(`/api/user/accounts/${accountId}`, {
       method: "DELETE",
-    }),
+    });
+    await storageCache.invalidateDataStores();
+    return res;
+  },
 
-  updateUserAccount: (accountId: string, payload: any) =>
-    fetchFromApi(`/api/user/accounts/${accountId}`, {
+  updateUserAccount: async (accountId: string, payload: any) => {
+    const res = await fetchFromApi(`/api/user/accounts/${accountId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }),
+    });
+    await storageCache.invalidateDataStores();
+    return res;
+  },
 
-  setPrimaryUserAccount: (accountId: string) =>
-    fetchFromApi(`/api/user/accounts/${accountId}/primary`, {
+  setPrimaryUserAccount: async (accountId: string) => {
+    const res = await fetchFromApi(`/api/user/accounts/${accountId}/primary`, {
       method: "POST",
-    }),
+    });
+    await storageCache.invalidateDataStores();
+    return res;
+  },
 
   changePassword: (currentPassword: string, newPassword: string) =>
     fetchFromApi("/api/user/password", {
@@ -465,15 +613,22 @@ export const api = {
 
   getEmailAuthorizeUrl: () => fetchFromApi("/api/email-sync/oauth/authorize"),
 
-  syncEmails24h: () =>
-    fetchFromApi("/api/email-sync/sync-24h", {
+  syncEmails24h: async () => {
+    const res = await fetchFromApi("/api/email-sync/sync-24h", {
       method: "POST",
-    }),
+    });
+    // Invalidate caches upon newly synced bank notification emails
+    await storageCache.invalidateDataStores();
+    return res;
+  },
 
-  disconnectEmailSync: () =>
-    fetchFromApi("/api/email-sync/disconnect", {
+  disconnectEmailSync: async () => {
+    const res = await fetchFromApi("/api/email-sync/disconnect", {
       method: "DELETE",
-    }),
+    });
+    await storageCache.invalidateDataStores();
+    return res;
+  },
 
   getEmailSyncLogs: () => fetchFromApi("/api/email-sync/logs"),
 
@@ -481,10 +636,18 @@ export const api = {
   getTaxPdfUrl: () => "/api/proxy/tax/pdf",
 
   // Financial Goals & Recurring Optimization
-  getGoals: (status?: string) =>
-    fetchFromApi(`/api/goals${toQueryString({ status })}`),
+  getGoals: async (status?: string, options?: { bypassCache?: boolean }) => {
+    const cacheKey = `goals:${status || 'all'}`;
+    if (!options?.bypassCache) {
+      const cached = await storageCache.getMetrics(cacheKey);
+      if (cached) return cached;
+    }
+    const data = await fetchFromApi(`/api/goals${toQueryString({ status })}`);
+    await storageCache.setMetrics(cacheKey, data);
+    return data;
+  },
 
-  createGoal: (data: {
+  createGoal: async (data: {
     parse_prompt?: string;
     title?: string;
     target_amount_minor?: number;
@@ -493,24 +656,33 @@ export const api = {
     category?: string;
     priority?: number;
     notes?: string;
-  }) =>
-    fetchFromApi("/api/goals", {
+  }) => {
+    const res = await fetchFromApi("/api/goals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
-    }),
+    });
+    localCache.clearMatching('goals');
+    return res;
+  },
 
-  deleteGoal: (goalId: string) =>
-    fetchFromApi(`/api/goals/${goalId}`, {
+  deleteGoal: async (goalId: string) => {
+    const res = await fetchFromApi(`/api/goals/${goalId}`, {
       method: "DELETE",
-    }),
+    });
+    localCache.clearMatching('goals');
+    return res;
+  },
 
-  updateGoal: (goalId: string, data: any) =>
-    fetchFromApi(`/api/goals/${goalId}`, {
+  updateGoal: async (goalId: string, data: any) => {
+    const res = await fetchFromApi(`/api/goals/${goalId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
-    }),
+    });
+    localCache.clearMatching('goals');
+    return res;
+  },
 
   optimizeGoals: (excludedRecurringIds: string[] = []) =>
     fetchFromApi("/api/goals/optimize", {
