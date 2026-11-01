@@ -34,8 +34,17 @@ router = APIRouter()
 
 # Staging directory for persistent staged files across Uvicorn worker restarts
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STAGING_DIR = os.path.join(BASE_DIR, ".staging")
-os.makedirs(STAGING_DIR, exist_ok=True)
+is_serverless = os.getenv("VERCEL") == "1" or os.getenv("AWS_LAMBDA_FUNCTION_NAME") is not None
+if is_serverless:
+    STAGING_DIR = "/tmp/.staging"
+else:
+    STAGING_DIR = os.path.join(BASE_DIR, ".staging")
+
+try:
+    os.makedirs(STAGING_DIR, exist_ok=True)
+except Exception:
+    STAGING_DIR = "/tmp/.staging"
+    os.makedirs(STAGING_DIR, exist_ok=True)
 
 # In-memory staging store: {file_id: staged_file_dict}
 _STAGING_FILES: Dict[str, Dict[str, Any]] = {}

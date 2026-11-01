@@ -198,3 +198,83 @@ def test_investment_api_endpoints():
     assert "reply" in chat_data
     assert "validation_verdict" in chat_data
     assert len(chat_data["reply"]) > 20
+
+
+def test_investments_hard_no_when_amount_exceeds_liquid_balance():
+    """Verifies that asking to invest 500k with 300k liquid funds deterministically says NO."""
+    telemetry = {
+        "combined_liquid_paise": 30000000,   # ₹3,00,000 liquid funds
+        "monthly_inflow_paise": 8000000,    # ₹80,000 income
+        "monthly_outflow_paise": 4500000,   # ₹45,000 expenses
+        "monthly_savings_paise": 3500000,   # ₹35,000 monthly savings
+        "savings_rate_pct": 43.8,
+        "safe_surplus_paise": 20000000,     # ₹2,00,000 deployable surplus
+        "safety_buffer_paise": 10000000,    # ₹1,00,000 safety buffer
+        "can_invest": True
+    }
+
+    advice = generate_investment_advice("Can I invest 500k in stocks?", telemetry=telemetry)
+    assert advice["can_invest"] is False
+    assert advice["validation_verdict"] == "EXCEEDS_LIQUID_FUNDS"
+    assert "❌" in advice["reply"]
+    assert "EXCEEDS LIQUID FUNDS" in advice["reply"] or "exceeds" in advice["reply"].lower()
+    # Check that shortfall is stated
+    assert "shortfall" in advice["reply"].lower() or "200,000" in advice["reply"]
+
+
+def test_investments_hard_no_when_breaching_safety_buffer():
+    """Verifies that investing 250k with 200k surplus deterministically says NO."""
+    telemetry = {
+        "combined_liquid_paise": 30000000,   # ₹3,00,000 liquid funds
+        "monthly_inflow_paise": 8000000,    # ₹80,000 income
+        "monthly_outflow_paise": 4500000,   # ₹45,000 expenses
+        "monthly_savings_paise": 3500000,   # ₹35,000 monthly savings
+        "savings_rate_pct": 43.8,
+        "safe_surplus_paise": 20000000,     # ₹2,00,000 deployable surplus
+        "safety_buffer_paise": 10000000,    # ₹1,00,000 safety buffer
+        "can_invest": True
+    }
+
+    advice = generate_investment_advice("Can I invest 250k in stocks?", telemetry=telemetry)
+    assert advice["can_invest"] is False
+    assert advice["validation_verdict"] == "BREACHES_SAFETY_BUFFER"
+    assert "❌" in advice["reply"] or "BREACHES SAFETY BUFFER" in advice["reply"]
+
+
+def test_investments_crypto_speculative_cap():
+    """Verifies that speculative crypto investments exceeding 5% of surplus are rejected."""
+    telemetry = {
+        "combined_liquid_paise": 30000000,
+        "monthly_inflow_paise": 8000000,
+        "monthly_outflow_paise": 4500000,
+        "monthly_savings_paise": 3500000,
+        "savings_rate_pct": 43.8,
+        "safe_surplus_paise": 20000000,     # 5% is ₹10,000
+        "safety_buffer_paise": 10000000,
+        "can_invest": True
+    }
+
+    advice = generate_investment_advice("Can I put 1 lakh in crypto?", telemetry=telemetry)
+    assert advice["can_invest"] is False
+    assert advice["validation_verdict"] == "CRYPTO_LIMIT_EXCEEDED"
+    assert "SPECULATIVE RISK LIMIT" in advice["reply"] or "crypto" in advice["reply"].lower()
+
+
+def test_investments_yes_when_affordable():
+    """Verifies that a prudent, affordable investment is approved with YES."""
+    telemetry = {
+        "combined_liquid_paise": 30000000,
+        "monthly_inflow_paise": 8000000,
+        "monthly_outflow_paise": 4500000,
+        "monthly_savings_paise": 3500000,
+        "savings_rate_pct": 43.8,
+        "safe_surplus_paise": 20000000,
+        "safety_buffer_paise": 10000000,
+        "can_invest": True
+    }
+
+    advice = generate_investment_advice("Can I invest ₹20,000 in gold?", telemetry=telemetry)
+    assert advice["can_invest"] is True
+    assert advice["validation_verdict"] == "ELIGIBLE_AND_SAFE"
+    assert "✅" in advice["reply"]
+    assert "SAFE TO INVEST" in advice["reply"]

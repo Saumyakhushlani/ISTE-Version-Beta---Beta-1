@@ -128,3 +128,43 @@ def test_evaluate_dual_options_math():
     assert dual["option_cash"]["purchase_paise"] == 8000000
     assert dual["option_emi"]["monthly_emi_paise"] > 0
     assert dual["option_emi"]["recommended_tenure_months"] in [6, 12]
+
+
+def test_purchase_advisor_hard_no_when_price_exceeds_liquid_balance():
+    """Verifies that an upfront purchase exceeding total liquid funds deterministically says NO."""
+    dual = evaluate_dual_options(
+        txns=[
+            {"id": "t1", "account_id": "acc_1", "posted_date": "2026-01-01", "amount_minor": 10000000, "status": "active"},
+            {"id": "t2", "account_id": "acc_1", "posted_date": "2026-01-05", "amount_minor": -3000000, "status": "active"}
+        ],
+        recurring=[],
+        account_balances={"HDFC Bank": 30000000},  # ₹3,00,000 liquid
+        source_files=[{"id": "sf_1", "reconciliation_status": "PASSED"}],
+        purchase_amount_paise=50000000,  # ₹5,00,000 (exceeds ₹3.00L by ₹2.00L)
+        item_label="Luxury Watch"
+    )
+
+    cash = dual["option_cash"]
+    assert cash["can_afford"] is False
+    assert cash["verdict_code"] == "EXCEEDS_LIQUID_BALANCE"
+    assert "exceeds" in cash["verdict_text"].lower()
+    assert "200,000" in cash["verdict_text"] or "shortfall" in cash["verdict_text"].lower()
+
+
+def test_purchase_advisor_emi_hard_no_when_emi_exceeds_savings():
+    """Verifies that EMI exceeding monthly savings capacity deterministically says NO."""
+    dual = evaluate_dual_options(
+        txns=[
+            {"id": "t1", "account_id": "acc_1", "posted_date": "2026-01-01", "amount_minor": 5000000, "status": "active"},
+            {"id": "t2", "account_id": "acc_1", "posted_date": "2026-01-05", "amount_minor": -3000000, "status": "active"}
+        ],
+        recurring=[],
+        account_balances={"HDFC Bank": 50000000},
+        source_files=[{"id": "sf_1", "reconciliation_status": "PASSED"}],
+        purchase_amount_paise=60000000,  # ₹6,00,000 -> 6m EMI is ₹1,00,000/mo (far exceeds ₹20,000/mo savings)
+        item_label="Used Car"
+    )
+
+    emi = dual["option_emi"]
+    assert emi["can_afford"] is False
+    assert emi["verdict_code"] in ["UNHEALTHY_DEBT_RATIO", "EMI_EXCEEDS_SAVINGS", "NO_SAVINGS_FOR_EMI"]

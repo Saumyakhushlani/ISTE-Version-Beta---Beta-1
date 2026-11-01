@@ -34,6 +34,7 @@ interface ChatMessage {
 
 const DEFAULT_STARTER_QUESTIONS = [
   'Can I invest ₹10,000 in Mutual Fund SIP or Gold this month?',
+  'Can I invest 500k in stocks?',
   'Am I saving enough to invest in Stocks or Crypto?'
 ];
 
@@ -125,7 +126,7 @@ export default function InvestmentsPage() {
         role: 'assistant',
         content: res.reply || 'No response generated.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        modelUsed: res.model_used || 'Groq Cloud',
+        modelUsed: res.model_used || 'Google Gemini',
         canInvest: res.can_invest,
       };
 

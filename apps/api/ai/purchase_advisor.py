@@ -285,6 +285,27 @@ def evaluate_dual_options(
         out = sum(abs(r["amount_minor"]) for r in recurring if r.get("type") != "salary" and r.get("amount_minor", 0) < 0)
         monthly_net_savings_paise = max(0, sal - out)
     
+    combined_liquid_paise = sum(account_balances.values())
+    
+    # 1. DETERMINISTIC HARD NO RULES FOR CASH / UPFRONT
+    cash_can_afford = False
+    cash_code = cash_verdict.get("code", "UNKNOWN")
+    cash_text = cash_verdict.get("headline", cash_code)
+    
+    if purchase_amount_paise > combined_liquid_paise:
+        cash_can_afford = False
+        cash_code = "EXCEEDS_LIQUID_BALANCE"
+        shortfall = purchase_amount_paise - combined_liquid_paise
+        cash_text = f"Purchase of ₹{purchase_amount_paise // 100:,} exceeds your total liquid balance of ₹{combined_liquid_paise // 100:,} by ₹{shortfall // 100:,}."
+    elif lowest_balance.get("p50_minor", 0) < buffer_paise or cash_headroom.get("p10_minor", 0) < 0:
+        cash_can_afford = False
+        cash_code = "BREACHES_EMERGENCY_BUFFER" if lowest_balance.get("p50_minor", 0) < buffer_paise else "TIGHT_HEADROOM"
+        cash_text = f"Depletes required ₹{buffer_paise // 100:,} emergency buffer, leaving you vulnerable to emergencies."
+    elif cash_code == "AFFORDABLE":
+        cash_can_afford = True
+        cash_code = "AFFORDABLE_UPFRONT"
+        cash_text = f"Fully affordable upfront, preserving ₹{cash_headroom.get('p10_minor', 0) // 100:,} in safe P10 headroom above your emergency buffer."
+
     # 2. OPTION 2: EMI EVALUATION
     # 6-Month No-Cost EMI
     emi_6m_paise = calculate_emi_paise(purchase_amount_paise, 6, annual_interest_pct=0.0)
@@ -299,42 +320,48 @@ def evaluate_dual_options(
     primary_interest_rate = 0.0
     primary_total_interest_paise = 0
     
-    # Debt ratio against monthly net savings capacity
+    # DETERMINISTIC HARD NO RULES FOR EMI
     can_afford_emi = False
     emi_verdict_code = "UNHEALTHY_DEBT_RATIO"
+    emi_verdict_text = ""
     
-    if monthly_net_savings_paise > 0:
-        if emi_6m_paise <= monthly_net_savings_paise * 0.60:
-            can_afford_emi = True
-            emi_verdict_code = "AFFORDABLE_ON_EMI"
-            primary_tenure = 6
-            primary_emi_paise = emi_6m_paise
-            primary_interest_rate = 0.0
-            primary_total_interest_paise = 0
-        elif emi_12m_paise <= monthly_net_savings_paise * 0.50:
+    if monthly_net_savings_paise <= 0:
+        can_afford_emi = False
+        emi_verdict_code = "NO_SAVINGS_FOR_EMI"
+        emi_verdict_text = "You currently have zero or negative monthly net savings. Taking on EMI debt will trigger immediate ongoing monthly deficits."
+    elif primary_emi_paise > monthly_net_savings_paise:
+        can_afford_emi = False
+        emi_verdict_code = "EMI_EXCEEDS_SAVINGS"
+        emi_verdict_text = f"Monthly EMI of ₹{primary_emi_paise // 100:,} exceeds your entire net monthly savings of ₹{monthly_net_savings_paise // 100:,}."
+    elif primary_emi_paise > monthly_net_savings_paise * 0.50:
+        # Check if 12m EMI fits under 50%
+        if emi_12m_paise <= monthly_net_savings_paise * 0.50:
             can_afford_emi = True
             emi_verdict_code = "AFFORDABLE_ON_EMI"
             primary_tenure = 12
             primary_emi_paise = emi_12m_paise
             primary_interest_rate = 14.0
             primary_total_interest_paise = total_interest_12m_paise
+            savings_share = round((primary_emi_paise / max(1, monthly_net_savings_paise)) * 100, 1)
+            emi_verdict_text = f"Affordable on 12-month EMI: Monthly installment of ₹{primary_emi_paise // 100:,} consumes {savings_share}% of your ₹{monthly_net_savings_paise // 100:,}/month savings."
         else:
             can_afford_emi = False
-            emi_verdict_code = "TIGHT_EMI_STRETCH"
+            emi_verdict_code = "UNHEALTHY_DEBT_RATIO"
+            emi_verdict_text = f"Monthly EMI of ₹{primary_emi_paise // 100:,} consumes more than 50% of your net monthly savings (₹{monthly_net_savings_paise // 100:,}), leaving unsafe buffer for other expenses."
     else:
-        can_afford_emi = False
-        emi_verdict_code = "NO_SAVINGS_FOR_EMI"
-
-    combined_liquid_paise = sum(account_balances.values())
+        can_afford_emi = True
+        emi_verdict_code = "AFFORDABLE_ON_EMI"
+        savings_share = round((primary_emi_paise / max(1, monthly_net_savings_paise)) * 100, 1)
+        emi_verdict_text = f"Affordable on 6-month EMI: Monthly installment of ₹{primary_emi_paise // 100:,} consumes only {savings_share}% of your ₹{monthly_net_savings_paise // 100:,}/month savings."
     
     return {
         "combined_liquid_paise": combined_liquid_paise,
         "monthly_net_savings_paise": monthly_net_savings_paise,
         "safety_buffer_paise": buffer_paise,
         "option_cash": {
-            "verdict_code": cash_verdict["code"],
-            "can_afford": cash_verdict["code"] == "AFFORDABLE",
-            "verdict_text": cash_verdict.get("headline", cash_verdict["code"]),
+            "verdict_code": cash_code,
+            "can_afford": cash_can_afford,
+            "verdict_text": cash_text,
             "purchase_paise": purchase_amount_paise,
             "p10_headroom_paise": cash_headroom["p10_minor"],
             "p50_headroom_paise": cash_headroom["p50_minor"],
@@ -345,6 +372,7 @@ def evaluate_dual_options(
         "option_emi": {
             "verdict_code": emi_verdict_code,
             "can_afford": can_afford_emi,
+            "verdict_text": emi_verdict_text,
             "recommended_tenure_months": primary_tenure,
             "monthly_emi_paise": primary_emi_paise,
             "annual_interest_pct": primary_interest_rate,
@@ -394,26 +422,29 @@ You evaluate purchase and spending affordability decisions for retail users in I
 - Required Emergency Floor Buffer: Rs. {buffer_rs:,}
 
 === OPTION 1: ONE-TIME UPFRONT (CASH / FULL PAYMENT) ===
-- Verdict: {'YES - AFFORDABLE' if cash['can_afford'] else 'NO - NOT RECOMMENDED / TIGHT'} ({cash['verdict_code']})
+- Verdict: {'✅ YES — AFFORDABLE UPFRONT' if cash['can_afford'] else '❌ NO — NOT RECOMMENDED UPFRONT'} ({cash['verdict_code']})
 - Upfront Outflow: Rs. {price_rs:,}
+- Shortfall / Deficit: Rs. {max(0, price_rs - liquid_rs):,}
 - Safe Headroom Remaining (P10): Rs. {cash_headroom_rs:,}
 - Lowest Projected Balance in next 30 days: Rs. {lowest_bal_rs:,}
 - Emergency Safety Buffer Impact: Buffer of Rs. {buffer_rs:,} is {'fully protected' if cash['can_afford'] else 'breached or heavily pressured'}.
+- Mathematical Explanation: {cash['verdict_text']}
 
 === OPTION 2: MONTHLY EMI / FINANCING ===
-- Verdict: {'YES - AFFORDABLE ON EMI' if emi['can_afford'] else 'NO - RISKY FOR MONTHLY CASH FLOW'} ({emi['verdict_code']})
+- Verdict: {'✅ YES — AFFORDABLE ON EMI' if emi['can_afford'] else '❌ NO — NOT RECOMMENDED ON EMI'} ({emi['verdict_code']})
 - Recommended Tenure: {emi_months} Months
 - Monthly Installment: Rs. {primary_emi_rs:,} / month
 - Annual Interest Rate: {interest_pct}%
 - Total Interest Payable: Rs. {interest_rs:,}
 - Monthly Savings Impact: Monthly EMI of Rs. {primary_emi_rs:,} consumes {round((primary_emi_rs / max(1, savings_rs)) * 100, 1)}% of your Rs. {savings_rs:,} monthly savings.
+- Mathematical Explanation: {emi['verdict_text']}
 
 === STRICT RESPONSE INSTRUCTIONS ===
-1. Speak directly to the user in a warm, analytical, and encouraging tone. NEVER quote meta-rules or system instructions.
+1. Speak directly to the user in a warm, analytical, and authoritative tone. NEVER quote meta-rules or system instructions.
 2. If price was estimated, start with a quick 1-sentence note stating the average market price benchmark (e.g. "I estimated an average market price of Rs. {price_rs:,} for {item_label}").
 3. Present BOTH options clearly with distinct markdown sections:
-   - **Option 1: One-Time Upfront Payment** (Give a clear YES or NO verdict badge, state the headroom, and emergency cushion impact).
-   - **Option 2: Monthly EMI / Financing** (Give a clear YES or NO verdict badge, state the exact EMI of Rs. {primary_emi_rs:,}/month for {emi_months} months, interest, and monthly cash flow safety).
+   - **Option 1: One-Time Upfront Payment** (You MUST lead with the exact verdict: {'✅ **YES — AFFORDABLE UPFRONT**' if cash['can_afford'] else '❌ **NO — NOT RECOMMENDED UPFRONT**'}. If NO, you are STRICTLY FORBIDDEN from saying yes or approving upfront payment; explain the exact deficit of Rs. {max(0, price_rs - liquid_rs):,} or buffer breach: "{cash['verdict_text']}").
+   - **Option 2: Monthly EMI / Financing** (You MUST lead with the exact verdict: {'✅ **YES — AFFORDABLE ON EMI**' if emi['can_afford'] else '❌ **NO — NOT RECOMMENDED ON EMI**'}. If NO, clearly explain why this debt burden is unsafe: "{emi['verdict_text']}").
 4. Finish with a 1-sentence **Strategic Bottom Line Recommendation** comparing which option is smarter for them.
 5. All numerical figures in your reply MUST match the figures above verbatim.
 """
@@ -565,15 +596,18 @@ def generate_purchase_advisory(
             f"- **Verdict**: {cash_verdict_badge}\n"
             f"- **Upfront Outflow**: ₹{price_rs:,}\n"
             f"- **Safety Buffer Preservation**: ₹{cash['safety_buffer_paise'] // 100:,} required floor\n"
-            f"- **Lowest 30-Day Balance**: ₹{cash['lowest_balance_paise'] // 100:,}\n\n"
+            f"- **Lowest 30-Day Balance**: ₹{cash['lowest_balance_paise'] // 100:,}\n"
+            f"- **Analysis**: {cash['verdict_text']}\n\n"
             f"### Option 2: Monthly EMI / Financing\n"
             f"- **Verdict**: {emi_verdict_badge}\n"
             f"- **Monthly Installment**: ₹{emi_rs:,} / month for **{emi['recommended_tenure_months']} months**\n"
             f"- **Interest Rate**: {emi['annual_interest_pct']}% (Total interest: ₹{emi['total_interest_paise'] // 100:,})\n"
-            f"- **Cash Flow Safety**: Consumes approx. {round((emi_rs / max(1, eval_data['monthly_net_savings_paise'] // 100)) * 100, 1)}% of your monthly savings capacity (₹{eval_data['monthly_net_savings_paise'] // 100:,}/month).\n\n"
+            f"- **Cash Flow Safety**: Consumes approx. {round((emi_rs / max(1, eval_data['monthly_net_savings_paise'] // 100)) * 100, 1)}% of your monthly savings capacity (₹{eval_data['monthly_net_savings_paise'] // 100:,}/month).\n"
+            f"- **Analysis**: {emi['verdict_text']}\n\n"
             f"**Bottom Line**: "
             + ("You can proceed with full payment safely without jeopardizing your emergency buffer." if cash["can_afford"]
-               else f"Paying upfront puts heavy pressure on your safety buffer. Opting for a {emi['recommended_tenure_months']}-month EMI of ₹{emi_rs:,}/month is significantly safer.")
+               else f"Paying upfront puts heavy pressure on your safety buffer. Opting for a {emi['recommended_tenure_months']}-month EMI of ₹{emi_rs:,}/month is significantly safer." if emi["can_afford"]
+               else f"Neither option is safe right now. Both paying upfront and taking on EMI will over-extend your financial capacity.")
         )
         
     return {
