@@ -83,7 +83,7 @@ export default function InvestmentsPage() {
             id: 'msg_welcome',
             role: 'assistant',
             content: welcomeText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: 'Just now',
             modelUsed: 'Groq NLU',
             canInvest: t.can_invest,
           },

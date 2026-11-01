@@ -20,6 +20,7 @@ from engine.affordability import evaluate_affordability_decision
 from engine.recurring import detect_recurring_items
 from ai.extractor import parse_natural_language_query
 from ai.narrator import generate_guarded_narration
+from ai.purchase_advisor import generate_purchase_advisory
 
 router = APIRouter()
 
@@ -35,6 +36,11 @@ class AffordabilityQuery(BaseModel):
 
 class NaturalLanguageAsk(BaseModel):
     question: str
+    source_file_ids: Optional[List[str]] = None
+
+class PurchaseAdvisorChatRequest(BaseModel):
+    message: str
+    history: Optional[List[Dict[str, str]]] = None
     source_file_ids: Optional[List[str]] = None
 
 def fetch_db_state(db: Session, user_id: Optional[str] = None, source_file_ids: Optional[List[str]] = None):
@@ -253,3 +259,31 @@ def natural_language_ask(
     decision = evaluate_affordability(query, current_user=current_user, db=db)
     decision["parsed_query"] = parsed_params
     return decision
+
+@router.post("/chat")
+def purchase_advisor_chat(
+    payload: PurchaseAdvisorChatRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Conversational Purchase Affordability Advisor:
+    - Filters out non-financial queries
+    - Resolves item and price (with retail/travel market benchmarks if omitted)
+    - Deterministically computes BOTH Option 1 (One-Time Upfront) and Option 2 (Monthly EMI)
+    - Synthesizes grounded natural language advice via Gemini 3.5 Flash
+    """
+    txns, account_balances, recurring, source_files = fetch_db_state(
+        db, user_id=current_user.id, source_file_ids=payload.source_file_ids
+    )
+
+    result = generate_purchase_advisory(
+        user_message=payload.message,
+        txns=txns,
+        recurring=recurring,
+        account_balances=account_balances,
+        source_files=source_files,
+        conversation_history=payload.history
+    )
+
+    return result

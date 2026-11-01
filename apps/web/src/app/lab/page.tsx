@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { 
   Sparkles, 
@@ -28,7 +29,13 @@ import {
   CreditCard,
   Check,
   Zap,
-  Tag
+  Tag,
+  Send,
+  Wallet,
+  ExternalLink,
+  ShoppingBag,
+  Plane,
+  Smartphone
 } from 'lucide-react';
 import LiquidityAdvisorModal from '@/components/LiquidityAdvisorModal';
 import CashHorizonChart from '@/components/CashHorizonChart';
@@ -55,6 +62,71 @@ const itemVariants: Variants = {
   },
 };
 
+interface PurchaseChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  modelUsed?: string;
+  itemLabel?: string;
+  pricePaise?: number;
+  isEstimatedPrice?: boolean;
+  benchmarkSource?: string;
+  needsPriceClarification?: boolean;
+  suggestedPricesPaise?: number[];
+  isOutOfScope?: boolean;
+  optionCash?: {
+    verdict_code: string;
+    can_afford: boolean;
+    verdict_text: string;
+    purchase_paise: number;
+    p10_headroom_paise: number;
+    p50_headroom_paise: number;
+    lowest_balance_paise: number;
+    safety_buffer_paise: number;
+    max_affordable_paise: number;
+  };
+  optionEmi?: {
+    verdict_code: string;
+    can_afford: boolean;
+    recommended_tenure_months: number;
+    monthly_emi_paise: number;
+    annual_interest_pct: number;
+    total_interest_paise: number;
+    monthly_net_savings_paise: number;
+    emi_6m_paise: number;
+    emi_12m_paise: number;
+    total_interest_12m_paise: number;
+  };
+}
+
+const DEFAULT_PURCHASE_STARTERS = [
+  '📱 Can I buy an iPhone 16 Pro?',
+  '✈️ Can I spend on a Goa trip this month?',
+  '🎮 Can I afford a PS5?',
+  '💻 Can I buy a MacBook Air for ₹1,14,900?',
+  '🛵 Can I buy an Electric Scooter?',
+];
+
+const QUICK_PURCHASE_PILLS = [
+  { name: 'iPhone 16 Pro', query: 'Can I buy an iPhone 16 Pro?' },
+  { name: 'Goa Vacation', query: 'Can I spend on a Goa trip this month?' },
+  { name: 'Sony PS5', query: 'Can I buy a Sony PS5 console?' },
+  { name: 'MacBook Air M3', query: 'Can I afford a MacBook Air M3?' },
+  { name: 'Electric Scooter', query: 'Can I buy an electric scooter?' },
+  { name: '55" 4K TV', query: 'Can I buy a 55-inch Smart TV?' },
+];
+
+function getFormattedTime(): string {
+  const d = new Date();
+  let hours = d.getHours();
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+}
+
 export default function DecisionLabPage() {
   // Input parameters
   const [purchaseRs, setPurchaseRs] = useState('80000');
@@ -65,10 +137,20 @@ export default function DecisionLabPage() {
   const [emiRate, setEmiRate] = useState(0.0);
   const [bufferMultiplier, setBufferMultiplier] = useState<number | undefined>(undefined);
 
-  // Natural Language Search State
-  const [naturalQuery, setNaturalQuery] = useState('');
-  const [isAskingNL, setIsAskingNL] = useState(false);
-  const [parsedEntities, setParsedEntities] = useState<any>(null);
+  // Conversational Purchase Advisor State
+  const [chatMessages, setChatMessages] = useState<PurchaseChatMessage[]>([
+    {
+      id: 'welcome_msg',
+      role: 'assistant',
+      content:
+        "Hello! I am your **Financial Decision Advisor**.\n\nAsk me anything about a purchase, travel plan, or expense (e.g. *\"Can I buy an iPhone 16 Pro?\"*, *\"Can I spend on a Goa trip this month?\"*, or *\"Can I afford a MacBook Air?\"*).\n\nIf you don't mention a price, I will automatically look up the average market benchmark for you. I will evaluate **both** your options: **Option 1 (One-Time Upfront)** and **Option 2 (Monthly EMI)** against your verified bank accounts!",
+      timestamp: 'Just now',
+      modelUsed: 'Google Gemini 3.5 Flash',
+    },
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // Decision & Scenarios State
   const [loading, setLoading] = useState(false);
@@ -122,59 +204,102 @@ export default function DecisionLabPage() {
     }
   }
 
-  async function handleNaturalLanguageSubmit(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    if (!naturalQuery.trim()) return;
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, isSendingChat]);
 
-    setIsAskingNL(true);
-    setLoading(true);
+  async function handleSendPurchaseChat(textToSend?: string) {
+    const q = (textToSend || chatInput).trim();
+    if (!q || isSendingChat) return;
+
+    const userMsg: PurchaseChatMessage = {
+      id: `usr_${Date.now()}`,
+      role: 'user',
+      content: q,
+      timestamp: getFormattedTime(),
+    };
+
+    const nextMessages = [...chatMessages, userMsg];
+    setChatMessages(nextMessages);
+    setChatInput('');
+    setIsSendingChat(true);
+
     try {
-      const res = await api.askAffordability(naturalQuery.trim());
-      setDecision(res);
-      if (res.parsed_query) {
-        setParsedEntities(res.parsed_query);
-        const parsed = res.parsed_query;
-        if (parsed.purchase_amount_minor) {
-          setPurchaseRs((parsed.purchase_amount_minor / 100).toString());
-        }
-        if (parsed.label) setLabel(parsed.label);
-        if (parsed.payment_type) setPaymentType(parsed.payment_type);
-        if (parsed.emi_months) setEmiMonths(parsed.emi_months);
-        if (parsed.timing) setTiming(parsed.timing);
+      const historyPayload = nextMessages.slice(-6).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const res = await api.sendPurchaseAdvisorChat(q, historyPayload);
+
+      const assistantMsg: PurchaseChatMessage = {
+        id: `asst_${Date.now()}`,
+        role: 'assistant',
+        content: res.reply || 'No response generated.',
+        timestamp: getFormattedTime(),
+        modelUsed: res.is_out_of_scope ? undefined : 'Google Gemini (gemini-3.5-flash)',
+        itemLabel: res.item_label,
+        pricePaise: res.price_paise,
+        isEstimatedPrice: res.is_estimated_price,
+        benchmarkSource: res.benchmark_source,
+        needsPriceClarification: res.needs_price_clarification,
+        suggestedPricesPaise: res.suggested_prices_paise,
+        isOutOfScope: res.is_out_of_scope,
+        optionCash: res.option_cash,
+        optionEmi: res.option_emi,
+      };
+
+      setChatMessages((prev) => [...prev, assistantMsg]);
+
+      // If price was identified, prefill the simulation sliders below
+      if (res.price_paise && res.price_paise > 0) {
+        const rs = (res.price_paise / 100).toString();
+        setPurchaseRs(rs);
+        if (res.item_label) setLabel(res.item_label);
       }
-    } catch (err) {
-      console.error('Failed to ask affordability query:', err);
+    } catch (err: any) {
+      console.error('Purchase chat query error:', err);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `err_${Date.now()}`,
+          role: 'assistant',
+          content: 'I encountered an error connecting to the purchase advisor. Please try again.',
+          timestamp: getFormattedTime(),
+        },
+      ]);
     } finally {
-      setIsAskingNL(false);
-      setLoading(false);
+      setIsSendingChat(false);
     }
   }
 
-  function handlePromptChipClick(prompt: string) {
-    setNaturalQuery(prompt);
-    // Auto submit query
-    setIsAskingNL(true);
-    setLoading(true);
-    api.askAffordability(prompt)
-      .then((res) => {
-        setDecision(res);
-        if (res.parsed_query) {
-          setParsedEntities(res.parsed_query);
-          const parsed = res.parsed_query;
-          if (parsed.purchase_amount_minor) {
-            setPurchaseRs((parsed.purchase_amount_minor / 100).toString());
-          }
-          if (parsed.label) setLabel(parsed.label);
-          if (parsed.payment_type) setPaymentType(parsed.payment_type);
-          if (parsed.emi_months) setEmiMonths(parsed.emi_months);
-          if (parsed.timing) setTiming(parsed.timing);
-        }
-      })
-      .catch((err) => console.error(err))
-      .finally(() => {
-        setIsAskingNL(false);
-        setLoading(false);
-      });
+  function handleResetPurchaseChat() {
+    setChatMessages([
+      {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content:
+          "Hello! I am your **Financial Decision Advisor**.\n\nAsk me anything about a purchase, travel plan, or expense (e.g. *\"Can I buy an iPhone 16 Pro?\"*, *\"Can I spend on a Goa trip this month?\"*, or *\"Can I afford a MacBook Air?\"*).\n\nIf you don't mention a price, I will automatically look up the average market benchmark for you. I will evaluate **both** your options: **Option 1 (One-Time Upfront)** and **Option 2 (Monthly EMI)** against your verified bank accounts!",
+        timestamp: 'Just now',
+        modelUsed: 'Google Gemini 3.5 Flash',
+      },
+    ]);
+  }
+
+  function handleSyncToLab(msg: PurchaseChatMessage) {
+    if (!msg.pricePaise) return;
+    const rs = (msg.pricePaise / 100).toString();
+    setPurchaseRs(rs);
+    if (msg.itemLabel) setLabel(msg.itemLabel);
+    runEvaluation({
+      purchaseRs: rs,
+      label: msg.itemLabel || label,
+      paymentType: 'cash',
+    });
+    const el = document.getElementById('simulation-controls');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
   }
 
   async function runWhatIfScenarios(customScenarios?: any[]) {
@@ -255,130 +380,293 @@ export default function DecisionLabPage() {
         </p>
       </motion.div>
 
-      {/* 1. NATURAL LANGUAGE "ASK DECISION LAB" BAR (FR-12) */}
-      <motion.div 
-        variants={itemVariants} 
-        className="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-3.5 relative overflow-hidden"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-xs font-bold text-foreground uppercase tracking-wider">
-              Ask Natural Language Question
-            </span>
+      {/* 1. CONVERSATIONAL PURCHASE AFFORDABILITY ADVISOR (Borderless, Dual Option Cash vs EMI) */}
+      <motion.div variants={itemVariants} className="space-y-3 w-full">
+        {/* Header Bar */}
+        <div className="py-2 border-b border-border/50 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-foreground flex items-center gap-2">
+                <span>Purchase Affordability Advisor</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-mono">
+                  Google Gemini 3.5 Flash
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 hidden sm:inline-flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" />
+                  Dual Cash vs EMI Math
+                </span>
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Ask about any purchase, trip, or gadget · Evaluates Upfront Cash & Monthly EMI against your verified cash flow
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-              <Zap className="w-3 h-3 text-amber-500" />
-              Groq NLU Active
-            </span>
-            <span className="text-[11px] font-mono text-muted-foreground hidden sm:inline">
-              Neural Parser · Fallback Safe
-            </span>
-          </div>
+
+          <button
+            onClick={handleResetPurchaseChat}
+            title="Reset Conversation"
+            className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition cursor-pointer"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
         </div>
 
-        <form onSubmit={handleNaturalLanguageSubmit} className="relative">
-          <div className="relative flex items-center">
-            <Search className="w-4 h-4 absolute left-3.5 text-muted-foreground" />
-            <input
-              type="text"
-              value={naturalQuery}
-              onChange={(e) => setNaturalQuery(e.target.value)}
-              placeholder="Ask anything: &quot;Can I buy a Sony TV for ₹45,000 on 6-month EMI next month?&quot;"
-              className="w-full bg-input border border-border rounded-xl pl-10 pr-28 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-medium"
-            />
+        {/* Starter Question Chips */}
+        <div className="py-2 border-b border-border/40 flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <span className="text-[11px] font-semibold text-muted-foreground shrink-0 flex items-center gap-1">
+            <HelpCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            Try asking:
+          </span>
+          {DEFAULT_PURCHASE_STARTERS.map((q, idx) => (
             <button
-              type="submit"
-              disabled={isAskingNL || !naturalQuery.trim()}
-              className="absolute right-1.5 px-4 py-1.5 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
+              key={idx}
+              onClick={() => handleSendPurchaseChat(q)}
+              disabled={isSendingChat}
+              className="text-xs px-3 py-1.5 rounded-full bg-card hover:bg-muted border border-border hover:border-emerald-500/50 text-foreground transition shrink-0 whitespace-nowrap cursor-pointer shadow-2xs font-medium"
             >
-              {isAskingNL ? (
-                <span>Parsing...</span>
-              ) : (
-                <>
-                  <span>Evaluate</span>
-                  <ArrowRight className="w-3 h-3" />
-                </>
-              )}
+              {q}
             </button>
-          </div>
-        </form>
-
-        {/* Suggestion Chips */}
-        <div className="flex items-center gap-2 flex-wrap text-xs">
-          <span className="text-[11px] text-muted-foreground font-semibold">Try:</span>
-          <button
-            type="button"
-            onClick={() => handlePromptChipClick("Can I afford an iPhone 16 for ₹79,900 next month?")}
-            className="px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border border-border text-[11px] transition"
-          >
-            📱 iPhone 16 for ₹79,900
-          </button>
-          <button
-            type="button"
-            onClick={() => handlePromptChipClick("Can I buy a MacBook Pro for ₹1,40,000 on 6 months EMI?")}
-            className="px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border border-border text-[11px] transition"
-          >
-            💻 MacBook Pro on 6m EMI
-          </button>
-          <button
-            type="button"
-            onClick={() => handlePromptChipClick("Can I buy furniture for ₹65,000 next month?")}
-            className="px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border border-border text-[11px] transition"
-          >
-            🛋️ Living Room Sofa ₹65k
-          </button>
-          <button
-            type="button"
-            onClick={() => handlePromptChipClick("Can I spend ₹35,000 on a Goa trip this month?")}
-            className="px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border border-border text-[11px] transition"
-          >
-            ✈️ Goa Trip for ₹35,000
-          </button>
+          ))}
         </div>
 
-        {/* Parsed Entity Confirmation Chips */}
-        {parsedEntities && (
-          <div className="pt-2 border-t border-border flex items-center justify-between flex-wrap gap-2 text-[11px] font-mono">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-muted-foreground font-sans font-semibold">Parsed Entities:</span>
-              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                Item: {parsedEntities.label || label}
-              </span>
-              <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
-                {formatINR(parsedEntities.purchase_amount_minor || rupeesToPaise(parseFloat(purchaseRs || '0')))}
-              </span>
-              <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                {parsedEntities.timing === 'this_month' ? 'This Month' : 'Next Month Horizon'}
-              </span>
-              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 uppercase">
-                {parsedEntities.payment_type === 'emi' ? `${parsedEntities.emi_months || emiMonths}-Mo EMI` : 'Upfront Cash'}
+        {/* Messages Thread */}
+        <div ref={chatScrollRef} className="h-[460px] overflow-y-auto py-3 px-1 space-y-4">
+          {chatMessages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}
+            >
+              <div
+                className={`max-w-[92%] md:max-w-[82%] rounded-2xl px-4 py-3 text-xs md:text-sm leading-relaxed shadow-xs ${
+                  m.role === 'user'
+                    ? 'bg-emerald-600 dark:bg-emerald-600 text-white rounded-br-xs font-medium'
+                    : 'bg-muted/40 dark:bg-[#111111] border border-border/70 dark:border-neutral-800 text-foreground rounded-bl-xs'
+                }`}
+              >
+                {/* Assistant Message Header */}
+                {m.role === 'assistant' && (
+                  <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-border/50 text-[11px] text-muted-foreground">
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> FDL Advisor
+                    </span>
+                    {m.modelUsed && <span>· {m.modelUsed}</span>}
+                  </div>
+                )}
+
+                {/* Benchmark Pill */}
+                {m.isEstimatedPrice && m.pricePaise && (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 text-[11px] font-medium mb-2.5">
+                    <Zap className="w-3 h-3 text-amber-500 shrink-0" />
+                    <span>
+                      Estimated Average Market Price: <strong>{formatINR(m.pricePaise)}</strong> {m.benchmarkSource ? `(${m.benchmarkSource})` : ''}
+                    </span>
+                  </div>
+                )}
+
+                {/* Formatted Content */}
+                {m.role === 'user' ? (
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+                ) : (
+                  <div className="space-y-2 text-xs md:text-sm leading-relaxed">
+                    <ReactMarkdown
+                      components={{
+                        h1: ({ ...props }) => (
+                          <h1 className="text-base font-bold text-foreground mt-2 mb-1" {...props} />
+                        ),
+                        h2: ({ ...props }) => (
+                          <h2 className="text-sm font-bold text-foreground mt-2 mb-1" {...props} />
+                        ),
+                        h3: ({ ...props }) => (
+                          <h3 className="text-xs md:text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-2 mb-1 flex items-center gap-1.5" {...props} />
+                        ),
+                        p: ({ ...props }) => (
+                          <p className="mb-2 leading-relaxed last:mb-0" {...props} />
+                        ),
+                        ul: ({ ...props }) => (
+                          <ul className="list-disc pl-4 space-y-1.5 my-2" {...props} />
+                        ),
+                        ol: ({ ...props }) => (
+                          <ol className="list-decimal pl-4 space-y-1.5 my-2" {...props} />
+                        ),
+                        li: ({ ...props }) => (
+                          <li className="leading-relaxed" {...props} />
+                        ),
+                        strong: ({ ...props }) => (
+                          <strong className="font-bold text-foreground" {...props} />
+                        ),
+                        code: ({ ...props }) => (
+                          <code className="bg-background/80 border border-border px-1.5 py-0.5 rounded text-[11px] font-mono text-emerald-600 dark:text-emerald-400" {...props} />
+                        ),
+                      }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
+
+                    {/* Dual Option Comparison Cards */}
+                    {m.optionCash && m.optionEmi && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 mt-3 border-t border-border/50">
+                        {/* Option 1: Cash Outflow */}
+                        <div className={`p-3.5 rounded-xl border ${m.optionCash.can_afford ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-rose-500/5 border-rose-500/30'}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-foreground flex items-center gap-1">
+                              <CreditCard className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              Option 1: Upfront (Cash)
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${m.optionCash.can_afford ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'bg-rose-500/20 text-rose-500'}`}>
+                              {m.optionCash.can_afford ? 'YES · AFFORDABLE' : 'NO · TIGHT'}
+                            </span>
+                          </div>
+                          <div className="space-y-1 text-[11px] text-muted-foreground">
+                            <div className="flex justify-between">
+                              <span>Full Outflow:</span>
+                              <span className="font-semibold text-foreground">{formatINR(m.optionCash.purchase_paise)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Conservative Headroom:</span>
+                              <span className={`font-semibold ${m.optionCash.p10_headroom_paise >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
+                                {formatINR(m.optionCash.p10_headroom_paise)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Safety Buffer:</span>
+                              <span className="font-semibold text-foreground">{formatINR(m.optionCash.safety_buffer_paise)} Preserved</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Option 2: EMI Installments */}
+                        <div className={`p-3.5 rounded-xl border ${m.optionEmi.can_afford ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-amber-500/5 border-amber-500/30'}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-foreground flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-primary" />
+                              Option 2: Monthly EMI
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${m.optionEmi.can_afford ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'bg-amber-500/20 text-amber-500'}`}>
+                              {m.optionEmi.can_afford ? 'YES · SAFE ON EMI' : 'NO · STRETCH'}
+                            </span>
+                          </div>
+                          <div className="space-y-1 text-[11px] text-muted-foreground">
+                            <div className="flex justify-between">
+                              <span>Monthly Installment:</span>
+                              <span className="font-semibold text-foreground">{formatINR(m.optionEmi.monthly_emi_paise)} / mo</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Tenure & Interest:</span>
+                              <span className="font-semibold text-foreground">
+                                {m.optionEmi.recommended_tenure_months} Mo @ {m.optionEmi.annual_interest_pct}%
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Total Interest:</span>
+                              <span className="font-semibold text-foreground">{formatINR(m.optionEmi.total_interest_paise)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sync to Lab Below */}
+                    {m.optionCash && (
+                      <div className="pt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleSyncToLab(m)}
+                          className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>Simulate with 5,000 Monte Carlo Runs Below</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Ambiguous Price Chips */}
+                    {m.needsPriceClarification && m.suggestedPricesPaise && (
+                      <div className="pt-2 flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-semibold text-muted-foreground">Quick select budget:</span>
+                        {m.suggestedPricesPaise.map((p, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSendPurchaseChat(`Evaluate ${m.itemLabel || 'purchase'} for ${formatINR(p)}`)}
+                            className="text-xs px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 transition cursor-pointer font-medium"
+                          >
+                            {formatINR(p)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <span suppressHydrationWarning className="text-[10px] text-muted-foreground/70 mt-1 px-1">
+                {m.timestamp}
               </span>
             </div>
+          ))}
 
-            {parsedEntities.parsed_by && (
-              <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold flex items-center gap-1 border ${
-                parsedEntities.parsed_by === 'groq'
-                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                  : 'bg-muted text-muted-foreground border-border'
-              }`}>
-                {parsedEntities.parsed_by === 'groq' ? (
-                  <>
-                    <Zap className="w-2.5 h-2.5 text-amber-500" />
-                    <span>Groq NLU ({parsedEntities.model_used || 'llama-3.3-70b-versatile'})</span>
-                  </>
-                ) : (
-                  <span>Rule Engine Fallback</span>
-                )}
-              </span>
-            )}
-          </div>
-        )}
+          {/* Loading Indicator */}
+          {isSendingChat && (
+            <div className="flex items-start gap-2">
+              <div className="rounded-2xl px-4 py-3 bg-muted/40 dark:bg-[#111111] border border-border/70 dark:border-neutral-800 text-muted-foreground text-xs flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse delay-75" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse delay-150" />
+                <span className="ml-1 text-xs">Evaluating price benchmarks & dual cash-flow options...</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Category Buttons */}
+        <div className="py-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">
+            Presets:
+          </span>
+          {QUICK_PURCHASE_PILLS.map((p) => (
+            <button
+              key={p.name}
+              type="button"
+              onClick={() => handleSendPurchaseChat(p.query)}
+              disabled={isSendingChat}
+              className="text-[11px] px-2.5 py-1 rounded-lg bg-card hover:bg-muted border border-border hover:border-emerald-500/40 text-foreground transition shrink-0 cursor-pointer shadow-2xs font-medium"
+            >
+              <span>{p.name}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Chat Input Bar */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSendPurchaseChat();
+          }}
+          className="pt-2 pb-1 flex items-center gap-2"
+        >
+          <input
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            placeholder="Ask anything: 'Can I buy an iPhone 16 Pro?', 'Can I spend on a Goa trip?'..."
+            disabled={isSendingChat}
+            className="flex-1 bg-white dark:bg-black border border-border dark:border-neutral-800 rounded-xl px-4 py-3 text-xs md:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 shadow-xs"
+          />
+          <button
+            type="submit"
+            disabled={isSendingChat || !chatInput.trim()}
+            className="h-11 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs md:text-sm inline-flex items-center gap-1.5 disabled:opacity-40 transition shadow-xs cursor-pointer shrink-0"
+          >
+            <span>Ask Advisor</span>
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        </form>
       </motion.div>
 
       {/* 2. MAIN SIMULATION INTERFACE (Grid: Controls on Left, Verdict & Horizon on Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div id="simulation-controls" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Purchase Parameters Form */}
         <motion.div 
           variants={itemVariants}

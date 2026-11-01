@@ -321,6 +321,21 @@ export const api = {
       body: JSON.stringify({ question }),
     }),
 
+  sendPurchaseAdvisorChat: (
+    message: string,
+    history?: Array<{ role: string; content: string }>,
+    sourceFileIds?: string[]
+  ) =>
+    fetchFromApi<any>("/api/affordability/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        history,
+        source_file_ids: sourceFileIds,
+      }),
+    }),
+
   parseAffordabilityQuery: (question: string) =>
     fetchFromApi<{
       query: string;
