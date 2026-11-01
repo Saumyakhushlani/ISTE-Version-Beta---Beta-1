@@ -156,6 +156,14 @@ def parse_with_groq(
                 amount = int(raw_json.get("purchase_amount_minor") or 0)
                 if amount <= 0:
                     amount = _extract_amount_regex(query_text)
+                else:
+                    # Sanity-check: LLMs sometimes return the rupee value verbatim instead
+                    # of converting to paise (e.g. user says ₹8,00,000 → LLM returns 800000
+                    # instead of 80000000). Re-extract via regex; if regex gives exactly 100×
+                    # the LLM value, the LLM skipped the ×100 rupee→paise conversion.
+                    regex_amount = _extract_amount_regex(query_text)
+                    if regex_amount > 0 and regex_amount == amount * 100:
+                        amount = regex_amount
 
                 label_raw = str(raw_json.get("label") or "Purchase").strip()
                 label = label_raw.title() if label_raw else "Purchase"

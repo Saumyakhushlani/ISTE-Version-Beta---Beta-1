@@ -9,6 +9,20 @@ const rawFastApiUrl =
   process.env.FASTAPI_INTERNAL_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   'http://127.0.0.1:8000';
+
+// Warn loudly at startup if we're falling back to localhost in a non-local env.
+// This catches the common Vercel misconfiguration (API_URL not set).
+if (
+  rawFastApiUrl === 'http://127.0.0.1:8000' &&
+  process.env.VERCEL === '1'
+) {
+  console.error(
+    '[FDL] CRITICAL: API_URL / FASTAPI_INTERNAL_URL is not set. ' +
+    'All internal requests will fail (localhost is unreachable from Vercel serverless). ' +
+    'Set API_URL in your Vercel environment variables to the live FastAPI host URL.'
+  );
+}
+
 const FASTAPI_INTERNAL_URL = rawFastApiUrl.replace(/\/+$/, '');
 
 const INTERNAL_SERVICE_KEY =

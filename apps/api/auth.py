@@ -20,7 +20,7 @@ from db.models import User, UserProfile, DEMO_USER_ID, DEMO_USER_EMAIL, DEMO_USE
 
 AUTH_SECRET = os.getenv("AUTH_SECRET", "fdl-super-secret-auth-key-minimum-32-chars-long!")
 INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "fdl-internal-shared-secret-key-min32-chars-xyz")
-ALLOW_DEMO_FALLBACK = os.getenv("ALLOW_DEMO_FALLBACK", "true").lower() in ("true", "1", "yes")
+ALLOW_DEMO_FALLBACK = os.getenv("ALLOW_DEMO_FALLBACK", "false").lower() in ("true", "1", "yes")
 
 # Recognized secrets for verifying tokens issued across Next.js and FastAPI environments
 VALID_AUTH_SECRETS = [
