@@ -232,10 +232,10 @@ export default function GoalsPlannerPage() {
       </div>
 
       {/* 2. Top Natural Language Goal Input Card */}
-      <div className="rounded-2xl border border-border bg-card/60 p-4 md:p-5 shadow-xs space-y-3">
+      <div className="rounded-2xl border border-border dark:border-neutral-800 bg-card/60 dark:bg-card/40 p-4 md:p-5 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             Set a Financial Goal with AI
           </span>
           <span className="text-[11px] text-muted-foreground hidden sm:inline">
@@ -243,8 +243,11 @@ export default function GoalsPlannerPage() {
           </span>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2.5">
+        <div className="flex flex-col sm:flex-row gap-2.5 items-stretch">
           <div className="relative flex-1">
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground">
+              <Target className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
             <input
               type="text"
               value={promptInput}
@@ -252,13 +255,13 @@ export default function GoalsPlannerPage() {
               onKeyDown={(e) => e.key === 'Enter' && !addingGoal && handleAddGoal()}
               placeholder="e.g. A bike of 55k, Goa vacation ₹35,000, or MacBook Air for 1.15 lakh..."
               disabled={addingGoal}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500 text-xs md:text-sm font-medium transition shadow-2xs"
+              className="w-full h-11 pl-10 pr-4 rounded-xl bg-card dark:bg-[#111111] border border-border dark:border-neutral-800 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 text-xs md:text-sm font-medium transition shadow-xs"
             />
           </div>
           <button
             onClick={() => handleAddGoal()}
             disabled={addingGoal || !promptInput.trim()}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition shadow-xs disabled:opacity-50 cursor-pointer whitespace-nowrap"
+            className="h-11 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs md:text-sm transition shadow-xs disabled:opacity-50 cursor-pointer shrink-0 inline-flex items-center justify-center gap-1.5 whitespace-nowrap"
           >
             {addingGoal ? (
               <>
@@ -267,7 +270,7 @@ export default function GoalsPlannerPage() {
               </>
             ) : (
               <>
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4" />
                 <span>Add Goal</span>
               </>
             )}
@@ -286,7 +289,7 @@ export default function GoalsPlannerPage() {
                 key={starter.label}
                 onClick={() => handleAddGoal(starter.query)}
                 disabled={addingGoal}
-                className="text-xs px-3 py-1.5 rounded-full bg-card hover:bg-muted border border-border hover:border-emerald-500/50 text-foreground transition shrink-0 whitespace-nowrap cursor-pointer shadow-2xs font-medium inline-flex items-center gap-1.5"
+                className="text-xs px-3 py-1.5 rounded-full bg-card dark:bg-[#111111] hover:bg-muted border border-border dark:border-neutral-800 hover:border-emerald-500/50 text-foreground transition shrink-0 whitespace-nowrap cursor-pointer shadow-2xs font-medium inline-flex items-center gap-1.5"
               >
                 <Icon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>{starter.label}</span>
