@@ -37,7 +37,8 @@ from routers import (
     internal_auth,
     email_sync,
     investments,
-    tax
+    tax,
+    goals
 )
 
 @asynccontextmanager
@@ -76,6 +77,7 @@ app.include_router(internal_auth.router, prefix="/api", tags=["Internal User Per
 app.include_router(email_sync.router, prefix="/api/email-sync", tags=["Email Sync & OAuth"])
 app.include_router(investments.router, prefix="/api/investments", tags=["Investments & Liquidity Advisor"])
 app.include_router(tax.router, prefix="/api/tax", tags=["Tax Intelligence"])
+app.include_router(goals.router, prefix="/api/goals", tags=["Goals & Recurring Optimizer"])
 
 @app.get("/health", tags=["Health"])
 def health_check():

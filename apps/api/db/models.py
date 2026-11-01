@@ -32,6 +32,8 @@ class User(Base):
     scenarios = relationship("Scenario", back_populates="user", cascade="all, delete-orphan")
     oauth_accounts = relationship("OAuthAccount", back_populates="user", cascade="all, delete-orphan")
     email_sync_audits = relationship("EmailSyncAudit", back_populates="user", cascade="all, delete-orphan")
+    goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
+    goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
 
 class UserProfile(Base):
     __tablename__ = "user_profiles"
@@ -262,3 +264,23 @@ class EmailSyncAudit(Base):
     __table_args__ = (
         Index("ix_email_sync_user_msg", "user_id", "google_message_id", unique=True),
     )
+
+
+class Goal(Base):
+    __tablename__ = "goals"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True, default=DEMO_USER_ID)
+    title = Column(String, nullable=False)
+    target_amount_minor = Column(BigInteger, nullable=False)  # in integer paise
+    current_saved_minor = Column(BigInteger, default=0)        # in integer paise
+    target_date = Column(String, nullable=True)               # ISO YYYY-MM-DD
+    category = Column(String, default="other")                # vehicle, gadget, travel, emergency_fund, lifestyle, other
+    priority = Column(Integer, default=1)                     # 1 = Highest
+    status = Column(String, default="active")                 # active, completed, archived
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="goals")
+

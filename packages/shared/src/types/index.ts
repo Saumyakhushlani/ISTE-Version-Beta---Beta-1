@@ -260,3 +260,80 @@ export interface OnboardingRequest {
   preferred_currency?: string;
   bank_accounts: OnboardingBankInput[];
 }
+
+// -------------------------------------------------------------
+// Financial Goals & Recurring Optimization Types
+// -------------------------------------------------------------
+
+export type GoalCategory = 'vehicle' | 'gadget' | 'travel' | 'emergency_fund' | 'house' | 'education' | 'lifestyle' | 'other';
+
+export interface Goal {
+  id: string;
+  user_id?: string;
+  title: string;
+  target_amount_minor: MinorAmount;
+  current_saved_minor: MinorAmount;
+  target_date?: string | null;
+  category: GoalCategory | string;
+  priority: number;
+  status: 'active' | 'completed' | 'archived';
+  notes?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface GoalOptimizationRecurringItem {
+  id: string;
+  merchant: string;
+  type: string;
+  cadence: string;
+  amount_minor: MinorAmount;
+  is_selected: boolean;
+  can_cancel: boolean;
+}
+
+export interface GoalMilestone {
+  goal_id: string;
+  title: string;
+  target_amount_minor: MinorAmount;
+  current_saved_minor: MinorAmount;
+  category: string;
+  priority: number;
+  baseline_months: number;
+  baseline_date: string;
+  optimized_months: number;
+  optimized_date: string;
+  months_saved: number;
+  is_achieved_immediately: boolean;
+}
+
+export interface GoalProjectionPoint {
+  month_index: number;
+  month_label: string;
+  baseline_saved_minor: MinorAmount;
+  optimized_saved_minor: MinorAmount;
+}
+
+export interface GoalOptimizationResult {
+  has_goals: boolean;
+  liquid_funds_minor: MinorAmount;
+  baseline_monthly_savings_minor: MinorAmount;
+  freed_monthly_savings_minor: MinorAmount;
+  optimized_monthly_savings_minor: MinorAmount;
+  savings_rate_pct: number;
+  total_target_minor: MinorAmount;
+  milestones: GoalMilestone[];
+  projection_graph: GoalProjectionPoint[];
+  recurring_items: GoalOptimizationRecurringItem[];
+  ai_advisory: {
+    headline: string;
+    summary: string;
+    recommended_savings_minor: MinorAmount;
+    actionable_cuts: Array<{
+      recurring_id: string;
+      merchant: string;
+      amount_minor: MinorAmount;
+      impact: string;
+    }>;
+  };
+}

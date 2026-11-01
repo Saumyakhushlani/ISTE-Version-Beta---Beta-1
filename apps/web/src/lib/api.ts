@@ -473,4 +473,43 @@ export const api = {
 
   getTaxSummary: () => fetchFromApi("/api/tax/summary"),
   getTaxPdfUrl: () => "/api/proxy/tax/pdf",
+
+  // Financial Goals & Recurring Optimization
+  getGoals: (status?: string) =>
+    fetchFromApi(`/api/goals${toQueryString({ status })}`),
+
+  createGoal: (data: {
+    parse_prompt?: string;
+    title?: string;
+    target_amount_minor?: number;
+    current_saved_minor?: number;
+    target_date?: string;
+    category?: string;
+    priority?: number;
+    notes?: string;
+  }) =>
+    fetchFromApi("/api/goals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  deleteGoal: (goalId: string) =>
+    fetchFromApi(`/api/goals/${goalId}`, {
+      method: "DELETE",
+    }),
+
+  updateGoal: (goalId: string, data: any) =>
+    fetchFromApi(`/api/goals/${goalId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  optimizeGoals: (excludedRecurringIds: string[] = []) =>
+    fetchFromApi("/api/goals/optimize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ excluded_recurring_ids: excludedRecurringIds }),
+    }),
 };
